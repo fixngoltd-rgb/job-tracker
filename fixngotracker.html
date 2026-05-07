@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FieldDesk — Job Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg: #f4f6f8; /* Light gray background */
+  --s1: #ffffff; /* White sidebar/modals */
+  --s2: #ffffff; /* White cards */
+  --s3: #f8f9fa; /* Slightly darker hover states */
+  --border: #e2e8f0; /* Light borders */
+  --border2: #cbd5e1; /* Darker borders for inputs */
+  --text: #0f172a; /* Dark slate text */
+  --muted: #64748b; /* Muted gray text */
+  --muted2: #475569;
+  --accent: #2563eb; /* Primary blue accent */
+  --accent-text: #ffffff; /* Text on accent */
+  --blue: #0284c7;
+  --purple: #7c3aed;
+  --orange: #ea580c;
+  --red: #dc2626;
+  --green: #16a34a;
+  --yellow: #ca8a04;
+}
+html,body{height:100%;overflow:hidden;font-size:16px;}
+body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+
+#topbar{
+  height:70px;min-height:70px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;
+  border-bottom:1px solid var(--border);
+  background:var(--s1);
+  z-index:200;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.logo{font-size:1.4rem;font-weight:900;letter-spacing:.06em;color:var(--accent)}
+.logo span{color:var(--muted);font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:12px}
+#search-input{
+  background:var(--s1);border:1px solid var(--border2);
+  border-radius:8px;padding:10px 16px;
+  color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:1rem;
+  outline:none;width:280px;transition:border .15s, box-shadow .15s;
+}
+#search-input:focus{border-color:var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15);}
+#search-input::placeholder{color:var(--muted)}
+.btn-add{
+  background:var(--accent);color:var(--accent-text);border:none;
+  padding:10px 20px;border-radius:8px;
+  font-family:'Barlow',sans-serif;font-weight:700;font-size:1rem;
+  cursor:pointer;letter-spacing:.02em;
+  transition:all .15s;white-space:nowrap;
+  box-shadow: 0 2px 4px rgba(37,99,235,0.2);
+}
+.btn-add:hover{background:#1d4ed8; box-shadow: 0 4px 6px rgba(37,99,235,0.3); transform: translateY(-1px);}
+
+#app{display:flex;flex:1;overflow:hidden}
+
+#sidebar{
+  width:340px;min-width:340px;
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  background:var(--s1);
+  box-shadow: 1px 0 3px rgba(0,0,0,0.02);
+}
+.sidebar-filters{
+  padding:16px;border-bottom:1px solid var(--border);
+  display:flex;flex-wrap:wrap;gap:8px;
+  background: var(--s3);
+}
+.fchip{
+  font-family:'IBM Plex Mono',monospace;font-size:0.9rem;font-weight:500;
+  padding:8px 12px;border-radius:6px;
+  border:1px solid var(--border2);
+  background:var(--s1);color:var(--muted2);
+  cursor:pointer;transition:all .15s;
+}
+.fchip:hover,.fchip.active{border-color:var(--accent);color:var(--accent);background:#eff6ff;}
+.fchip.all.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+
+#job-list{overflow-y:auto;flex:1;padding:12px}
+.job-item{
+  padding:16px;border-radius:10px;
+  border:1px solid var(--border);
+  margin-bottom:10px;cursor:pointer;
+  background:var(--s2);
+  transition:all .15s;
+  position:relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.job-item:hover{border-color:var(--border2); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
+.job-item.active{border-color:var(--accent);background:#eff6ff;box-shadow:0 0 0 1px var(--accent);}
+.job-item-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.job-ref{font-family:'IBM Plex Mono',monospace;font-size:0.9rem;color:var(--muted);font-weight:600;}
+.p-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.job-tenant{font-weight:800;font-size:1.15rem;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+.job-desc-pre{font-size:1rem;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:12px}
+.status-pill{
+  display:inline-block;
+  font-family:'IBM Plex Mono',monospace;font-size:0.85rem;font-weight:700;
+  padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;
+}
+
+#detail{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.empty-state{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:16px;color:var(--muted);
+}
+.empty-icon{font-size:4rem;margin-bottom:8px; opacity: 0.5;}
+
+#detail-inner{padding:40px 48px;display:flex;flex-direction:column;gap:32px;max-width:1000px;margin:0 auto;width:100%;}
+
+.dh{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.dh-left h2{font-size:2.2rem;font-weight:900;letter-spacing:-.02em;color:var(--text);margin-bottom:6px;}
+.dh-left .dref{font-family:'IBM Plex Mono',monospace;font-size:1rem;color:var(--muted);font-weight:500;}
+.dh-right{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
+
+.btn-icon{
+  background:var(--s1);border:1px solid var(--border2);
+  padding:10px 18px;border-radius:8px;
+  font-family:'Barlow',sans-serif;font-size:1rem;font-weight:700;
+  color:var(--text);cursor:pointer;transition:all .15s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.btn-icon:hover{border-color:var(--accent);color:var(--accent);background:#eff6ff;}
+.btn-icon.red:hover{border-color:var(--red);color:var(--red);background:#fef2f2;}
+.btn-icon.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.btn-icon.primary:hover{background:#1d4ed8;color:var(--accent-text);}
+
+.stepper-card{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:12px;padding:24px 30px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+.card-label{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:20px}
+.stepper{display:flex;align-items:center;overflow-x:auto;gap:0;padding-bottom:8px}
+.step{display:flex;flex-direction:column;align-items:center;gap:10px;flex:1;min-width:90px;cursor:pointer}
+.step-circle{
+  width:40px;height:40px;border-radius:50%;
+  border:2px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:600;font-family:'IBM Plex Mono',monospace;
+  color:var(--muted);background:var(--s1);
+  position:relative;z-index:1;transition:all .2s;
+}
+.step-circle.done{background:var(--green);border-color:var(--green);color:#fff}
+.step-circle.current{border-color:var(--accent);color:var(--accent);background:#eff6ff;box-shadow:0 0 0 4px rgba(37,99,235,0.15)}
+.step-label{font-size:0.95rem;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--muted);text-align:center;line-height:1.4}
+.step-label.current{color:var(--accent)}
+.step-line{flex:1;height:3px;background:var(--border);margin-bottom:28px;transition:background .2s}
+.step-line.done{background:var(--green)}
+
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.info-card{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:20px 24px;box-shadow: 0 2px 8px rgba(0,0,0,0.03);}
+.ic-label{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.ic-val{font-size:1.2rem;font-weight:800;color:var(--text);}
+.ic-sub{font-size:1rem;font-family:'IBM Plex Mono',monospace;color:var(--muted2);margin-top:6px}
+
+.section{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:28px 32px;box-shadow: 0 2px 8px rgba(0,0,0,0.03);}
+.section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.section-title{font-weight:800;font-size:1.3rem;letter-spacing:.01em;color:var(--text);}
+
+.note-group{margin-bottom:24px}
+.note-date-hdr{
+  font-family:'IBM Plex Mono',monospace;font-size:1rem;
+  color:var(--text);font-weight:700;
+  border-left:3px solid var(--accent);
+  padding-left:12px;margin-bottom:12px;
+}
+.note-item{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;padding:16px 20px;margin-bottom:10px;
+}
+.note-time{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;color:var(--muted);font-weight:600;margin-bottom:8px}
+.note-text{font-size:1.1rem;line-height:1.6;color:var(--text);}
+
+.note-form{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.note-form-row{display:flex;gap:12px}
+input.field,textarea.field,select.field{
+  background:var(--s1);border:1px solid var(--border2);
+  border-radius:8px;padding:14px 16px;
+  color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:1rem;
+  outline:none;transition:border .15s, box-shadow .15s;width:100%;
+}
+input.field:focus,textarea.field:focus,select.field:focus{border-color:var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15);}
+input.field::placeholder,textarea.field::placeholder{color:var(--muted)}
+textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
+select.field option{background:var(--s1)}
+.btn-note{
+  background:var(--accent);color:var(--accent-text);border:none;
+  padding:12px 24px;border-radius:8px;
+  font-family:'Barlow',sans-serif;font-weight:800;font-size:1rem;
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+  box-shadow: 0 2px 4px rgba(37,99,235,0.2);
+}
+.btn-note:hover{background:#1d4ed8; transform: translateY(-1px);}
+
+.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+.media-thumb{
+  aspect-ratio:1;border-radius:8px;
+  overflow:hidden;border:1px solid var(--border2);
+  cursor:pointer;position:relative;background:var(--bg);
+}
+.media-thumb img{width:100%;height:100%;object-fit:cover;transition:opacity .15s}
+.media-thumb:hover img{opacity:.8}
+.media-add{
+  aspect-ratio:1;border-radius:8px;border:2px dashed var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--muted);font-size:2rem;
+  transition:all .15s;background:var(--s1);
+}
+.media-add:hover{border-color:var(--accent);color:var(--accent);background:#eff6ff;}
+
+.overlay{
+  position:fixed;inset:0;background:rgba(15,23,42,.6);
+  z-index:500;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(4px);
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{
+  background:var(--s1);border:none;
+  border-radius:16px;width:90%;max-width:700px;
+  max-height:90vh;overflow-y:auto;
+  padding:40px;
+  transform:translateY(20px);transition:transform .2s;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,.1), 0 8px 10px -6px rgba(0,0,0,.1);
+}
+.overlay.open .modal{transform:translateY(0)}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px}
+.modal-title{font-size:1.6rem;font-weight:900;letter-spacing:-.01em;color:var(--text);}
+.modal-close{background:var(--bg);border:none;border-radius:50%;width:36px;height:36px;color:var(--muted);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.modal-close:hover{background:#f1f5f9;color:var(--text)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.form-grid.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:8px}
+.form-group.span2{grid-column:span 2}
+.flabel{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em}
+.form-actions{display:flex;justify-content:flex-end;gap:16px;margin-top:32px;padding-top:24px;border-top:1px solid var(--border);}
+.btn-cancel{
+  background:var(--s1);border:1px solid var(--border2);
+  padding:12px 28px;border-radius:8px;
+  font-family:'Barlow',sans-serif;font-weight:700;font-size:1.05rem;
+  color:var(--text);cursor:pointer;transition:all .15s;
+}
+.btn-cancel:hover{border-color:var(--red);color:var(--red);background:#fef2f2;}
+.btn-save{
+  background:var(--accent);color:var(--accent-text);border:none;
+  padding:12px 32px;border-radius:8px;
+  font-family:'Barlow',sans-serif;font-weight:800;font-size:1.05rem;
+  cursor:pointer;transition:all .15s;
+  box-shadow: 0 2px 4px rgba(37,99,235,0.2);
+}
+.btn-save:hover{background:#1d4ed8; transform: translateY(-1px);}
+
+.s-active{background:#e0f2fe;color:var(--blue)}
+.s-contacted{background:#f3e8ff;color:var(--purple)}
+.s-booked{background:#ffedd5;color:var(--orange)}
+.s-completed{background:#dcfce7;color:var(--green)}
+.s-cancelled{background:#fee2e2;color:var(--red)}
+.s-revisit{background:#fef3c7;color:var(--yellow)}
+
+.p-normal{background:var(--muted2)}
+.p-urgent{background:var(--yellow)}
+.p-emergency{background:var(--red)}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+.status-select-wrap{position:relative;display:inline-block}
+.status-dropdown{
+  position:absolute;top:calc(100% + 8px);right:0;
+  background:var(--s1);border:1px solid var(--border2);
+  border-radius:10px;padding:8px;z-index:300;
+  display:none;min-width:220px;
+  box-shadow:0 10px 25px -5px rgba(0,0,0,.1), 0 8px 10px -6px rgba(0,0,0,.1);
+}
+.status-dropdown.open{display:block}
+.sd-item{
+  padding:10px 16px;border-radius:6px;cursor:pointer;
+  font-size:1rem;font-weight:700;transition:background .1s;
+  display:flex;align-items:center;gap:12px;
+}
+.sd-item:hover{background:var(--bg)}
+
+#lightbox{
+  position:fixed;inset:0;background:rgba(0,0,0,.9);
+  z-index:600;display:none;align-items:center;justify-content:center;
+  cursor:pointer;
+}
+#lightbox.open{display:flex}
+#lightbox img{max-width:90%;max-height:90%;border-radius:12px;object-fit:contain}
+
+@media(max-width:768px){
+  #sidebar{width:100%;min-width:unset;display:none}
+  #sidebar.mob-show{display:flex}
+  #detail{display:none}
+  #detail.mob-show{display:flex}
+  .form-grid{grid-template-columns:1fr}
+  .form-group.span2{grid-column:span 1}
+  #detail-inner{padding:24px 20px}
+  .dh{flex-direction:column;gap:12px;}
+  .info-grid{grid-template-columns:1fr}
+  .topbar-back{display:flex}
+  .modal{padding:24px;width:95%;}
+}
+.topbar-back{display:none;background:none;border:none;color:var(--accent);font-size:1.1rem;font-weight:800;cursor:pointer;font-family:'Barlow',sans-serif;align-items:center;gap:6px}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <button class="topbar-back" onclick="mobileBack()">← Back</button>
+  <div class="logo">FIELD<span>DESK</span></div>
+  <div class="topbar-right">
+    <input id="search-input" class="field" placeholder="Search jobs..." oninput="renderList()">
+    <button class="btn-add" onclick="openAddModal()">+ New Job</button>
+  </div>
+</div>
+
+<div id="app">
+  <div id="sidebar">
+    <div class="sidebar-filters" id="filter-bar"></div>
+    <div id="job-list"></div>
+  </div>
+
+  <div id="detail">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">📋</div>
+      <div style="font-weight:800;font-size:1.4rem;color:var(--text);">Select a job to view details</div>
+      <div style="font-size:1.1rem">or create a new one</div>
+    </div>
+    <div id="detail-inner" style="display:none"></div>
+  </div>
+</div>
+
+<div class="overlay" id="job-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title">New Job</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group span2">
+        <div class="flabel">Job Description *</div>
+        <textarea class="field" id="f-desc" rows="3" placeholder="What is the job?"></textarea>
+      </div>
+      <div class="form-group">
+        <div class="flabel">Tenant Name *</div>
+        <input class="field" id="f-tenant" placeholder="Full name">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Tenant Phone</div>
+        <input class="field" id="f-tenant-phone" placeholder="+44...">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Tenant Email</div>
+        <input class="field" id="f-tenant-email" placeholder="tenant@email.com">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Tenant Address</div>
+        <input class="field" id="f-address" placeholder="Property address">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Technician Name</div>
+        <input class="field" id="f-tech" placeholder="Technician full name">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Technician Phone</div>
+        <input class="field" id="f-tech-phone" placeholder="+44...">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Priority</div>
+        <select class="field" id="f-priority">
+          <option value="normal">Normal</option>
+          <option value="urgent">Urgent</option>
+          <option value="emergency">Emergency</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="flabel">Status</div>
+        <select class="field" id="f-status">
+          <option value="active">Active</option>
+          <option value="contacted">Contacted Tenant</option>
+          <option value="booked">Booked</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="revisit">Needs Revisit</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveJob()">Save Job</button>
+    </div>
+  </div>
+</div>
+
+<div class="status-dropdown" id="status-dropdown">
+  <div class="sd-item" onclick="setStatus('active')"><span class="status-pill s-active">Active</span></div>
+  <div class="sd-item" onclick="setStatus('contacted')"><span class="status-pill s-contacted">Contacted Tenant</span></div>
+  <div class="sd-item" onclick="setStatus('booked')"><span class="status-pill s-booked">Booked</span></div>
+  <div class="sd-item" onclick="setStatus('completed')"><span class="status-pill s-completed">Completed</span></div>
+  <div class="sd-item" onclick="setStatus('cancelled')"><span class="status-pill s-cancelled">Cancelled</span></div>
+  <div class="sd-item" onclick="setStatus('revisit')"><span class="status-pill s-revisit">Needs Revisit</span></div>
+</div>
+
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<input type="file" id="media-file-input" accept="image/*" style="display:none" multiple onchange="handleMediaUpload(event)">
+
+<script>
+const supabaseUrl = 'https://ojxqplxgyfokhkoyacic.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qeHFwbHhneWZva2hrb3lhY2ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzg4MDcsImV4cCI6MjA5MzcxNDgwN30.G1m4yBF3MDMmpScVj9GQRDzZdy5TR38MxBowPHROlNY';
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+let jobs = [];
+let currentJobId = null;
+let editingJobId = null;
+let currentFilter = 'all';
+let statusDropdownOpen = false;
+
+const STATUS_STEPS = ['active','contacted','booked','completed'];
+const STATUS_LABELS = {
+  active: 'Active', contacted: 'Contacted', booked: 'Booked',
+  completed: 'Completed', cancelled: 'Cancelled', revisit: 'Needs Revisit'
+};
+const PRIORITY_LABEL = { normal:'Normal', urgent:'Urgent', emergency:'Emergency' };
+
+function statusClass(s){ return 's-'+s; }
+function priorityColor(p){ return p==='emergency'?'var(--red)':p==='urgent'?'var(--yellow)':'var(--muted)'; }
+
+function genId(){ return crypto.randomUUID(); }
+function genRef(){
+  const max = jobs.reduce((m,j)=>{ const n=parseInt(j.ref.split('-')[1]||0); return n>m?n:m; }, 0);
+  return 'JOB-' + String(max+1).padStart(3,'0');
+}
+function fmtDate(d){ if(!d)return ''; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}`; }
+function today(){ return new Date().toISOString().slice(0,10); }
+function nowTime(){ const n=new Date(); return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); }
+
+function getJob(id){ return jobs.find(j=>j.id===id); }
+
+async function fetchJobs() {
+  const { data: jobsData, error: jobsError } = await supabaseClient
+    .from('jobs')
+    .select('*')
+    .order('created', { ascending: false });
+  
+  if (jobsError) {
+    console.error('Error fetching jobs:', jobsError);
+    alert('Failed to fetch jobs from Supabase: ' + jobsError.message);
+    return;
+  }
+
+  const { data: notesData, error: notesError } = await supabaseClient
+    .from('notes')
+    .select('*');
+
+  if (notesError) {
+    console.error('Error fetching notes:', notesError);
+  }
+  
+  if (jobsData) {
+    jobs = jobsData.map(j => {
+      const jNotes = notesData ? notesData.filter(n => n.job_id === j.id).map(n => ({
+        id: n.id,
+        date: n.note_date,
+        time: n.note_time,
+        text: n.text
+      })) : [];
+      
+      return { ...j, notes: jNotes, media: [] };
+    });
+    
+    renderFilters();
+    renderList();
+    if (currentJobId) renderDetail();
+  }
+}
+
+function renderFilters(){
+  const counts = { all: jobs.length };
+  ['active','contacted','booked','completed','cancelled','revisit'].forEach(s=>{
+    counts[s] = jobs.filter(j=>j.status===s).length;
+  });
+  const filters = [
+    { key:'all', label:'All' },
+    { key:'active', label:'Active' },
+    { key:'contacted', label:'Contacted' },
+    { key:'booked', label:'Booked' },
+    { key:'completed', label:'Done' },
+    { key:'cancelled', label:'Cancelled' },
+    { key:'revisit', label:'Revisit' },
+  ];
+  document.getElementById('filter-bar').innerHTML = filters.map(f=>
+    `<button class="fchip ${f.key==='all'?'all':''} ${currentFilter===f.key?'active':''}" onclick="setFilter('${f.key}')">${f.label} <span style="opacity:.6; font-size: 0.85em;">${counts[f.key]||0}</span></button>`
+  ).join('');
+}
+
+function setFilter(f){ currentFilter=f; renderFilters(); renderList(); }
+
+function renderList(){
+  const q = document.getElementById('search-input').value.toLowerCase();
+  let filtered = jobs.filter(j=>{
+    if(currentFilter!=='all' && j.status!==currentFilter) return false;
+    if(q && !j.tenant.toLowerCase().includes(q) && !(j.description || '').toLowerCase().includes(q) && !j.ref.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  
+  const pOrder = { emergency:0, urgent:1, normal:2 };
+  filtered.sort((a,b)=> pOrder[a.priority]-pOrder[b.priority] || b.created.localeCompare(a.created));
+
+  const list = document.getElementById('job-list');
+  if(!filtered.length){
+    list.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--muted);font-size:1.1rem;font-weight:600;">No jobs found</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(j=>`
+    <div class="job-item ${currentJobId===j.id?'active':''}" onclick="selectJob('${j.id}')">
+      <div class="job-item-top">
+        <span class="job-ref">${j.ref}</span>
+        <span class="p-dot" style="background:${priorityColor(j.priority)}" title="${PRIORITY_LABEL[j.priority]}"></span>
+      </div>
+      <div class="job-tenant">${j.tenant||'—'}</div>
+      <div class="job-desc-pre">${j.description}</div>
+      <span class="status-pill ${statusClass(j.status)}">${STATUS_LABELS[j.status]}</span>
+    </div>
+  `).join('');
+}
+
+function selectJob(id){
+  currentJobId = id;
+  renderList();
+  renderDetail();
+  document.getElementById('sidebar').classList.remove('mob-show');
+  document.getElementById('detail').classList.add('mob-show');
+  document.querySelector('.topbar-back').style.display = 'flex';
+}
+
+function mobileBack(){
+  document.getElementById('sidebar').classList.add('mob-show');
+  document.getElementById('detail').classList.remove('mob-show');
+  document.querySelector('.topbar-back').style.display = 'none';
+  currentJobId = null;
+  renderList();
+}
+
+function renderDetail(){
+  const j = getJob(currentJobId);
+  document.getElementById('empty-state').style.display = 'none';
+  const di = document.getElementById('detail-inner');
+  di.style.display = 'flex';
+
+  const notesByDate = {};
+  (j.notes||[]).forEach(n=>{
+    if(!notesByDate[n.date]) notesByDate[n.date] = [];
+    notesByDate[n.date].push(n);
+  });
+  const sortedDates = Object.keys(notesByDate).sort((a,b)=>b.localeCompare(a));
+  sortedDates.forEach(d=> notesByDate[d].sort((a,b)=>b.time.localeCompare(a.time)));
+
+  const notesHTML = sortedDates.length ? sortedDates.map(date=>`
+    <div class="note-group">
+      <div class="note-date-hdr">${fmtDate(date)}</div>
+      ${notesByDate[date].map(n=>`
+        <div class="note-item">
+          <div class="note-time">${n.time}</div>
+          <div class="note-text">${escHtml(n.text)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('') : `<div style="color:var(--muted);font-size:1.1rem;font-weight:500;">No notes yet.</div>`;
+
+  const mainSteps = STATUS_STEPS;
+  let stepperHTML = '';
+  const currentIdx = mainSteps.indexOf(j.status);
+  mainSteps.forEach((s,i)=>{
+    const isDone = currentIdx > i || (currentIdx === i && s==='completed');
+    const isCurrent = currentIdx === i;
+    if(i>0) stepperHTML += `<div class="step-line ${isDone?'done':''}"></div>`;
+    stepperHTML += `
+      <div class="step" onclick="openStatusDropdown(event)">
+        <div class="step-circle ${isDone?'done':''} ${isCurrent?'current':''}">
+          ${isDone ? '✓' : i+1}
+        </div>
+        <div class="step-label ${isCurrent?'current':''}">${STATUS_LABELS[s]}</div>
+      </div>`;
+  });
+  
+  if(j.status==='cancelled'||j.status==='revisit'){
+    stepperHTML += `
+      <div class="step-line"></div>
+      <div class="step" onclick="openStatusDropdown(event)">
+        <div class="step-circle" style="border-color:${j.status==='cancelled'?'var(--red)':'var(--yellow)'};color:${j.status==='cancelled'?'var(--red)':'var(--yellow)'};background:${j.status==='cancelled'?'#fef2f2':'#fefce8'};">!</div>
+        <div class="step-label" style="color:${j.status==='cancelled'?'var(--red)':'var(--yellow)'}">${STATUS_LABELS[j.status]}</div>
+      </div>`;
+  }
+
+  const mediaHTML = `
+    <div class="media-grid">
+      ${(j.media||[]).map((m,i)=>`
+        <div class="media-thumb" onclick="openLightbox('${m.url}')">
+          <img src="${m.url}" alt="media ${i+1}">
+        </div>
+      `).join('')}
+      <div class="media-add" onclick="document.getElementById('media-file-input').click()" title="Add image">+</div>
+    </div>
+    <div style="font-size:0.95rem;color:var(--muted);margin-top:12px;font-family:'IBM Plex Mono',monospace;">
+      Images are local only for this session. To permanently save media, you must add a media table to your database.
+    </div>
+  `;
+
+  di.innerHTML = `
+    <div class="dh">
+      <div class="dh-left">
+        <h2>${escHtml(j.tenant)}</h2>
+        <div class="dref">${j.ref} · Created ${fmtDate(j.created)}</div>
+      </div>
+      <div class="dh-right">
+        <button class="btn-icon" onclick="openStatusDropdown(event)" id="status-btn">
+          <span class="status-pill ${statusClass(j.status)}">${STATUS_LABELS[j.status]}</span> ▾
+        </button>
+        <button class="btn-icon" onclick="openEditModal()">Edit</button>
+        <button class="btn-icon red" onclick="deleteJob()">Delete</button>
+      </div>
+    </div>
+
+    <div class="stepper-card">
+      <div class="card-label">Job Progress</div>
+      <div class="stepper">${stepperHTML}</div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="ic-label">Priority</div>
+        <div class="ic-val" style="color:${priorityColor(j.priority)}">${PRIORITY_LABEL[j.priority]}</div>
+      </div>
+      <div class="info-card">
+        <div class="ic-label">Tenant Phone</div>
+        <div class="ic-val">${j.tenant_phone||'—'}</div>
+        ${j.tenant_email?`<div class="ic-sub">${j.tenant_email}</div>`:''}
+      </div>
+      <div class="info-card">
+        <div class="ic-label">Address</div>
+        <div class="ic-val" style="font-size:1.1rem;font-weight:600">${j.address||'—'}</div>
+      </div>
+      <div class="info-card">
+        <div class="ic-label">Technician</div>
+        <div class="ic-val">${j.tech||'—'}</div>
+        ${j.tech_phone?`<div class="ic-sub">${j.tech_phone}</div>`:''}
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="ic-label">Job Description</div>
+      <div style="font-size:1.15rem;line-height:1.6;margin-top:8px;color:var(--text);">${escHtml(j.description)}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-hdr">
+        <div class="section-title">Notes & Updates</div>
+      </div>
+      ${notesHTML}
+      <div class="note-form" id="note-form">
+        <div class="note-form-row">
+          <div style="flex:1">
+            <div class="flabel" style="margin-bottom:8px">Date</div>
+            <input type="date" class="field" id="note-date" value="${today()}">
+          </div>
+          <div style="flex:1">
+            <div class="flabel" style="margin-bottom:8px">Time</div>
+            <input type="time" class="field" id="note-time" value="${nowTime()}">
+          </div>
+        </div>
+        <textarea class="field" id="note-text" placeholder="What happened? What did you do?"></textarea>
+        <div><button class="btn-note" onclick="addNote()">+ Add Note</button></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-hdr">
+        <div class="section-title">Media / Photos</div>
+      </div>
+      ${mediaHTML}
+    </div>
+  `;
+}
+
+function openStatusDropdown(e){
+  e.stopPropagation();
+  const dd = document.getElementById('status-dropdown');
+  const btn = document.getElementById('status-btn');
+  if(!btn) return;
+  const r = btn.getBoundingClientRect();
+  dd.style.top = (r.bottom + window.scrollY + 8)+'px';
+  dd.style.right = (window.innerWidth - r.right)+'px';
+  dd.style.left = 'auto';
+  dd.classList.toggle('open');
+}
+document.addEventListener('click', ()=>{ document.getElementById('status-dropdown').classList.remove('open'); });
+
+async function setStatus(s){
+  const j = getJob(currentJobId);
+  if(!j) return;
+  
+  const { error } = await supabaseClient
+    .from('jobs')
+    .update({ status: s })
+    .eq('id', currentJobId);
+
+  if (error) {
+    alert('Failed to update status: ' + error.message);
+    return;
+  }
+  
+  j.status = s; 
+  document.getElementById('status-dropdown').classList.remove('open');
+  renderList();
+  renderDetail();
+}
+
+async function addNote(){
+  const j = getJob(currentJobId);
+  if(!j) return;
+  const text = document.getElementById('note-text').value.trim();
+  if(!text) return;
+  const date = document.getElementById('note-date').value || today();
+  const time = document.getElementById('note-time').value || nowTime();
+  
+  const dbNote = {
+    job_id: currentJobId,
+    note_date: date,
+    note_time: time,
+    text: text
+  };
+
+  const { data, error } = await supabaseClient
+    .from('notes')
+    .insert([dbNote])
+    .select();
+
+  if (error) {
+    alert('Failed to save note: ' + error.message);
+    return;
+  }
+
+  const newId = data && data.length > 0 ? data[0].id : genId();
+  const newNotes = [...(j.notes||[]), { id: newId, date, time, text }];
+  newNotes.sort((a,b)=> a.date===b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date));
+
+  j.notes = newNotes;
+  renderDetail(); 
+  setTimeout(()=>{ document.getElementById('note-form')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 100);
+}
+
+function handleMediaUpload(e){
+  const j = getJob(currentJobId);
+  if(!j) return;
+  const files = Array.from(e.target.files);
+  
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const newMedia = [...(j.media||[]), { id: genId(), url: ev.target.result, name: file.name }];
+      j.media = newMedia;
+      renderDetail(); 
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
+}
+
+function openLightbox(url){
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox(){ document.getElementById('lightbox').classList.remove('open'); }
+
+function openAddModal(){
+  editingJobId = null;
+  document.getElementById('modal-title').textContent = 'New Job';
+  ['desc','tenant','tenant-phone','tenant-email','address','tech','tech-phone'].forEach(id=>{
+    document.getElementById('f-'+id).value = '';
+  });
+  document.getElementById('f-priority').value = 'normal';
+  document.getElementById('f-status').value = 'active';
+  document.getElementById('job-modal').classList.add('open');
+}
+
+function openEditModal(){
+  const j = getJob(currentJobId);
+  if(!j) return;
+  editingJobId = j.id;
+  document.getElementById('modal-title').textContent = 'Edit Job';
+  document.getElementById('f-desc').value = j.description || '';
+  document.getElementById('f-tenant').value = j.tenant;
+  document.getElementById('f-tenant-phone').value = j.tenant_phone||'';
+  document.getElementById('f-tenant-email').value = j.tenant_email||'';
+  document.getElementById('f-address').value = j.address||'';
+  document.getElementById('f-tech').value = j.tech||'';
+  document.getElementById('f-tech-phone').value = j.tech_phone||'';
+  document.getElementById('f-priority').value = j.priority;
+  document.getElementById('f-status').value = j.status;
+  document.getElementById('job-modal').classList.add('open');
+}
+
+function closeModal(){
+  document.getElementById('job-modal').classList.remove('open');
+}
+
+async function saveJob(){
+  const desc = document.getElementById('f-desc').value.trim();
+  const tenant = document.getElementById('f-tenant').value.trim();
+  if(!desc || !tenant){ alert('Job description and tenant name are required.'); return; }
+
+  const saveBtn = document.querySelector('.btn-save');
+  saveBtn.textContent = 'Saving...';
+  saveBtn.disabled = true;
+
+  const dbData = {
+    description: desc,
+    tenant,
+    tenant_phone: document.getElementById('f-tenant-phone').value.trim(),
+    tenant_email: document.getElementById('f-tenant-email').value.trim(),
+    address: document.getElementById('f-address').value.trim(),
+    tech: document.getElementById('f-tech').value.trim(),
+    tech_phone: document.getElementById('f-tech-phone').value.trim(),
+    priority: document.getElementById('f-priority').value,
+    status: document.getElementById('f-status').value
+  };
+
+  if(editingJobId){
+    const { error } = await supabaseClient
+      .from('jobs')
+      .update(dbData)
+      .eq('id', editingJobId);
+
+    if (error) {
+      alert('Database error: ' + error.message);
+      saveBtn.textContent = 'Save Job';
+      saveBtn.disabled = false;
+      return;
+    }
+    
+    const j = getJob(editingJobId);
+    Object.assign(j, dbData);
+
+  } else {
+    const newJobDB = {
+      id: genId(),
+      ref: genRef(),
+      ...dbData,
+      created: today()
+    };
+    
+    const { error } = await supabaseClient
+      .from('jobs')
+      .insert([newJobDB]);
+
+    if (error) {
+      alert('Database error: ' + error.message);
+      saveBtn.textContent = 'Save Job';
+      saveBtn.disabled = false;
+      return;
+    }
+
+    const newJobLocal = { ...newJobDB, notes: [], media: [] };
+    jobs.unshift(newJobLocal);
+    currentJobId = newJobLocal.id;
+  }
+  
+  saveBtn.textContent = 'Save Job';
+  saveBtn.disabled = false;
+  closeModal();
+  renderFilters();
+  renderList();
+  if(currentJobId) renderDetail();
+}
+
+async function deleteJob(){
+  if(!confirm('Delete this job? This cannot be undone.')) return;
+  
+  const idToDelete = currentJobId;
+  
+  const { error } = await supabaseClient
+    .from('jobs')
+    .delete()
+    .eq('id', idToDelete);
+
+  if (error) {
+    alert('Failed to delete: ' + error.message);
+    return;
+  }
+
+  jobs = jobs.filter(j=>j.id!==idToDelete);
+  currentJobId = null;
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('detail-inner').style.display = 'none';
+  renderFilters();
+  renderList();
+}
+
+function escHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+function initMobile(){
+  if(window.innerWidth <= 768){
+    document.getElementById('sidebar').classList.add('mob-show');
+  }
+}
+
+initMobile();
+fetchJobs(); 
+</script>
+</body>
+</html>
