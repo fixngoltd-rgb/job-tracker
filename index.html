@@ -3,23 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FieldDesk — Job Tracker</title>
+<title>Fix and Go Job Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg: #f4f6f8; /* Light gray background */
-  --s1: #ffffff; /* White sidebar/modals */
-  --s2: #ffffff; /* White cards */
-  --s3: #f8f9fa; /* Slightly darker hover states */
-  --border: #e2e8f0; /* Light borders */
-  --border2: #cbd5e1; /* Darker borders for inputs */
-  --text: #0f172a; /* Dark slate text */
-  --muted: #64748b; /* Muted gray text */
+  --bg: #f4f6f8; 
+  --s1: #ffffff; 
+  --s2: #ffffff; 
+  --s3: #f8f9fa; 
+  --border: #e2e8f0; 
+  --border2: #cbd5e1; 
+  --text: #0f172a; 
+  --muted: #64748b; 
   --muted2: #475569;
-  --accent: #2563eb; /* Primary blue accent */
-  --accent-text: #ffffff; /* Text on accent */
+  --accent: #2563eb; 
+  --accent-text: #ffffff; 
   --blue: #0284c7;
   --purple: #7c3aed;
   --orange: #ea580c;
@@ -42,14 +42,17 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
 .logo{font-size:1.4rem;font-weight:900;letter-spacing:.06em;color:var(--accent)}
 .logo span{color:var(--muted);font-weight:500}
 .topbar-right{display:flex;align-items:center;gap:12px}
-#search-input{
+.field{
   background:var(--s1);border:1px solid var(--border2);
   border-radius:8px;padding:10px 16px;
   color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:1rem;
-  outline:none;width:280px;transition:border .15s, box-shadow .15s;
+  outline:none;transition:border .15s, box-shadow .15s;width:100%;
 }
-#search-input:focus{border-color:var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15);}
-#search-input::placeholder{color:var(--muted)}
+.field:focus{border-color:var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15);}
+.field::placeholder{color:var(--muted)}
+#search-input{width:280px;}
+#date-filter{width:160px; font-family:'Barlow',sans-serif;}
+
 .btn-add{
   background:var(--accent);color:var(--accent-text);border:none;
   padding:10px 20px;border-radius:8px;
@@ -60,19 +63,48 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
 }
 .btn-add:hover{background:#1d4ed8; box-shadow: 0 4px 6px rgba(37,99,235,0.3); transform: translateY(-1px);}
 
-#app{display:flex;flex:1;overflow:hidden}
+#app{display:flex;flex:1;overflow:hidden;flex-direction:column;}
 
-#sidebar{
-  width:340px;min-width:340px;
-  border-right:1px solid var(--border);
-  display:flex;flex-direction:column;
-  background:var(--s1);
-  box-shadow: 1px 0 3px rgba(0,0,0,0.02);
+#dashboard{display:flex;flex-direction:column;flex:1;overflow:hidden;}
+
+.summary-bar{
+  display:flex;gap:16px;padding:24px 24px 0 24px;overflow-x:auto;
 }
-.sidebar-filters{
-  padding:16px;border-bottom:1px solid var(--border);
-  display:flex;flex-wrap:wrap;gap:8px;
-  background: var(--s3);
+.stat-card{
+  flex:1;min-width:180px;border-radius:12px;padding:16px 20px;cursor:pointer;
+  transition:all .15s; border: 2px solid transparent;
+}
+.stat-card:hover{transform:translateY(-2px);}
+.sc-val{font-size:1.8rem;font-weight:900;margin-bottom:4px;}
+.sc-label{font-size:0.85rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;}
+
+.sc-today { background: #dcfce7; border-color: #bbf7d0; }
+.sc-today .sc-val { color: #166534; }
+.sc-today .sc-label { color: #15803d; }
+.sc-today.active { border-color: #22c55e; box-shadow: 0 4px 12px rgba(34,197,94,0.2); }
+
+.sc-upcoming { background: #e0f2fe; border-color: #bae6fd; }
+.sc-upcoming .sc-val { color: #075985; }
+.sc-upcoming .sc-label { color: #0369a1; }
+.sc-upcoming.active { border-color: #0ea5e9; box-shadow: 0 4px 12px rgba(14,165,233,0.2); }
+
+.sc-noset { background: #fee2e2; border-color: #fecaca; }
+.sc-noset .sc-val { color: #991b1b; }
+.sc-noset .sc-label { color: #b91c1c; }
+.sc-noset.active { border-color: #ef4444; box-shadow: 0 4px 12px rgba(239,68,68,0.2); }
+
+.sc-quotations { background: #f3e8ff; border-color: #e9d5ff; }
+.sc-quotations .sc-val { color: #6b21a8; }
+.sc-quotations .sc-label { color: #7e22ce; }
+.sc-quotations.active { border-color: #a855f7; box-shadow: 0 4px 12px rgba(168,85,247,0.2); }
+
+.sc-further { background: #fef3c7; border-color: #fde68a; }
+.sc-further .sc-val { color: #92400e; }
+.sc-further .sc-label { color: #b45309; }
+.sc-further.active { border-color: #f59e0b; box-shadow: 0 4px 12px rgba(245,158,11,0.2); }
+
+.filters-wrap{
+  padding:20px 24px;display:flex;gap:8px;flex-wrap:wrap;
 }
 .fchip{
   font-family:'IBM Plex Mono',monospace;font-size:0.9rem;font-weight:500;
@@ -84,42 +116,35 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
 .fchip:hover,.fchip.active{border-color:var(--accent);color:var(--accent);background:#eff6ff;}
 .fchip.all.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
 
-#job-list{overflow-y:auto;flex:1;padding:12px}
-.job-item{
-  padding:16px;border-radius:10px;
-  border:1px solid var(--border);
-  margin-bottom:10px;cursor:pointer;
-  background:var(--s2);
-  transition:all .15s;
-  position:relative;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+#job-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;
+  padding:0 24px 24px 24px;overflow-y:auto;flex:1;align-content:start;
 }
-.job-item:hover{border-color:var(--border2); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
-.job-item.active{border-color:var(--accent);background:#eff6ff;box-shadow:0 0 0 1px var(--accent);}
-.job-item-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.job-ref{font-family:'IBM Plex Mono',monospace;font-size:0.9rem;color:var(--muted);font-weight:600;}
-.p-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.job-tenant{font-weight:800;font-size:1.15rem;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
-.job-desc-pre{font-size:1rem;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:12px}
-.status-pill{
-  display:inline-block;
-  font-family:'IBM Plex Mono',monospace;font-size:0.85rem;font-weight:700;
-  padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;
+.job-card{
+  background:var(--s2);border:1px solid var(--border);border-radius:12px;
+  padding:20px;cursor:pointer;transition:all .15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);display:flex;flex-direction:column;
 }
+.job-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow: 0 6px 16px rgba(0,0,0,0.06);}
+.jc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+.jc-ref{font-family:'IBM Plex Mono',monospace;font-size:0.85rem;color:var(--muted);font-weight:600;}
+.jc-title{font-size:1.15rem;font-weight:800;color:var(--text);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.jc-info-row{font-size:0.95rem;color:var(--muted2);margin-bottom:6px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
-#detail{flex:1;overflow-y:auto;display:flex;flex-direction:column}
-.empty-state{
-  flex:1;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  gap:16px;color:var(--muted);
+.jc-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.tag{
+  font-family:'IBM Plex Mono',monospace;font-size:0.75rem;font-weight:700;
+  padding:4px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;
 }
-.empty-icon{font-size:4rem;margin-bottom:8px; opacity: 0.5;}
+.t-type{background:#f1f5f9;color:var(--muted2);border:1px solid var(--border2);}
+.jc-date{font-size:0.85rem;color:var(--muted);margin-top:12px;display:flex;align-items:center;gap:6px;font-weight:600;}
 
+#detail{flex:1;overflow-y:auto;display:flex;flex-direction:column;background:var(--bg);display:none;}
 #detail-inner{padding:40px 48px;display:flex;flex-direction:column;gap:32px;max-width:1000px;margin:0 auto;width:100%;}
 
 .dh{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
 .dh-left h2{font-size:2.2rem;font-weight:900;letter-spacing:-.02em;color:var(--text);margin-bottom:6px;}
-.dh-left .dref{font-family:'IBM Plex Mono',monospace;font-size:1rem;color:var(--muted);font-weight:500;}
+.dh-left .dref{font-family:'IBM Plex Mono',monospace;font-size:1rem;color:var(--muted);font-weight:500;line-height:1.5;}
 .dh-right{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
 
 .btn-icon{
@@ -132,7 +157,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
 .btn-icon:hover{border-color:var(--accent);color:var(--accent);background:#eff6ff;}
 .btn-icon.red:hover{border-color:var(--red);color:var(--red);background:#fef2f2;}
 .btn-icon.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
-.btn-icon.primary:hover{background:#1d4ed8;color:var(--accent-text);}
+.btn-icon.primary:hover{background:#1d4ed8;}
 
 .stepper-card{
   background:var(--s1);border:1px solid var(--border);
@@ -183,16 +208,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
 
 .note-form{display:flex;flex-direction:column;gap:12px;margin-top:16px}
 .note-form-row{display:flex;gap:12px}
-input.field,textarea.field,select.field{
-  background:var(--s1);border:1px solid var(--border2);
-  border-radius:8px;padding:14px 16px;
-  color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:1rem;
-  outline:none;transition:border .15s, box-shadow .15s;width:100%;
-}
-input.field:focus,textarea.field:focus,select.field:focus{border-color:var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15);}
-input.field::placeholder,textarea.field::placeholder{color:var(--muted)}
 textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
-select.field option{background:var(--s1)}
 .btn-note{
   background:var(--accent);color:var(--accent-text);border:none;
   padding:12px 24px;border-radius:8px;
@@ -202,21 +218,16 @@ select.field option{background:var(--s1)}
 }
 .btn-note:hover{background:#1d4ed8; transform: translateY(-1px);}
 
-.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
-.media-thumb{
-  aspect-ratio:1;border-radius:8px;
-  overflow:hidden;border:1px solid var(--border2);
-  cursor:pointer;position:relative;background:var(--bg);
+.media-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.media-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;font-size:1rem;font-weight:600;
 }
-.media-thumb img{width:100%;height:100%;object-fit:cover;transition:opacity .15s}
-.media-thumb:hover img{opacity:.8}
-.media-add{
-  aspect-ratio:1;border-radius:8px;border:2px dashed var(--border2);
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;color:var(--muted);font-size:2rem;
-  transition:all .15s;background:var(--s1);
-}
-.media-add:hover{border-color:var(--accent);color:var(--accent);background:#eff6ff;}
+.media-item a{color:var(--accent);text-decoration:none;}
+.media-item a:hover{text-decoration:underline;}
+.btn-upload-wrap{position:relative;display:inline-block;}
+.btn-upload-wrap input{position:absolute;inset:0;opacity:0;cursor:pointer;}
 
 .overlay{
   position:fixed;inset:0;background:rgba(15,23,42,.6);
@@ -227,7 +238,7 @@ select.field option{background:var(--s1)}
 .overlay.open{opacity:1;pointer-events:all}
 .modal{
   background:var(--s1);border:none;
-  border-radius:16px;width:90%;max-width:700px;
+  border-radius:16px;width:90%;max-width:800px;
   max-height:90vh;overflow-y:auto;
   padding:40px;
   transform:translateY(20px);transition:transform .2s;
@@ -239,10 +250,22 @@ select.field option{background:var(--s1)}
 .modal-close{background:var(--bg);border:none;border-radius:50%;width:36px;height:36px;color:var(--muted);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
 .modal-close:hover{background:#f1f5f9;color:var(--text)}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-.form-grid.full{grid-template-columns:1fr}
 .form-group{display:flex;flex-direction:column;gap:8px}
 .form-group.span2{grid-column:span 2}
-.flabel{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em}
+.flabel{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;display:flex;justify-content:space-between;align-items:center;}
+
+.tenant-list{display:flex;flex-direction:column;gap:12px;}
+.tenant-row{display:flex;gap:12px;align-items:center;}
+.btn-remove{background:var(--red);color:#fff;border:none;border-radius:6px;padding:10px 14px;cursor:pointer;font-weight:800;}
+
+.btn-tiny{
+  background:var(--s3);border:1px solid var(--border2);
+  padding:6px 12px;border-radius:6px;
+  font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:700;
+  color:var(--text);cursor:pointer;transition:all .15s;
+}
+.btn-tiny:hover{border-color:var(--accent);color:var(--accent)}
+
 .form-actions{display:flex;justify-content:flex-end;gap:16px;margin-top:32px;padding-top:24px;border-top:1px solid var(--border);}
 .btn-cancel{
   background:var(--s1);border:1px solid var(--border2);
@@ -292,54 +315,62 @@ select.field option{background:var(--s1)}
 }
 .sd-item:hover{background:var(--bg)}
 
-#lightbox{
-  position:fixed;inset:0;background:rgba(0,0,0,.9);
-  z-index:600;display:none;align-items:center;justify-content:center;
-  cursor:pointer;
-}
-#lightbox.open{display:flex}
-#lightbox img{max-width:90%;max-height:90%;border-radius:12px;object-fit:contain}
+.topbar-back{display:none;background:none;border:none;color:var(--accent);font-size:1.1rem;font-weight:800;cursor:pointer;font-family:'Barlow',sans-serif;align-items:center;gap:6px}
 
 @media(max-width:768px){
-  #sidebar{width:100%;min-width:unset;display:none}
-  #sidebar.mob-show{display:flex}
-  #detail{display:none}
-  #detail.mob-show{display:flex}
-  .form-grid{grid-template-columns:1fr}
-  .form-group.span2{grid-column:span 1}
-  #detail-inner{padding:24px 20px}
   .dh{flex-direction:column;gap:12px;}
   .info-grid{grid-template-columns:1fr}
-  .topbar-back{display:flex}
   .modal{padding:24px;width:95%;}
+  .form-grid{grid-template-columns:1fr}
+  .form-group.span2{grid-column:span 1}
+  #search-input{width:180px;}
 }
-.topbar-back{display:none;background:none;border:none;color:var(--accent);font-size:1.1rem;font-weight:800;cursor:pointer;font-family:'Barlow',sans-serif;align-items:center;gap:6px}
 </style>
 </head>
 <body>
 
 <div id="topbar">
-  <button class="topbar-back" onclick="mobileBack()">← Back</button>
-  <div class="logo">FIELD<span>DESK</span></div>
+  <button class="topbar-back" onclick="showDashboard()">← Dashboard</button>
+  <div class="logo">FIX AND GO<span> TRACKER</span></div>
   <div class="topbar-right">
+    <input type="date" id="date-filter" class="field" onchange="renderList()" title="Filter by date created">
     <input id="search-input" class="field" placeholder="Search jobs..." oninput="renderList()">
     <button class="btn-add" onclick="openAddModal()">+ New Job</button>
   </div>
 </div>
 
 <div id="app">
-  <div id="sidebar">
-    <div class="sidebar-filters" id="filter-bar"></div>
-    <div id="job-list"></div>
+  <div id="dashboard">
+    <div class="summary-bar" id="summary-bar">
+      <div class="stat-card sc-today" onclick="setSummaryFilter('today')" id="sc-today">
+        <div class="sc-val" id="sv-today">0</div>
+        <div class="sc-label">Appointments Today</div>
+      </div>
+      <div class="stat-card sc-upcoming" onclick="setSummaryFilter('upcoming')" id="sc-upcoming">
+        <div class="sc-val" id="sv-upcoming">0</div>
+        <div class="sc-label">Upcoming (7 Days)</div>
+      </div>
+      <div class="stat-card sc-noset" onclick="setSummaryFilter('noset')" id="sc-noset">
+        <div class="sc-val" id="sv-noset">0</div>
+        <div class="sc-label">No Appt Set</div>
+      </div>
+      <div class="stat-card sc-quotations" onclick="setSummaryFilter('quotations')" id="sc-quotations">
+        <div class="sc-val" id="sv-quotations">0</div>
+        <div class="sc-label">Quotations</div>
+      </div>
+      <div class="stat-card sc-further" onclick="setSummaryFilter('further')" id="sc-further">
+        <div class="sc-val" id="sv-further">0</div>
+        <div class="sc-label">Further Works</div>
+      </div>
+    </div>
+
+    <div class="filters-wrap" id="filter-bar"></div>
+
+    <div id="job-grid"></div>
   </div>
 
   <div id="detail">
-    <div class="empty-state" id="empty-state">
-      <div class="empty-icon">📋</div>
-      <div style="font-weight:800;font-size:1.4rem;color:var(--text);">Select a job to view details</div>
-      <div style="font-size:1.1rem">or create a new one</div>
-    </div>
-    <div id="detail-inner" style="display:none"></div>
+    <div id="detail-inner"></div>
   </div>
 </div>
 
@@ -351,23 +382,37 @@ select.field option{background:var(--s1)}
     </div>
     <div class="form-grid">
       <div class="form-group span2">
-        <div class="flabel">Job Description *</div>
-        <textarea class="field" id="f-desc" rows="3" placeholder="What is the job?"></textarea>
+        <div class="flabel">Job Title *</div>
+        <input class="field" id="f-title" placeholder="e.g. Leaking Wall">
+      </div>
+      <div class="form-group span2">
+        <div class="flabel">Job Description</div>
+        <textarea class="field" id="f-desc" rows="3" placeholder="Full details..."></textarea>
       </div>
       <div class="form-group">
-        <div class="flabel">Tenant Name *</div>
-        <input class="field" id="f-tenant" placeholder="Full name">
+        <div class="flabel">External Job ID</div>
+        <input class="field" id="f-ext-id" placeholder="Reference from email">
       </div>
       <div class="form-group">
-        <div class="flabel">Tenant Phone</div>
-        <input class="field" id="f-tenant-phone" placeholder="+44...">
+        <div class="flabel">Job Type</div>
+        <select class="field" id="f-type">
+          <option value="job">Job</option>
+          <option value="quotation">Quotation</option>
+          <option value="further works">Further Works</option>
+        </select>
       </div>
-      <div class="form-group">
-        <div class="flabel">Tenant Email</div>
-        <input class="field" id="f-tenant-email" placeholder="tenant@email.com">
+      <div class="form-group span2">
+        <div class="flabel">Scheduled Appointment</div>
+        <input type="datetime-local" class="field" id="f-sched">
       </div>
+      
+      <div class="form-group span2" style="background:var(--s3);padding:16px;border-radius:8px;border:1px solid var(--border);">
+        <div class="flabel" style="margin-bottom:12px;color:var(--text);">Tenants <button class="btn-tiny" onclick="addTenantRow()">+ Add</button></div>
+        <div class="tenant-list" id="f-tenants-wrap"></div>
+      </div>
+
       <div class="form-group">
-        <div class="flabel">Tenant Address</div>
+        <div class="flabel">Address</div>
         <input class="field" id="f-address" placeholder="Property address">
       </div>
       <div class="form-group">
@@ -414,12 +459,6 @@ select.field option{background:var(--s1)}
   <div class="sd-item" onclick="setStatus('revisit')"><span class="status-pill s-revisit">Needs Revisit</span></div>
 </div>
 
-<div id="lightbox" onclick="closeLightbox()">
-  <img id="lightbox-img" src="" alt="">
-</div>
-
-<input type="file" id="media-file-input" accept="image/*" style="display:none" multiple onchange="handleMediaUpload(event)">
-
 <script>
 const supabaseUrl = 'https://ojxqplxgyfokhkoyacic.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qeHFwbHhneWZva2hrb3lhY2ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzg4MDcsImV4cCI6MjA5MzcxNDgwN30.G1m4yBF3MDMmpScVj9GQRDzZdy5TR38MxBowPHROlNY';
@@ -429,7 +468,8 @@ let jobs = [];
 let currentJobId = null;
 let editingJobId = null;
 let currentFilter = 'all';
-let statusDropdownOpen = false;
+let summaryFilter = null; 
+let creatingFurtherWorksFrom = null;
 
 const STATUS_STEPS = ['active','contacted','booked','completed'];
 const STATUS_LABELS = {
@@ -443,10 +483,15 @@ function priorityColor(p){ return p==='emergency'?'var(--red)':p==='urgent'?'var
 
 function genId(){ return crypto.randomUUID(); }
 function genRef(){
-  const max = jobs.reduce((m,j)=>{ const n=parseInt(j.ref.split('-')[1]||0); return n>m?n:m; }, 0);
+  const max = jobs.reduce((m,j)=>{ const n=parseInt((j.ref||'').split('-')[1]||0); return n>m?n:m; }, 0);
   return 'JOB-' + String(max+1).padStart(3,'0');
 }
-function fmtDate(d){ if(!d)return ''; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}`; }
+function fmtDate(d){ if(!d)return ''; const [y,m,day]=d.split('T')[0].split('-'); return `${day}/${m}/${y}`; }
+function fmtDateTime(d){ 
+  if(!d) return ''; 
+  const dt = new Date(d);
+  return dt.toLocaleString('en-GB', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+}
 function today(){ return new Date().toISOString().slice(0,10); }
 function nowTime(){ const n=new Date(); return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); }
 
@@ -464,30 +509,62 @@ async function fetchJobs() {
     return;
   }
 
-  const { data: notesData, error: notesError } = await supabaseClient
-    .from('notes')
-    .select('*');
+  const { data: notesData } = await supabaseClient.from('notes').select('*');
+  const { data: tenantsData } = await supabaseClient.from('tenants').select('*');
+  const { data: filesData } = await supabaseClient.from('job_files').select('*');
 
-  if (notesError) {
-    console.error('Error fetching notes:', notesError);
-  }
-  
   if (jobsData) {
     jobs = jobsData.map(j => {
       const jNotes = notesData ? notesData.filter(n => n.job_id === j.id).map(n => ({
-        id: n.id,
-        date: n.note_date,
-        time: n.note_time,
-        text: n.text
+        id: n.id, date: n.note_date, time: n.note_time, text: n.text
       })) : [];
       
-      return { ...j, notes: jNotes, media: [] };
+      const jTenants = tenantsData ? tenantsData.filter(t => t.job_id === j.id) : [];
+      if(jTenants.length === 0 && j.tenant) {
+        jTenants.push({ id: genId(), name: j.tenant, phone: j.tenant_phone || '' });
+      }
+
+      const jFiles = filesData ? filesData.filter(f => f.job_id === j.id) : [];
+      
+      return { ...j, notes: jNotes, tenants: jTenants, files: jFiles };
     });
     
     renderFilters();
+    updateSummaryStats();
     renderList();
     if (currentJobId) renderDetail();
   }
+}
+
+function updateSummaryStats() {
+  const todayStr = today();
+  const next7Days = new Date();
+  next7Days.setDate(next7Days.getDate() + 7);
+  next7Days.setHours(23,59,59,999);
+  const now = new Date();
+  now.setHours(0,0,0,0);
+
+  let todayCount = 0, upcomingCount = 0, noSetCount = 0, quoteCount = 0, furtherCount = 0;
+
+  jobs.forEach(j => {
+    if (j.scheduled_at && j.scheduled_at.startsWith(todayStr)) todayCount++;
+    
+    if (j.scheduled_at) {
+      const sched = new Date(j.scheduled_at);
+      if (sched >= now && sched <= next7Days) upcomingCount++;
+    }
+
+    if (['active', 'contacted', 'booked'].includes(j.status) && !j.scheduled_at) noSetCount++;
+    
+    if (j.job_type === 'quotation') quoteCount++;
+    if (j.job_type === 'further works') furtherCount++;
+  });
+
+  document.getElementById('sv-today').textContent = todayCount;
+  document.getElementById('sv-upcoming').textContent = upcomingCount;
+  document.getElementById('sv-noset').textContent = noSetCount;
+  document.getElementById('sv-quotations').textContent = quoteCount;
+  document.getElementById('sv-further').textContent = furtherCount;
 }
 
 function renderFilters(){
@@ -496,7 +573,7 @@ function renderFilters(){
     counts[s] = jobs.filter(j=>j.status===s).length;
   });
   const filters = [
-    { key:'all', label:'All' },
+    { key:'all', label:'All Statuses' },
     { key:'active', label:'Active' },
     { key:'contacted', label:'Contacted' },
     { key:'booked', label:'Booked' },
@@ -509,49 +586,100 @@ function renderFilters(){
   ).join('');
 }
 
-function setFilter(f){ currentFilter=f; renderFilters(); renderList(); }
+function setFilter(f){ currentFilter=f; renderList(); }
+function setSummaryFilter(f){
+  if(summaryFilter === f) summaryFilter = null;
+  else summaryFilter = f;
+
+  document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+  if(summaryFilter) document.getElementById('sc-'+f).classList.add('active');
+  
+  renderList();
+}
 
 function renderList(){
   const q = document.getElementById('search-input').value.toLowerCase();
+  const dateFilter = document.getElementById('date-filter').value;
+  const todayStr = today();
+  const next7Days = new Date();
+  next7Days.setDate(next7Days.getDate() + 7);
+  next7Days.setHours(23,59,59,999);
+  const now = new Date();
+  now.setHours(0,0,0,0);
+
   let filtered = jobs.filter(j=>{
     if(currentFilter!=='all' && j.status!==currentFilter) return false;
-    if(q && !j.tenant.toLowerCase().includes(q) && !(j.description || '').toLowerCase().includes(q) && !j.ref.toLowerCase().includes(q)) return false;
+    
+    if(dateFilter && j.created && !j.created.startsWith(dateFilter)) return false;
+
+    if(summaryFilter === 'today' && !(j.scheduled_at && j.scheduled_at.startsWith(todayStr))) return false;
+    if(summaryFilter === 'upcoming') {
+      if(!j.scheduled_at) return false;
+      const sched = new Date(j.scheduled_at);
+      if(sched < now || sched > next7Days) return false;
+    }
+    if(summaryFilter === 'noset' && !(['active', 'contacted', 'booked'].includes(j.status) && !j.scheduled_at)) return false;
+    if(summaryFilter === 'quotations' && j.job_type !== 'quotation') return false;
+    if(summaryFilter === 'further' && j.job_type !== 'further works') return false;
+
+    if(q) {
+      const matchSearch = [
+        j.title, j.description, j.external_job_id, j.ref, j.address, j.tech, j.tech_phone
+      ].some(val => (val||'').toLowerCase().includes(q));
+      
+      const matchTenant = (j.tenants||[]).some(t => 
+        (t.name||'').toLowerCase().includes(q) || (t.phone||'').toLowerCase().includes(q)
+      );
+
+      if(!matchSearch && !matchTenant) return false;
+    }
     return true;
   });
   
   const pOrder = { emergency:0, urgent:1, normal:2 };
-  filtered.sort((a,b)=> pOrder[a.priority]-pOrder[b.priority] || b.created.localeCompare(a.created));
+  filtered.sort((a,b)=> pOrder[a.priority]-pOrder[b.priority] || (b.created||'').localeCompare(a.created||''));
 
-  const list = document.getElementById('job-list');
+  const list = document.getElementById('job-grid');
   if(!filtered.length){
-    list.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--muted);font-size:1.1rem;font-weight:600;">No jobs found</div>`;
+    list.innerHTML = `<div style="grid-column:1/-1;padding:40px 20px;text-align:center;color:var(--muted);font-size:1.1rem;font-weight:600;">No jobs found</div>`;
     return;
   }
-  list.innerHTML = filtered.map(j=>`
-    <div class="job-item ${currentJobId===j.id?'active':''}" onclick="selectJob('${j.id}')">
-      <div class="job-item-top">
-        <span class="job-ref">${j.ref}</span>
+  list.innerHTML = filtered.map(j=>{
+    const tenantNames = (j.tenants||[]).map(t=>t.name).join(', ') || 'No Tenant';
+    const sDate = j.scheduled_at ? `📅 ${fmtDateTime(j.scheduled_at)}` : '📅 Unscheduled';
+    const typeLabel = j.job_type ? j.job_type.toUpperCase() : 'JOB';
+
+    return `
+    <div class="job-card" onclick="selectJob('${j.id}')">
+      <div class="jc-top">
+        <span class="jc-ref">${j.ref} ${j.external_job_id ? `| Ext: ${escHtml(j.external_job_id)}` : ''}</span>
         <span class="p-dot" style="background:${priorityColor(j.priority)}" title="${PRIORITY_LABEL[j.priority]}"></span>
       </div>
-      <div class="job-tenant">${j.tenant||'—'}</div>
-      <div class="job-desc-pre">${j.description}</div>
-      <span class="status-pill ${statusClass(j.status)}">${STATUS_LABELS[j.status]}</span>
+      <div class="jc-title" title="${escHtml(j.title || '')}">${escHtml(j.title || 'Untitled Job')}</div>
+      <div class="jc-info-row">📍 ${escHtml(j.address || 'No Address')}</div>
+      <div class="jc-info-row">👤 ${escHtml(tenantNames)}</div>
+      <div class="jc-info-row">🔧 ${escHtml(j.tech || 'Unassigned')}</div>
+      
+      <div class="jc-tags">
+        <span class="status-pill ${statusClass(j.status)}">${STATUS_LABELS[j.status]}</span>
+        <span class="tag t-type">${typeLabel}</span>
+      </div>
+      <div class="jc-date">${sDate}</div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function selectJob(id){
   currentJobId = id;
-  renderList();
   renderDetail();
-  document.getElementById('sidebar').classList.remove('mob-show');
-  document.getElementById('detail').classList.add('mob-show');
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('detail').style.display = 'flex';
   document.querySelector('.topbar-back').style.display = 'flex';
 }
 
-function mobileBack(){
-  document.getElementById('sidebar').classList.add('mob-show');
-  document.getElementById('detail').classList.remove('mob-show');
+function showDashboard(){
+  document.getElementById('dashboard').style.display = 'flex';
+  document.getElementById('detail').style.display = 'none';
   document.querySelector('.topbar-back').style.display = 'none';
   currentJobId = null;
   renderList();
@@ -559,9 +687,7 @@ function mobileBack(){
 
 function renderDetail(){
   const j = getJob(currentJobId);
-  document.getElementById('empty-state').style.display = 'none';
   const di = document.getElementById('detail-inner');
-  di.style.display = 'flex';
 
   const notesByDate = {};
   (j.notes||[]).forEach(n=>{
@@ -608,27 +734,43 @@ function renderDetail(){
       </div>`;
   }
 
-  const mediaHTML = `
-    <div class="media-grid">
-      ${(j.media||[]).map((m,i)=>`
-        <div class="media-thumb" onclick="openLightbox('${m.url}')">
-          <img src="${m.url}" alt="media ${i+1}">
+  const filesHTML = `
+    <div class="media-list">
+      ${(j.files||[]).map(f=>`
+        <div class="media-item">
+          <span>📄 ${escHtml(f.file_name)}</span>
+          <a href="${f.file_url}" target="_blank">Download / View</a>
         </div>
       `).join('')}
-      <div class="media-add" onclick="document.getElementById('media-file-input').click()" title="Add image">+</div>
     </div>
-    <div style="font-size:0.95rem;color:var(--muted);margin-top:12px;font-family:'IBM Plex Mono',monospace;">
-      Images are local only for this session. To permanently save media, you must add a media table to your database.
+    <div class="btn-upload-wrap">
+      <button class="btn-icon">↑ Upload File</button>
+      <input type="file" accept="image/*,application/pdf" multiple onchange="handleMediaUpload(event)">
     </div>
   `;
+
+  const tenantHTML = (j.tenants||[]).map(t => `
+    <div class="ic-sub" style="font-size:1.05rem;color:var(--text);font-weight:600;">👤 ${escHtml(t.name)} ${t.phone ? `<span style="color:var(--muted);font-weight:400;">(${escHtml(t.phone)})</span>` : ''}</div>
+  `).join('');
+
+  let parentLinkHTML = '';
+  if (j.parent_job_id) {
+    const parentJob = getJob(j.parent_job_id);
+    const parentRef = parentJob ? parentJob.ref : 'Unknown Job';
+    parentLinkHTML = `<div class="tag" style="background:var(--accent);color:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:0.85rem;padding:6px 12px;border-radius:6px;margin-top:12px;" onclick="selectJob('${j.parent_job_id}')">🔗 Original Job: ${parentRef}</div>`;
+  }
 
   di.innerHTML = `
     <div class="dh">
       <div class="dh-left">
-        <h2>${escHtml(j.tenant)}</h2>
-        <div class="dref">${j.ref} · Created ${fmtDate(j.created)}</div>
+        <h2>${escHtml(j.title || 'Untitled Job')}</h2>
+        <div class="dref">
+          ${j.ref} ${j.external_job_id ? `| Ext ID: ${escHtml(j.external_job_id)}` : ''} · Created ${fmtDate(j.created)}
+        </div>
+        ${parentLinkHTML}
       </div>
       <div class="dh-right">
+        <button class="btn-icon primary" onclick="openFurtherWorksModal()">+ Further Works</button>
         <button class="btn-icon" onclick="openStatusDropdown(event)" id="status-btn">
           <span class="status-pill ${statusClass(j.status)}">${STATUS_LABELS[j.status]}</span> ▾
         </button>
@@ -644,13 +786,14 @@ function renderDetail(){
 
     <div class="info-grid">
       <div class="info-card">
-        <div class="ic-label">Priority</div>
-        <div class="ic-val" style="color:${priorityColor(j.priority)}">${PRIORITY_LABEL[j.priority]}</div>
+        <div class="ic-label">Schedule & Priority</div>
+        <div class="ic-val" style="margin-bottom:8px;">${j.scheduled_at ? fmtDateTime(j.scheduled_at) : 'Unscheduled'}</div>
+        <div class="tag t-type" style="display:inline-block;margin-right:6px;">${j.job_type ? j.job_type.toUpperCase() : 'JOB'}</div>
+        <div class="tag" style="display:inline-block;color:${priorityColor(j.priority)};border:1px solid ${priorityColor(j.priority)};">${PRIORITY_LABEL[j.priority]}</div>
       </div>
       <div class="info-card">
-        <div class="ic-label">Tenant Phone</div>
-        <div class="ic-val">${j.tenant_phone||'—'}</div>
-        ${j.tenant_email?`<div class="ic-sub">${j.tenant_email}</div>`:''}
+        <div class="ic-label">Tenants</div>
+        ${tenantHTML || '<div class="ic-val" style="color:var(--muted);">No tenants added</div>'}
       </div>
       <div class="info-card">
         <div class="ic-label">Address</div>
@@ -691,9 +834,9 @@ function renderDetail(){
 
     <div class="section">
       <div class="section-hdr">
-        <div class="section-title">Media / Photos</div>
+        <div class="section-title">Files & Documents</div>
       </div>
-      ${mediaHTML}
+      ${filesHTML}
     </div>
   `;
 }
@@ -715,19 +858,12 @@ async function setStatus(s){
   const j = getJob(currentJobId);
   if(!j) return;
   
-  const { error } = await supabaseClient
-    .from('jobs')
-    .update({ status: s })
-    .eq('id', currentJobId);
-
-  if (error) {
-    alert('Failed to update status: ' + error.message);
-    return;
-  }
+  const { error } = await supabaseClient.from('jobs').update({ status: s }).eq('id', currentJobId);
+  if (error) { alert('Failed to update status: ' + error.message); return; }
   
   j.status = s; 
   document.getElementById('status-dropdown').classList.remove('open');
-  renderList();
+  updateSummaryStats();
   renderDetail();
 }
 
@@ -739,22 +875,10 @@ async function addNote(){
   const date = document.getElementById('note-date').value || today();
   const time = document.getElementById('note-time').value || nowTime();
   
-  const dbNote = {
-    job_id: currentJobId,
-    note_date: date,
-    note_time: time,
-    text: text
-  };
+  const dbNote = { job_id: currentJobId, note_date: date, note_time: time, text: text };
+  const { data, error } = await supabaseClient.from('notes').insert([dbNote]).select();
 
-  const { data, error } = await supabaseClient
-    .from('notes')
-    .insert([dbNote])
-    .select();
-
-  if (error) {
-    alert('Failed to save note: ' + error.message);
-    return;
-  }
+  if (error) { alert('Failed to save note: ' + error.message); return; }
 
   const newId = data && data.length > 0 ? data[0].id : genId();
   const newNotes = [...(j.notes||[]), { id: newId, date, time, text }];
@@ -765,37 +889,91 @@ async function addNote(){
   setTimeout(()=>{ document.getElementById('note-form')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 100);
 }
 
-function handleMediaUpload(e){
+async function handleMediaUpload(e){
   const j = getJob(currentJobId);
   if(!j) return;
   const files = Array.from(e.target.files);
+  const btn = e.target.previousElementSibling;
+  const origText = btn.textContent;
+  btn.textContent = 'Uploading...';
   
-  files.forEach(file=>{
-    const reader = new FileReader();
-    reader.onload = ev=>{
-      const newMedia = [...(j.media||[]), { id: genId(), url: ev.target.result, name: file.name }];
-      j.media = newMedia;
-      renderDetail(); 
-    };
-    reader.readAsDataURL(file);
-  });
+  for(let file of files){
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${genId()}.${fileExt}`;
+    const filePath = `${currentJobId}/${fileName}`;
+    
+    const { error: uploadError } = await supabaseClient.storage.from('job-files').upload(filePath, file);
+    if (uploadError) { alert('Upload failed: ' + uploadError.message); continue; }
+    
+    const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
+    
+    const dbFile = { job_id: currentJobId, file_name: file.name, file_url: urlData.publicUrl };
+    const { data: insertedFile, error: dbError } = await supabaseClient.from('job_files').insert([dbFile]).select();
+    
+    if(!dbError && insertedFile) {
+       j.files.push(insertedFile[0]);
+    }
+  }
+  btn.textContent = origText;
   e.target.value = '';
+  renderDetail(); 
 }
 
-function openLightbox(url){
-  document.getElementById('lightbox-img').src = url;
-  document.getElementById('lightbox').classList.add('open');
+function addTenantRow(name='', phone=''){
+  const wrap = document.getElementById('f-tenants-wrap');
+  const div = document.createElement('div');
+  div.className = 'tenant-row';
+  div.innerHTML = `
+    <input class="field t-name" placeholder="Tenant Name" value="${escHtml(name)}">
+    <input class="field t-phone" placeholder="Phone" value="${escHtml(phone)}">
+    <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✕</button>
+  `;
+  wrap.appendChild(div);
 }
-function closeLightbox(){ document.getElementById('lightbox').classList.remove('open'); }
 
 function openAddModal(){
   editingJobId = null;
+  creatingFurtherWorksFrom = null;
   document.getElementById('modal-title').textContent = 'New Job';
-  ['desc','tenant','tenant-phone','tenant-email','address','tech','tech-phone'].forEach(id=>{
+  ['title','ext-id','desc','address','tech','tech-phone','sched'].forEach(id=>{
     document.getElementById('f-'+id).value = '';
   });
   document.getElementById('f-priority').value = 'normal';
   document.getElementById('f-status').value = 'active';
+  document.getElementById('f-type').value = 'job';
+  
+  document.getElementById('f-tenants-wrap').innerHTML = '';
+  addTenantRow();
+
+  document.getElementById('job-modal').classList.add('open');
+}
+
+function openFurtherWorksModal(){
+  const j = getJob(currentJobId);
+  if(!j) return;
+  editingJobId = null;
+  creatingFurtherWorksFrom = j.id;
+  
+  document.getElementById('modal-title').textContent = 'Raise Further Works';
+  document.getElementById('f-title').value = 'Further Works: ' + (j.title || '');
+  document.getElementById('f-ext-id').value = j.external_job_id || '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-type').value = 'further works';
+  document.getElementById('f-sched').value = '';
+  
+  document.getElementById('f-tenants-wrap').innerHTML = '';
+  if(j.tenants && j.tenants.length){
+    j.tenants.forEach(t => addTenantRow(t.name, t.phone));
+  } else {
+    addTenantRow();
+  }
+
+  document.getElementById('f-address').value = j.address||'';
+  document.getElementById('f-tech').value = '';
+  document.getElementById('f-tech-phone').value = '';
+  document.getElementById('f-priority').value = j.priority;
+  document.getElementById('f-status').value = 'active';
+  
   document.getElementById('job-modal').classList.add('open');
 }
 
@@ -803,11 +981,28 @@ function openEditModal(){
   const j = getJob(currentJobId);
   if(!j) return;
   editingJobId = j.id;
+  creatingFurtherWorksFrom = null;
   document.getElementById('modal-title').textContent = 'Edit Job';
+  document.getElementById('f-title').value = j.title || '';
+  document.getElementById('f-ext-id').value = j.external_job_id || '';
   document.getElementById('f-desc').value = j.description || '';
-  document.getElementById('f-tenant').value = j.tenant;
-  document.getElementById('f-tenant-phone').value = j.tenant_phone||'';
-  document.getElementById('f-tenant-email').value = j.tenant_email||'';
+  document.getElementById('f-type').value = j.job_type || 'job';
+  
+  if(j.scheduled_at) {
+    const dt = new Date(j.scheduled_at);
+    dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset());
+    document.getElementById('f-sched').value = dt.toISOString().slice(0,16);
+  } else {
+    document.getElementById('f-sched').value = '';
+  }
+
+  document.getElementById('f-tenants-wrap').innerHTML = '';
+  if(j.tenants && j.tenants.length){
+    j.tenants.forEach(t => addTenantRow(t.name, t.phone));
+  } else {
+    addTenantRow();
+  }
+
   document.getElementById('f-address').value = j.address||'';
   document.getElementById('f-tech').value = j.tech||'';
   document.getElementById('f-tech-phone').value = j.tech_phone||'';
@@ -818,72 +1013,82 @@ function openEditModal(){
 
 function closeModal(){
   document.getElementById('job-modal').classList.remove('open');
+  creatingFurtherWorksFrom = null;
 }
 
 async function saveJob(){
   const desc = document.getElementById('f-desc').value.trim();
-  const tenant = document.getElementById('f-tenant').value.trim();
-  if(!desc || !tenant){ alert('Job description and tenant name are required.'); return; }
+  const title = document.getElementById('f-title').value.trim();
+  
+  const tenantRows = Array.from(document.querySelectorAll('.tenant-row'));
+  const tenants = tenantRows.map(row => ({
+    name: row.querySelector('.t-name').value.trim(),
+    phone: row.querySelector('.t-phone').value.trim()
+  })).filter(t => t.name);
+
+  if(!title){ alert('Please provide a job title.'); return; }
 
   const saveBtn = document.querySelector('.btn-save');
   saveBtn.textContent = 'Saving...';
   saveBtn.disabled = true;
 
+  const schedVal = document.getElementById('f-sched').value;
+  const schedIso = schedVal ? new Date(schedVal).toISOString() : null;
+
+  const firstTenant = tenants.length > 0 ? tenants[0] : {name:'Unknown', phone:''};
+
   const dbData = {
+    title: title,
     description: desc,
-    tenant,
-    tenant_phone: document.getElementById('f-tenant-phone').value.trim(),
-    tenant_email: document.getElementById('f-tenant-email').value.trim(),
+    external_job_id: document.getElementById('f-ext-id').value.trim(),
+    job_type: document.getElementById('f-type').value,
+    scheduled_at: schedIso,
     address: document.getElementById('f-address').value.trim(),
     tech: document.getElementById('f-tech').value.trim(),
     tech_phone: document.getElementById('f-tech-phone').value.trim(),
     priority: document.getElementById('f-priority').value,
-    status: document.getElementById('f-status').value
+    status: document.getElementById('f-status').value,
+    tenant: firstTenant.name, 
+    tenant_phone: firstTenant.phone
   };
 
-  if(editingJobId){
-    const { error } = await supabaseClient
-      .from('jobs')
-      .update(dbData)
-      .eq('id', editingJobId);
+  if (creatingFurtherWorksFrom) {
+    dbData.parent_job_id = creatingFurtherWorksFrom;
+  }
 
-    if (error) {
-      alert('Database error: ' + error.message);
-      saveBtn.textContent = 'Save Job';
-      saveBtn.disabled = false;
-      return;
-    }
+  let jobIdToProcess = editingJobId;
+
+  if(editingJobId){
+    const { error } = await supabaseClient.from('jobs').update(dbData).eq('id', editingJobId);
+    if (error) { alert('Database error: ' + error.message); saveBtn.textContent = 'Save Job'; saveBtn.disabled = false; return; }
     
     const j = getJob(editingJobId);
     Object.assign(j, dbData);
-
   } else {
-    const newJobDB = {
-      id: genId(),
-      ref: genRef(),
-      ...dbData,
-      created: today()
-    };
-    
-    const { error } = await supabaseClient
-      .from('jobs')
-      .insert([newJobDB]);
+    const newJobDB = { id: genId(), ref: genRef(), ...dbData, created: today() };
+    const { error } = await supabaseClient.from('jobs').insert([newJobDB]);
+    if (error) { alert('Database error: ' + error.message); saveBtn.textContent = 'Save Job'; saveBtn.disabled = false; return; }
 
-    if (error) {
-      alert('Database error: ' + error.message);
-      saveBtn.textContent = 'Save Job';
-      saveBtn.disabled = false;
-      return;
-    }
-
-    const newJobLocal = { ...newJobDB, notes: [], media: [] };
+    const newJobLocal = { ...newJobDB, notes: [], files: [], tenants: [] };
     jobs.unshift(newJobLocal);
-    currentJobId = newJobLocal.id;
+    jobIdToProcess = newJobLocal.id;
+    currentJobId = jobIdToProcess;
   }
   
+  await supabaseClient.from('tenants').delete().eq('job_id', jobIdToProcess);
+  const j = getJob(jobIdToProcess);
+  if(tenants.length > 0){
+    const inserts = tenants.map(t => ({ job_id: jobIdToProcess, name: t.name, phone: t.phone }));
+    const { data: insertedTenants } = await supabaseClient.from('tenants').insert(inserts).select();
+    if(insertedTenants) j.tenants = insertedTenants;
+  } else {
+    j.tenants = [];
+  }
+
   saveBtn.textContent = 'Save Job';
   saveBtn.disabled = false;
   closeModal();
+  updateSummaryStats();
   renderFilters();
   renderList();
   if(currentJobId) renderDetail();
@@ -893,36 +1098,18 @@ async function deleteJob(){
   if(!confirm('Delete this job? This cannot be undone.')) return;
   
   const idToDelete = currentJobId;
-  
-  const { error } = await supabaseClient
-    .from('jobs')
-    .delete()
-    .eq('id', idToDelete);
-
-  if (error) {
-    alert('Failed to delete: ' + error.message);
-    return;
-  }
+  const { error } = await supabaseClient.from('jobs').delete().eq('id', idToDelete);
+  if (error) { alert('Failed to delete: ' + error.message); return; }
 
   jobs = jobs.filter(j=>j.id!==idToDelete);
   currentJobId = null;
-  document.getElementById('empty-state').style.display = 'flex';
-  document.getElementById('detail-inner').style.display = 'none';
+  updateSummaryStats();
   renderFilters();
-  renderList();
+  showDashboard();
 }
 
-function escHtml(s){
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-}
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
 
-function initMobile(){
-  if(window.innerWidth <= 768){
-    document.getElementById('sidebar').classList.add('mob-show');
-  }
-}
-
-initMobile();
 fetchJobs(); 
 </script>
 </body>
