@@ -30,20 +30,6 @@
 html,body{height:100%;overflow:hidden;font-size:16px;}
 body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
 
-#login-screen{
-  position:fixed;inset:0;background:var(--bg);z-index:9999;
-  display:flex;align-items:center;justify-content:center;flex-direction:column;
-}
-.login-card{
-  background:var(--s1);border:1px solid var(--border);border-radius:16px;
-  padding:40px;width:90%;max-width:400px;
-  box-shadow:0 20px 25px -5px rgba(0,0,0,.1), 0 8px 10px -6px rgba(0,0,0,.1);
-  display:flex;flex-direction:column;gap:20px;
-}
-.login-card h2{text-align:center;color:var(--text);font-weight:900;font-size:1.8rem;letter-spacing:-0.02em;margin-bottom:10px;}
-.login-card h2 span{color:var(--accent);}
-.login-error{color:var(--red);font-size:0.95rem;text-align:center;display:none;font-weight:700;background:#fef2f2;padding:10px;border-radius:8px;}
-
 #topbar{
   height:70px;min-height:70px;
   display:flex;align-items:center;justify-content:space-between;
@@ -387,23 +373,7 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 </head>
 <body>
 
-<div id="login-screen">
-  <div class="login-card">
-    <h2>FIX AND GO<span> TRACKER</span></h2>
-    <div class="login-error" id="login-error">Invalid username or password.</div>
-    <div class="form-group">
-      <div class="flabel">Username</div>
-      <input type="text" class="field" id="login-user" placeholder="Enter username">
-    </div>
-    <div class="form-group">
-      <div class="flabel">Password</div>
-      <input type="password" class="field" id="login-pwd" placeholder="Enter password" onkeydown="if(event.key==='Enter') attemptLogin()">
-    </div>
-    <button class="btn-save" style="margin-top:10px; width:100%; justify-content:center; display:flex;" onclick="attemptLogin()">Login</button>
-  </div>
-</div>
-
-<div id="topbar" style="display:none;">
+<div id="topbar">
   <button class="topbar-back" onclick="showDashboard()">← Dashboard</button>
   <div class="logo">FIX AND GO<span> TRACKER</span></div>
   <div class="topbar-right">
@@ -413,7 +383,7 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
   </div>
 </div>
 
-<div id="app" style="display:none;">
+<div id="app">
   <div id="dashboard">
     <div class="summary-bar" id="summary-bar">
       <div class="stat-card sc-today" onclick="setSummaryFilter('today')" id="sc-today">
@@ -1221,40 +1191,9 @@ async function deleteJob(){
   showDashboard();
 }
 
-function attemptLogin() {
-  const u = document.getElementById('login-user').value.trim();
-  const p = document.getElementById('login-pwd').value.trim();
-  const err = document.getElementById('login-error');
-  if (u === 'admin' && p === 'fixngotracker') {
-    localStorage.setItem('fng_auth', 'true');
-    err.style.display = 'none';
-    checkLogin();
-  } else {
-    err.style.display = 'block';
-  }
-}
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
 
-function checkLogin() {
-  if (localStorage.getItem('fng_auth') === 'true') {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('topbar').style.display = 'flex';
-    document.getElementById('app').style.display = 'flex';
-    initMobile();
-    fetchJobs();
-  } else {
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('topbar').style.display = 'none';
-    document.getElementById('app').style.display = 'none';
-  }
-}
-
-function initMobile(){
-  if(window.innerWidth <= 768){
-    document.getElementById('sidebar')?.classList.add('mob-show');
-  }
-}
-
-checkLogin();
+fetchJobs(); 
 </script>
 </body>
 </html>
