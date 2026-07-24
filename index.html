@@ -369,6 +369,40 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 
 .topbar-back{display:none;background:none;border:none;color:var(--accent);font-size:1.1rem;font-weight:800;cursor:pointer;font-family:'Barlow',sans-serif;align-items:center;gap:6px}
 
+.btn-tech{
+  background:var(--s1);border:1px solid var(--border2);color:var(--muted2);
+  padding:10px 18px;border-radius:8px;font-family:'Barlow',sans-serif;font-weight:700;
+  font-size:1rem;cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.btn-tech:hover{border-color:var(--accent);color:var(--accent);background:#eff6ff;}
+
+#tech-panel{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.tech-toolbar{padding:20px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+.tech-toolbar #tech-search{max-width:320px;}
+
+#tech-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;
+  padding:0 24px 24px 24px;overflow-y:auto;flex:1;align-content:start;
+}
+.tech-card{
+  background:var(--s2);border:1px solid var(--border);border-radius:12px;
+  padding:20px;transition:all .15s;box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  display:flex;flex-direction:column;gap:8px;
+}
+.tech-card:hover{border-color:var(--border2);box-shadow: 0 6px 16px rgba(0,0,0,0.06);}
+.tech-name{font-size:1.15rem;font-weight:800;color:var(--text);}
+.tech-row{font-size:0.95rem;color:var(--muted2);display:flex;align-items:center;gap:6px;}
+.tech-row a{color:var(--accent);text-decoration:none;}
+.tech-row a:hover{text-decoration:underline;}
+.tech-notes{font-size:0.9rem;color:var(--muted);font-style:italic;margin-top:4px;}
+.tech-tag{
+  display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;font-weight:700;
+  padding:4px 8px;border-radius:4px;background:#eff6ff;color:var(--accent);
+  text-transform:uppercase;letter-spacing:.04em;align-self:flex-start;
+}
+.tech-actions{display:flex;gap:8px;margin-top:8px;}
+.tech-actions button{flex:1;}
+
 @media(max-width:768px){
   #topbar {
     height: auto;
@@ -427,6 +461,7 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
     <input type="date" id="date-filter" class="field" onchange="renderList()" title="Filter by date created">
     <input id="search-input" class="field" placeholder="Search jobs..." oninput="renderList()">
     <button class="btn-add" onclick="openAddModal()">+ New Job</button>
+    <button class="btn-tech" onclick="openTechPanel()">🔧 Technicians</button>
     <button class="btn-logout" onclick="logOut()">Sign Out</button>
   </div>
 </div>
@@ -463,6 +498,14 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 
   <div id="detail">
     <div id="detail-inner"></div>
+  </div>
+
+  <div id="tech-panel">
+    <div class="tech-toolbar">
+      <input id="tech-search" class="field" placeholder="Search name, area, specialty..." oninput="renderTechList()">
+      <button class="btn-add" onclick="openAddTechModal()">+ Add Technician</button>
+    </div>
+    <div id="tech-grid"></div>
   </div>
 </div>
 
@@ -509,7 +552,8 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
       </div>
       <div class="form-group">
         <div class="flabel">Technician Name</div>
-        <input class="field" id="f-tech" placeholder="Technician full name">
+        <input class="field" id="f-tech" list="tech-names-list" placeholder="Technician full name" onchange="autofillTechPhone()">
+        <datalist id="tech-names-list"></datalist>
       </div>
       <div class="form-group">
         <div class="flabel">Technician Phone</div>
@@ -542,6 +586,51 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
   </div>
 </div>
 
+<div class="overlay" id="tech-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="tech-modal-title">New Technician</div>
+      <button class="modal-close" onclick="closeTechModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group span2">
+        <div class="flabel">Name *</div>
+        <input class="field" id="t-name" placeholder="e.g. Mustafa">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Phone</div>
+        <input class="field" id="t-phone" placeholder="+44...">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Specialty</div>
+        <input class="field" id="t-specialty" list="specialty-list" placeholder="e.g. Plumber">
+        <datalist id="specialty-list">
+          <option value="Plumber">
+          <option value="Electrician">
+          <option value="Heating/Boiler">
+          <option value="Locksmith">
+          <option value="General/Multi-trade">
+          <option value="Roofing">
+          <option value="Painter/Decorator">
+          <option value="Cleaning">
+        </datalist>
+      </div>
+      <div class="form-group span2">
+        <div class="flabel">Areas / Postcodes Covered</div>
+        <input class="field" id="t-areas" placeholder="e.g. M20, M40, M11">
+      </div>
+      <div class="form-group span2">
+        <div class="flabel">Notes</div>
+        <textarea class="field" id="t-notes" rows="3" placeholder="Anything worth remembering..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeTechModal()">Cancel</button>
+      <button class="btn-save" onclick="saveTechnician()">Save Technician</button>
+    </div>
+  </div>
+</div>
+
 <div class="status-dropdown" id="status-dropdown">
   <div class="sd-item" onclick="setStatus('active')"><span class="status-pill s-active">Active</span></div>
   <div class="sd-item" onclick="setStatus('contacted')"><span class="status-pill s-contacted">Contacted Tenant</span></div>
@@ -561,11 +650,14 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 let jobs = [];
+let technicians = [];
 let currentJobId = null;
 let editingJobId = null;
+let editingTechId = null;
 let currentFilter = 'all';
 let summaryFilter = null; 
 let creatingFurtherWorksFrom = null;
+let currentView = 'dashboard'; // 'dashboard' | 'detail' | 'techs'
 
 const STATUS_STEPS = ['active','contacted','booked','completed'];
 const STATUS_LABELS = {
@@ -597,6 +689,7 @@ async function checkAuth(){
   if(session){
     document.getElementById('login-screen').style.display = 'none';
     fetchJobs();
+    fetchTechnicians();
   } else {
     document.getElementById('login-screen').style.display = 'flex';
   }
@@ -622,6 +715,7 @@ async function doLogin(){
   }
   document.getElementById('login-screen').style.display = 'none';
   fetchJobs();
+  fetchTechnicians();
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
@@ -811,18 +905,31 @@ function renderList(){
 
 function selectJob(id){
   currentJobId = id;
+  currentView = 'detail';
   renderDetail();
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('detail').style.display = 'flex';
+  document.getElementById('tech-panel').style.display = 'none';
   document.querySelector('.topbar-back').style.display = 'flex';
 }
 
 function showDashboard(){
+  currentView = 'dashboard';
   document.getElementById('dashboard').style.display = 'flex';
   document.getElementById('detail').style.display = 'none';
+  document.getElementById('tech-panel').style.display = 'none';
   document.querySelector('.topbar-back').style.display = 'none';
   currentJobId = null;
   renderList();
+}
+
+function openTechPanel(){
+  currentView = 'techs';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('detail').style.display = 'none';
+  document.getElementById('tech-panel').style.display = 'flex';
+  document.querySelector('.topbar-back').style.display = 'flex';
+  renderTechList();
 }
 
 function renderDetail(){
@@ -1286,6 +1393,132 @@ async function deleteJob(){
   updateSummaryStats();
   renderFilters();
   showDashboard();
+}
+
+/* ================= TECHNICIANS ================= */
+
+async function fetchTechnicians(){
+  const { data, error } = await supabaseClient
+    .from('technicians')
+    .select('*')
+    .is('archived_at', null)
+    .order('name');
+
+  if(error){ console.error('Error fetching technicians:', error); return; }
+  technicians = data || [];
+  refreshTechDatalist();
+  if(currentView === 'techs') renderTechList();
+}
+
+function refreshTechDatalist(){
+  const dl = document.getElementById('tech-names-list');
+  if(!dl) return;
+  dl.innerHTML = technicians.map(t => `<option value="${escHtml(t.name)}">`).join('');
+}
+
+function autofillTechPhone(){
+  const nameVal = document.getElementById('f-tech').value.trim().toLowerCase();
+  const match = technicians.find(t => (t.name||'').trim().toLowerCase() === nameVal);
+  if(match && match.phone){
+    document.getElementById('f-tech-phone').value = match.phone;
+  }
+}
+
+function renderTechList(){
+  const q = (document.getElementById('tech-search')?.value || '').toLowerCase();
+  let filtered = technicians.filter(t=>{
+    if(!q) return true;
+    return [t.name, t.phone, t.specialty, t.areas, t.notes]
+      .some(v => (v||'').toLowerCase().includes(q));
+  });
+  filtered.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+
+  const grid = document.getElementById('tech-grid');
+  if(!filtered.length){
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:40px 20px;text-align:center;color:var(--muted);font-size:1.1rem;font-weight:600;">No technicians found</div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(t=>`
+    <div class="tech-card">
+      ${t.specialty ? `<span class="tech-tag">${escHtml(t.specialty)}</span>` : ''}
+      <div class="tech-name">${escHtml(t.name)}</div>
+      ${t.phone ? `<div class="tech-row">📞 <a href="tel:${escHtml(t.phone)}">${escHtml(t.phone)}</a></div>` : ''}
+      ${t.areas ? `<div class="tech-row">📍 ${escHtml(t.areas)}</div>` : ''}
+      ${t.notes ? `<div class="tech-notes">${escHtml(t.notes)}</div>` : ''}
+      <div class="tech-actions">
+        <button class="btn-icon" onclick="openEditTechModal('${t.id}')">Edit</button>
+        <button class="btn-icon red" onclick="deleteTechnician('${t.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openAddTechModal(){
+  editingTechId = null;
+  document.getElementById('tech-modal-title').textContent = 'New Technician';
+  ['t-name','t-phone','t-specialty','t-areas','t-notes'].forEach(id=>{
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('tech-modal').classList.add('open');
+}
+
+function openEditTechModal(id){
+  const t = technicians.find(x=>x.id===id);
+  if(!t) return;
+  editingTechId = id;
+  document.getElementById('tech-modal-title').textContent = 'Edit Technician';
+  document.getElementById('t-name').value = t.name || '';
+  document.getElementById('t-phone').value = t.phone || '';
+  document.getElementById('t-specialty').value = t.specialty || '';
+  document.getElementById('t-areas').value = t.areas || '';
+  document.getElementById('t-notes').value = t.notes || '';
+  document.getElementById('tech-modal').classList.add('open');
+}
+
+function closeTechModal(){
+  document.getElementById('tech-modal').classList.remove('open');
+  editingTechId = null;
+}
+
+async function saveTechnician(){
+  const name = document.getElementById('t-name').value.trim();
+  if(!name){ alert('Please provide a technician name.'); return; }
+
+  const saveBtn = document.querySelector('#tech-modal .btn-save');
+  saveBtn.textContent = 'Saving...';
+  saveBtn.disabled = true;
+
+  const dbData = {
+    name: name,
+    phone: document.getElementById('t-phone').value.trim() || null,
+    specialty: document.getElementById('t-specialty').value.trim() || null,
+    areas: document.getElementById('t-areas').value.trim() || null,
+    notes: document.getElementById('t-notes').value.trim() || null
+  };
+
+  let error;
+  if(editingTechId){
+    ({ error } = await supabaseClient.from('technicians').update(dbData).eq('id', editingTechId));
+  } else {
+    ({ error } = await supabaseClient.from('technicians').insert([dbData]));
+  }
+
+  saveBtn.textContent = 'Save Technician';
+  saveBtn.disabled = false;
+
+  if(error){ alert('Database error: ' + error.message); return; }
+
+  closeTechModal();
+  await fetchTechnicians();
+  renderTechList();
+}
+
+async function deleteTechnician(id){
+  if(!confirm('Remove this technician from the list?')) return;
+  const { error } = await supabaseClient.from('technicians').update({ archived_at: new Date().toISOString() }).eq('id', id);
+  if(error){ alert('Failed to delete: ' + error.message); return; }
+  await fetchTechnicians();
+  renderTechList();
 }
 
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
