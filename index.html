@@ -30,6 +30,31 @@
 html,body{height:100%;overflow:hidden;font-size:16px;}
 body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
 
+#login-screen{
+  position:fixed;inset:0;background:var(--bg);z-index:1000;
+  display:flex;align-items:center;justify-content:center;
+}
+.login-card{
+  background:var(--s1);padding:40px;border-radius:16px;width:90%;max-width:380px;
+  box-shadow:0 20px 25px -5px rgba(0,0,0,.1);border:1px solid var(--border);
+}
+.login-card h2{font-family:'Barlow',sans-serif;font-weight:900;margin-bottom:6px;color:var(--accent);font-size:1.6rem;letter-spacing:.02em;}
+.login-card .sub{color:var(--muted);font-size:0.95rem;margin-bottom:24px;}
+.login-card input{
+  width:100%;padding:12px 14px;margin-bottom:12px;border:1px solid var(--border2);
+  border-radius:8px;font-family:'Barlow',sans-serif;font-size:1rem;outline:none;
+  transition:border .15s, box-shadow .15s;
+}
+.login-card input:focus{border-color:var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15);}
+.login-card button{
+  width:100%;padding:12px;background:var(--accent);color:#fff;border:none;
+  border-radius:8px;font-weight:800;font-family:'Barlow',sans-serif;font-size:1rem;
+  cursor:pointer;transition:all .15s;margin-top:4px;
+}
+.login-card button:hover{background:#1d4ed8;}
+.login-card button:disabled{opacity:.6;cursor:default;}
+#login-error{color:var(--red);margin-top:12px;font-size:0.9rem;font-weight:600;min-height:1.2em;}
+
 #topbar{
   height:70px;min-height:70px;
   display:flex;align-items:center;justify-content:space-between;
@@ -62,6 +87,13 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
   box-shadow: 0 2px 4px rgba(37,99,235,0.2);
 }
 .btn-add:hover{background:#1d4ed8; box-shadow: 0 4px 6px rgba(37,99,235,0.3); transform: translateY(-1px);}
+
+.btn-logout{
+  background:var(--s1);border:1px solid var(--border2);color:var(--muted2);
+  padding:10px 16px;border-radius:8px;font-family:'Barlow',sans-serif;font-weight:700;
+  font-size:0.95rem;cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.btn-logout:hover{border-color:var(--red);color:var(--red);background:#fef2f2;}
 
 #app{display:flex;flex:1;overflow:hidden;flex-direction:column;}
 
@@ -203,7 +235,8 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
   background:var(--bg);border:1px solid var(--border);
   border-radius:10px;padding:16px 20px;margin-bottom:10px;
 }
-.note-time{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;color:var(--muted);font-weight:600;margin-bottom:8px}
+.note-time{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;color:var(--muted);font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;gap:12px;}
+.note-author{color:var(--accent);font-weight:700;}
 .note-text{font-size:1.1rem;line-height:1.6;color:var(--text);}
 
 .note-form{display:flex;flex-direction:column;gap:12px;margin-top:16px}
@@ -292,6 +325,7 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
   box-shadow: 0 2px 4px rgba(37,99,235,0.2);
 }
 .btn-save:hover{background:#1d4ed8; transform: translateY(-1px);}
+.btn-save:disabled{opacity:.6;cursor:default;}
 
 .s-active{background:#e0f2fe;color:var(--blue)}
 .s-contacted{background:#f3e8ff;color:var(--purple)}
@@ -333,7 +367,6 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 #lightbox.open{display:flex}
 #lightbox img{max-width:90%;max-height:90%;border-radius:12px;object-fit:contain}
 
-/* MOBILE FIXES */
 .topbar-back{display:none;background:none;border:none;color:var(--accent);font-size:1.1rem;font-weight:800;cursor:pointer;font-family:'Barlow',sans-serif;align-items:center;gap:6px}
 
 @media(max-width:768px){
@@ -354,6 +387,9 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
     grid-column: span 2;
     padding: 12px;
   }
+  .topbar-right .btn-logout {
+    grid-column: span 2;
+  }
   .logo {
     text-align: center;
     font-size: 1.5rem;
@@ -373,6 +409,17 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 </head>
 <body>
 
+<div id="login-screen">
+  <div class="login-card">
+    <h2>FIX AND GO</h2>
+    <div class="sub">Sign in to view the job tracker</div>
+    <input id="login-email" type="email" placeholder="Email" autocomplete="username">
+    <input id="login-password" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="login-btn" onclick="doLogin()">Sign In</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
 <div id="topbar">
   <button class="topbar-back" onclick="showDashboard()">← Dashboard</button>
   <div class="logo">FIX AND GO<span> TRACKER</span></div>
@@ -380,6 +427,7 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
     <input type="date" id="date-filter" class="field" onchange="renderList()" title="Filter by date created">
     <input id="search-input" class="field" placeholder="Search jobs..." oninput="renderList()">
     <button class="btn-add" onclick="openAddModal()">+ New Job</button>
+    <button class="btn-logout" onclick="logOut()">Sign Out</button>
   </div>
 </div>
 
@@ -530,10 +578,9 @@ function statusClass(s){ return 's-'+s; }
 function priorityColor(p){ return p==='emergency'?'var(--red)':p==='urgent'?'var(--yellow)':'var(--muted)'; }
 
 function genId(){ return crypto.randomUUID(); }
-function genRef(){
-  const max = jobs.reduce((m,j)=>{ const n=parseInt((j.ref||'').split('-')[1]||0); return n>m?n:m; }, 0);
-  return 'JOB-' + String(max+1).padStart(3,'0');
-}
+// ref is now generated by a database trigger (generate_job_ref) on insert,
+// so it is never computed client-side and can never collide.
+
 function fmtDate(d){ if(!d)return ''; const [y,m,day]=d.split('T')[0].split('-'); return `${day}/${m}/${y}`; }
 function fmtDateTime(d){ 
   if(!d) return ''; 
@@ -545,10 +592,55 @@ function nowTime(){ const n=new Date(); return String(n.getHours()).padStart(2,'
 
 function getJob(id){ return jobs.find(j=>j.id===id); }
 
+async function checkAuth(){
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if(session){
+    document.getElementById('login-screen').style.display = 'none';
+    fetchJobs();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+}
+
+async function doLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errBox = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+  errBox.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  btn.disabled = false;
+  btn.textContent = 'Sign In';
+
+  if(error){
+    errBox.textContent = error.message;
+    return;
+  }
+  document.getElementById('login-screen').style.display = 'none';
+  fetchJobs();
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  ['login-email','login-password'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  });
+});
+
+async function logOut(){
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
 async function fetchJobs() {
   const { data: jobsData, error: jobsError } = await supabaseClient
     .from('jobs')
     .select('*')
+    .is('archived_at', null)
     .order('created', { ascending: false });
   
   if (jobsError) {
@@ -564,7 +656,7 @@ async function fetchJobs() {
   if (jobsData) {
     jobs = jobsData.map(j => {
       const jNotes = notesData ? notesData.filter(n => n.job_id === j.id).map(n => ({
-        id: n.id, date: n.note_date, time: n.note_time, text: n.text
+        id: n.id, date: n.note_date, time: n.note_time, text: n.text, author: n.author || ''
       })) : [];
       
       const jTenants = tenantsData ? tenantsData.filter(t => t.job_id === j.id) : [];
@@ -750,7 +842,7 @@ function renderDetail(){
       <div class="note-date-hdr">${fmtDate(date)}</div>
       ${notesByDate[date].map(n=>`
         <div class="note-item">
-          <div class="note-time">${n.time}</div>
+          <div class="note-time"><span>${n.time}</span>${n.author ? `<span class="note-author">${escHtml(n.author)}</span>` : ''}</div>
           <div class="note-text">${escHtml(n.text)}</div>
         </div>
       `).join('')}
@@ -782,11 +874,11 @@ function renderDetail(){
       </div>`;
   }
 
-  // --- SEPARATE IMAGES AND DOCUMENTS FOR DISPLAY ---
   let imageFiles = [];
   let docFiles = [];
   (j.files||[]).forEach(f => {
-    if(f.file_name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+    const isImage = (f.mime_type && f.mime_type.startsWith('image/')) || f.file_name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+    if(isImage) {
       imageFiles.push(f);
     } else {
       docFiles.push(f);
@@ -904,6 +996,7 @@ function renderDetail(){
             <input type="time" class="field" id="note-time" value="${nowTime()}">
           </div>
         </div>
+        <input class="field" id="note-author" placeholder="Your name (optional)">
         <textarea class="field" id="note-text" placeholder="What happened? What did you do?"></textarea>
         <div><button class="btn-note" onclick="addNote()">+ Add Note</button></div>
       </div>
@@ -951,14 +1044,15 @@ async function addNote(){
   if(!text) return;
   const date = document.getElementById('note-date').value || today();
   const time = document.getElementById('note-time').value || nowTime();
+  const author = document.getElementById('note-author').value.trim();
   
-  const dbNote = { job_id: currentJobId, note_date: date, note_time: time, text: text };
+  const dbNote = { job_id: currentJobId, note_date: date, note_time: time, text: text, author: author || null };
   const { data, error } = await supabaseClient.from('notes').insert([dbNote]).select();
 
   if (error) { alert('Failed to save note: ' + error.message); return; }
 
   const newId = data && data.length > 0 ? data[0].id : genId();
-  const newNotes = [...(j.notes||[]), { id: newId, date, time, text }];
+  const newNotes = [...(j.notes||[]), { id: newId, date, time, text, author }];
   newNotes.sort((a,b)=> a.date===b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date));
 
   j.notes = newNotes;
@@ -984,7 +1078,7 @@ async function handleMediaUpload(e){
     
     const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
     
-    const dbFile = { job_id: currentJobId, file_name: file.name, file_url: urlData.publicUrl };
+    const dbFile = { job_id: currentJobId, file_name: file.name, file_url: urlData.publicUrl, mime_type: file.type || null };
     const { data: insertedFile, error: dbError } = await supabaseClient.from('job_files').insert([dbFile]).select();
     
     if(!dbError && insertedFile) {
@@ -1148,11 +1242,14 @@ async function saveJob(){
     const j = getJob(editingJobId);
     Object.assign(j, dbData);
   } else {
-    const newJobDB = { id: genId(), ref: genRef(), ...dbData, created: today() };
-    const { error } = await supabaseClient.from('jobs').insert([newJobDB]);
+    // ref is intentionally left out — the database trigger assigns
+    // the next "JOB-0XX" number safely, no matter what else inserts rows.
+    const newJobDB = { id: genId(), ...dbData, created: today() };
+    const { data: insertedRows, error } = await supabaseClient.from('jobs').insert([newJobDB]).select();
     if (error) { alert('Database error: ' + error.message); saveBtn.textContent = 'Save Job'; saveBtn.disabled = false; return; }
 
-    const newJobLocal = { ...newJobDB, notes: [], files: [], tenants: [] };
+    const savedRow = insertedRows && insertedRows[0] ? insertedRows[0] : newJobDB;
+    const newJobLocal = { ...savedRow, notes: [], files: [], tenants: [] };
     jobs.unshift(newJobLocal);
     jobIdToProcess = newJobLocal.id;
     currentJobId = jobIdToProcess;
@@ -1178,10 +1275,10 @@ async function saveJob(){
 }
 
 async function deleteJob(){
-  if(!confirm('Delete this job? This cannot be undone.')) return;
+  if(!confirm('Delete this job? It will be archived and removed from view. This cannot be undone from the interface.')) return;
   
   const idToDelete = currentJobId;
-  const { error } = await supabaseClient.from('jobs').delete().eq('id', idToDelete);
+  const { error } = await supabaseClient.from('jobs').update({ archived_at: new Date().toISOString() }).eq('id', idToDelete);
   if (error) { alert('Failed to delete: ' + error.message); return; }
 
   jobs = jobs.filter(j=>j.id!==idToDelete);
@@ -1193,7 +1290,7 @@ async function deleteJob(){
 
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
 
-fetchJobs(); 
+checkAuth();
 </script>
 </body>
 </html>
