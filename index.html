@@ -825,7 +825,7 @@ async function fetchJobs() {
     .from('jobs')
     .select('*')
     .is('archived_at', null)
-    .order('created', { ascending: false });
+    .order('created_at', { ascending: false });
   
   if (jobsError) {
     console.error('Error fetching jobs:', jobsError);
@@ -961,7 +961,7 @@ function renderList(){
   });
   
   const pOrder = { emergency:0, urgent:1, normal:2 };
-  filtered.sort((a,b)=> pOrder[a.priority]-pOrder[b.priority] || (b.created||'').localeCompare(a.created||''));
+  filtered.sort((a,b)=> (b.created_at||b.created||'').localeCompare(a.created_at||a.created||'') || pOrder[a.priority]-pOrder[b.priority]);
 
   const list = document.getElementById('job-grid');
   if(!filtered.length){
