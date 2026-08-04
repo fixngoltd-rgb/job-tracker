@@ -363,7 +363,7 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 .pa-info-box .val a:hover{text-decoration:underline;}
 
 .pa-textarea{
-  width:100%;min-height:140px;
+  width:100%;min-height:260px;
   font-family:'IBM Plex Mono',monospace;font-size:1.05rem;line-height:1.7;
   background:var(--s3);border:1px solid var(--border2);border-radius:10px;
   padding:16px;color:var(--text);resize:vertical;
@@ -1708,10 +1708,21 @@ async function generatePaymentAdvice(){
   const reference = `${prefix}-${seq}`;
 
   const adviceText =
-`${techName}
-${techArea || ''}
+`Dear ${techName},
+
+
+This confirms that
+
+£${amount.toFixed(2)}
+
+was paid to your bank account on ${fmtDate(jobDate)}.
+in relation to the job with details:
 ${reference}
-${j.address} - ${j.title || j.description || 'Job'} - £${amount.toFixed(2)} paid ${fmtDate(jobDate)}`;
+${j.address} - ${j.title || j.description || 'Job'}
+
+If you have any questions, please contact us on 01217203344.
+Kind regards,
+Fix & Go Ltd`;
 
   const outputBox = document.getElementById('pa-output-text');
   outputBox.value = adviceText;
