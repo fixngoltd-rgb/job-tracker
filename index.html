@@ -344,6 +344,40 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
 .status-select-wrap{position:relative;display:inline-block}
+
+/* ===== PAYMENT ADVICE ===== */
+.pa-info-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;
+  margin-bottom:20px;
+}
+.pa-info-box{
+  background:var(--s3);border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;
+}
+.pa-info-box .lbl{
+  font-family:'IBM Plex Mono',monospace;font-size:0.8rem;font-weight:700;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;
+}
+.pa-info-box .val{font-size:1rem;font-weight:700;color:var(--text);}
+.pa-info-box .val a{color:var(--accent);text-decoration:none;}
+.pa-info-box .val a:hover{text-decoration:underline;}
+
+.pa-textarea{
+  width:100%;min-height:140px;
+  font-family:'IBM Plex Mono',monospace;font-size:1.05rem;line-height:1.7;
+  background:var(--s3);border:1px solid var(--border2);border-radius:10px;
+  padding:16px;color:var(--text);resize:vertical;
+}
+.pa-list{display:flex;flex-direction:column;gap:8px;margin:16px 0;}
+.pa-list-item{
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--s1);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;cursor:pointer;transition:all .15s;
+}
+.pa-list-item:hover{border-color:var(--accent);background:#eff6ff;}
+.pa-list-item .ref{font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--accent);font-size:0.9rem;}
+.pa-list-item .amt{font-weight:800;color:var(--text);}
+
 .status-dropdown{
   position:absolute;top:calc(100% + 8px);right:0;
   background:var(--s1);border:1px solid var(--border2);
@@ -627,6 +661,62 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
     <div class="form-actions">
       <button class="btn-cancel" onclick="closeTechModal()">Cancel</button>
       <button class="btn-save" onclick="saveTechnician()">Save Technician</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="invoice-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">Invoice / Payment Advice</div>
+      <button class="modal-close" onclick="closeInvoiceModal()">✕</button>
+    </div>
+
+    <div class="pa-info-grid" id="pa-job-info"></div>
+
+    <div class="form-grid">
+      <div class="form-group span2">
+        <div class="flabel">Technician / Trade</div>
+        <input class="field" id="pa-tech-name" list="tech-names-list" placeholder="Name" onchange="paAutofillTech()">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Technician Email</div>
+        <input class="field" id="pa-tech-email" placeholder="email@example.com">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Technician Phone</div>
+        <input class="field" id="pa-tech-phone" placeholder="+44...">
+      </div>
+      <div class="form-group">
+        <div class="flabel">City / Area</div>
+        <input class="field" id="pa-tech-area" placeholder="e.g. Leeds">
+      </div>
+      <div class="form-group">
+        <div class="flabel">Amount (£)</div>
+        <input class="field" id="pa-amount" type="number" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-group span2">
+        <div class="flabel">Job Date</div>
+        <input class="field" id="pa-date" type="date">
+      </div>
+    </div>
+
+    <div class="form-actions" style="margin-top:20px;border-top:none;padding-top:0;">
+      <button class="btn-save" onclick="generatePaymentAdvice()">Generate Payment Advice</button>
+    </div>
+
+    <div id="pa-output-wrap" style="display:none;margin-top:20px;">
+      <div class="flabel" style="margin-bottom:8px;">Payment Advice Text (copy this)</div>
+      <textarea class="pa-textarea" id="pa-output-text" readonly></textarea>
+      <div style="display:flex;gap:12px;margin-top:12px;">
+        <button class="btn-tiny" onclick="paCopyText()">📋 Copy Text</button>
+        <span id="pa-copy-confirm" style="font-size:0.9rem;color:var(--green);font-weight:700;display:none;">Copied!</span>
+      </div>
+    </div>
+
+    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px;">
+      <div class="flabel" style="margin-bottom:10px;">Previous Payment Advices for this Job</div>
+      <div class="pa-list" id="pa-history-list"></div>
     </div>
   </div>
 </div>
@@ -1047,6 +1137,7 @@ function renderDetail(){
       </div>
       <div class="dh-right">
         <button class="btn-icon primary" onclick="openFurtherWorksModal()">+ Further Works</button>
+        <button class="btn-icon" onclick="openInvoiceModal()">💷 Invoice</button>
         <button class="btn-icon" onclick="openStatusDropdown(event)" id="status-btn">
           <span class="status-pill ${statusClass(j.status)}">${STATUS_LABELS[j.status]}</span> ▾
         </button>
@@ -1522,6 +1613,170 @@ async function deleteTechnician(id){
 }
 
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+
+/* ================= PAYMENT ADVICE / INVOICE ================= */
+
+function paPropertyShorthand(address){
+  if(!address) return 'PROPERTY';
+  const first = address.split(',')[0].trim();
+  const abbrev = {
+    'ROAD':'RD','STREET':'ST','AVENUE':'AVE','CLOSE':'CL','DRIVE':'DR',
+    'LANE':'LN','COURT':'CT','WALK':'WK','CRESCENT':'CRES','GROVE':'GR',
+    'PLACE':'PL','GARDENS':'GDNS','TERRACE':'TER','SQUARE':'SQ'
+  };
+  let words = first.toUpperCase().split(/\s+/).map(w => abbrev[w] || w);
+  let joined = words.join('').replace(/[^A-Z0-9]/g, '');
+  return joined.slice(0, 14) || 'PROPERTY';
+}
+
+function paTradeInitials(name){
+  if(!name) return 'XX';
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if(words.length === 1) return (words[0][0] + (words[0][1]||words[0][0])).toUpperCase();
+  return (words[0][0] + words[words.length-1][0]).toUpperCase();
+}
+
+async function paNextSequence(prefix){
+  const { data } = await supabaseClient
+    .from('payment_advices')
+    .select('reference')
+    .ilike('reference', prefix + '-%');
+  const count = data ? data.length : 0;
+  return String(count).padStart(3, '0');
+}
+
+function openInvoiceModal(){
+  const j = getJob(currentJobId);
+  if(!j) return;
+
+  document.getElementById('pa-job-info').innerHTML = `
+    <div class="pa-info-box"><div class="lbl">Property</div><div class="val">${escHtml(j.address||'—')}</div></div>
+    <div class="pa-info-box"><div class="lbl">Tenant</div><div class="val">${escHtml((j.tenants||[]).map(t=>t.name).join(', ')||'—')}</div></div>
+    <div class="pa-info-box"><div class="lbl">Tenant Phone</div><div class="val">${escHtml((j.tenants||[]).map(t=>t.phone).filter(Boolean).join(', ')||'—')}</div></div>
+    <div class="pa-info-box"><div class="lbl">Job Ref</div><div class="val">${escHtml(j.ref)}</div></div>
+  `;
+
+  document.getElementById('pa-tech-name').value = j.tech || '';
+  document.getElementById('pa-tech-phone').value = j.tech_phone || '';
+  document.getElementById('pa-tech-email').value = '';
+  document.getElementById('pa-tech-area').value = '';
+  document.getElementById('pa-amount').value = '';
+  document.getElementById('pa-date').value = today();
+  document.getElementById('pa-output-wrap').style.display = 'none';
+  document.getElementById('pa-output-text').value = '';
+  document.getElementById('pa-copy-confirm').style.display = 'none';
+
+  if(j.tech) paAutofillTech();
+
+  fetchPaymentAdvices(currentJobId);
+  document.getElementById('invoice-modal').classList.add('open');
+}
+
+function closeInvoiceModal(){
+  document.getElementById('invoice-modal').classList.remove('open');
+}
+
+function paAutofillTech(){
+  const nameVal = document.getElementById('pa-tech-name').value.trim().toLowerCase();
+  const match = technicians.find(t => (t.name||'').trim().toLowerCase() === nameVal);
+  if(match){
+    if(match.email) document.getElementById('pa-tech-email').value = match.email;
+    if(match.phone) document.getElementById('pa-tech-phone').value = match.phone;
+    if(match.areas) document.getElementById('pa-tech-area').value = match.areas.split(/[,|]/)[0].trim();
+  }
+}
+
+async function generatePaymentAdvice(){
+  const j = getJob(currentJobId);
+  if(!j) return;
+
+  const techName = document.getElementById('pa-tech-name').value.trim();
+  const techEmail = document.getElementById('pa-tech-email').value.trim();
+  const techPhone = document.getElementById('pa-tech-phone').value.trim();
+  const techArea = document.getElementById('pa-tech-area').value.trim();
+  const amount = parseFloat(document.getElementById('pa-amount').value);
+  const jobDate = document.getElementById('pa-date').value;
+
+  if(!techName){ alert('Please enter a technician/trade name.'); return; }
+  if(!amount || amount <= 0){ alert('Please enter a valid amount.'); return; }
+  if(!jobDate){ alert('Please enter the job date.'); return; }
+
+  const propShort = paPropertyShorthand(j.address);
+  const tradeInit = paTradeInitials(techName);
+  const prefix = `${tradeInit}-${propShort}`;
+  const seq = await paNextSequence(prefix);
+  const reference = `${prefix}-${seq}`;
+
+  const adviceText =
+`${techName}
+${techArea || ''}
+${reference}
+${j.address} - ${j.title || j.description || 'Job'} - £${amount.toFixed(2)} paid ${fmtDate(jobDate)}`;
+
+  const outputBox = document.getElementById('pa-output-text');
+  outputBox.value = adviceText;
+  document.getElementById('pa-output-wrap').style.display = 'block';
+
+  const { error } = await supabaseClient.from('payment_advices').insert([{
+    job_id: currentJobId,
+    technician_name: techName,
+    technician_email: techEmail || null,
+    technician_phone: techPhone || null,
+    technician_area: techArea || null,
+    amount: amount,
+    job_date: jobDate,
+    reference: reference,
+    advice_text: adviceText
+  }]);
+
+  if(error){ alert('Saved locally but failed to store in database: ' + error.message); return; }
+
+  fetchPaymentAdvices(currentJobId);
+}
+
+function paCopyText(){
+  const box = document.getElementById('pa-output-text');
+  box.select();
+  navigator.clipboard.writeText(box.value).then(()=>{
+    const confirm = document.getElementById('pa-copy-confirm');
+    confirm.style.display = 'inline';
+    setTimeout(()=>{ confirm.style.display = 'none'; }, 2000);
+  });
+}
+
+async function fetchPaymentAdvices(jobId){
+  const { data, error } = await supabaseClient
+    .from('payment_advices')
+    .select('*')
+    .eq('job_id', jobId)
+    .order('created_at', { ascending: false });
+
+  const list = document.getElementById('pa-history-list');
+  if(error || !data || !data.length){
+    list.innerHTML = `<div style="color:var(--muted);font-size:0.95rem;">No payment advices generated yet for this job.</div>`;
+    return;
+  }
+
+  list.innerHTML = data.map(pa => `
+    <div class="pa-list-item" onclick="paViewHistoryItem('${pa.id}')">
+      <div>
+        <span class="ref">${escHtml(pa.reference)}</span>
+        &nbsp;&nbsp;${escHtml(pa.technician_name)}
+      </div>
+      <div class="amt">£${parseFloat(pa.amount).toFixed(2)}</div>
+    </div>
+  `).join('');
+
+  window._paHistoryCache = data;
+}
+
+function paViewHistoryItem(id){
+  const item = (window._paHistoryCache || []).find(p => p.id === id);
+  if(!item) return;
+  document.getElementById('pa-output-text').value = item.advice_text;
+  document.getElementById('pa-output-wrap').style.display = 'block';
+  document.getElementById('pa-tech-email').value = item.technician_email || '';
+}
 
 checkAuth();
 </script>
