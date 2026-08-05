@@ -1,0 +1,1947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Property Maintenance Job Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary: #1e3a5f;
+            --primary-light: #2c5282;
+            --accent: #e67e22;
+            --accent-hover: #d35400;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --info: #3498db;
+            --bg: #f4f6f8;
+            --card: #ffffff;
+            --text: #2d3748;
+            --text-light: #718096;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+        /* Header */
+        .header {
+            background: var(--primary);
+            color: white;
+            padding: 24px 0;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-lg);
+        }
+        .header-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header h1 .icon {
+            font-size: 2rem;
+        }
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--primary);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-card.pending { border-left-color: var(--warning); }
+        .stat-card.in-progress { border-left-color: var(--info); }
+        .stat-card.completed { border-left-color: var(--success); }
+        .stat-card.invoice { border-left-color: var(--accent); }
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-light);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-top: 4px;
+            color: var(--text);
+        }
+
+        /* Toolbar */
+        .toolbar {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .toolbar-left, .toolbar-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+        .btn-secondary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-secondary:hover { background: var(--primary-light); }
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--border);
+            color: var(--text);
+        }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-sm { padding: 6px 14px; font-size: 0.875rem; }
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            justify-content: center;
+            border-radius: 8px;
+        }
+
+        /* Inputs */
+        .search-box {
+            position: relative;
+        }
+        .search-box input {
+            padding: 10px 16px 10px 40px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            width: 280px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .search-box::before {
+            content: "🔍";
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1rem;
+        }
+        select {
+            padding: 10px 16px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+        }
+        select:focus { outline: none; border-color: var(--primary); }
+
+        /* Job Cards */
+        .jobs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 20px;
+        }
+        .job-card {
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: all 0.2s;
+            border: 1px solid var(--border);
+        }
+        .job-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+        .job-card-header {
+            padding: 16px 20px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .job-id {
+            font-size: 0.75rem;
+            font-weight: 600;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .job-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        .job-status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-contacted { background: #f3e8ff; color: #6b21a8; }
+        .status-in-progress { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-cancelled { background: #fee2e2; color: #991b1b; }
+        .status-on-hold { background: #ffedd5; color: #9a3412; }
+
+        .job-card-body {
+            padding: 20px;
+        }
+        .job-detail {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 12px;
+            font-size: 0.9375rem;
+        }
+        .job-detail:last-child { margin-bottom: 0; }
+        .job-detail-icon {
+            font-size: 1.125rem;
+            min-width: 24px;
+            text-align: center;
+        }
+        .job-detail-label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 2px;
+        }
+        .job-detail-value {
+            color: var(--text);
+            font-weight: 500;
+        }
+        .job-detail-value.address {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .priority-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .priority-low { background: var(--success); }
+        .priority-medium { background: var(--warning); }
+        .priority-high { background: var(--danger); }
+        .priority-urgent { background: #8b0000; animation: pulse 2s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .job-card-footer {
+            padding: 12px 20px;
+            background: #f8fafc;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .job-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Invoice badge */
+        .invoice-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .invoice-paid { background: #d1fae5; color: #065f46; }
+        .invoice-unpaid { background: #fee2e2; color: #991b1b; }
+        .invoice-partial { background: #fef3c7; color: #92400e; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal {
+            background: var(--card);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+            transform: scale(0.95);
+            transition: transform 0.3s;
+        }
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+        .modal-header {
+            padding: 24px 28px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--primary);
+            color: white;
+            border-radius: 16px 16px 0 0;
+        }
+        .modal-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .modal-close:hover { background: rgba(255,255,255,0.2); }
+        .modal-body {
+            padding: 28px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+        .form-group label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text);
+        }
+        .form-group label .required {
+            color: var(--danger);
+            margin-left: 2px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+            background: white;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        .form-group small {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+        .modal-footer {
+            padding: 20px 28px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background: #f8fafc;
+            border-radius: 0 0 16px 16px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+        }
+        .empty-state h3 {
+            font-size: 1.5rem;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+        .empty-state p {
+            color: var(--text-light);
+            margin-bottom: 24px;
+        }
+
+        /* Detail View */
+        .detail-card {
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .detail-header {
+            padding: 24px 28px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+        }
+        .detail-header .job-id { opacity: 0.85; }
+        .detail-header h2 { font-size: 1.5rem; font-weight: 700; margin-top: 6px; }
+        .detail-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+        .detail-body { padding: 24px 28px; }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+        .detail-field {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+        .detail-field-label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+        .detail-field-value { font-size: 1rem; font-weight: 600; color: var(--text); }
+        .detail-section { margin-bottom: 22px; }
+        .detail-section-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid var(--border);
+        }
+        .detail-section-text { line-height: 1.6; color: var(--text); white-space: pre-wrap; }
+        .detail-photos { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .detail-photos img { width: 140px; height: 140px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); }
+
+        /* Technicians panel */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .tech-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+        }
+        .tech-card-name { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
+        .tech-card-row { font-size: 0.9rem; color: var(--text-light); margin-bottom: 4px; }
+        .tech-card-row a { color: var(--info); text-decoration: none; }
+        .tech-specialty-badge {
+            display: inline-block; background: #e0e7ff; color: #3730a3;
+            padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-bottom: 8px;
+        }
+        .tech-card-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+        /* Invoice / Payment Advice */
+        .pa-info-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+        .pa-info-box .lbl { font-size: 0.75rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+        .pa-textarea {
+            width: 100%; min-height: 220px; font-family: 'Courier New', monospace; font-size: 0.95rem; line-height: 1.6;
+            background: #f8fafc; border: 2px solid var(--border); border-radius: 10px; padding: 16px; color: var(--text); resize: vertical;
+        }
+        .pa-list-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px 14px; margin-bottom: 8px; cursor: pointer;
+        }
+        .pa-list-item:hover { border-color: var(--primary); }
+
+        /* Tags */
+        .tags-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .tag {
+            background: #edf2f7;
+            color: var(--text);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: var(--text);
+            color: white;
+            padding: 14px 20px;
+            border-radius: 10px;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+        }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        .toast.info { background: var(--info); }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .jobs-grid { grid-template-columns: 1fr; }
+            .form-grid { grid-template-columns: 1fr; }
+            .header-inner { flex-direction: column; text-align: center; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .toolbar-left, .toolbar-right { width: 100%; justify-content: center; }
+            .search-box input { width: 100%; }
+            .modal { width: 95%; }
+        }
+
+        /* Cost highlight */
+        .cost-highlight {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        /* Date display */
+        .date-display {
+            font-size: 0.875rem;
+            color: var(--text-light);
+        }
+
+        /* Technician avatar placeholder */
+        .tech-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #e0e7ff;
+            color: #3730a3;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-inner">
+            <h1><span class="icon">🏠</span> UK Property Maintenance Tracker</h1>
+            <div class="header-actions">
+                <span id="connStatus" style="opacity: 0.8; font-size: 0.875rem;">Connecting to Supabase...</span>
+                <button class="btn btn-outline" id="backBtn" onclick="showDashboard()" style="display:none; border-color:white; color:white;">
+                    <span>←</span> Back to Dashboard
+                </button>
+                <button class="btn btn-secondary" onclick="openTechPanel()">
+                    <span>🔧</span> Technicians
+                </button>
+                <button class="btn btn-primary" onclick="openModal()">
+                    <span>➕</span> New Job
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Jobs</div>
+                <div class="stat-value" id="stat-total">0</div>
+            </div>
+            <div class="stat-card pending">
+                <div class="stat-label">Pending</div>
+                <div class="stat-value" id="stat-pending">0</div>
+            </div>
+            <div class="stat-card in-progress">
+                <div class="stat-label">In Progress</div>
+                <div class="stat-value" id="stat-in-progress">0</div>
+            </div>
+            <div class="stat-card completed">
+                <div class="stat-label">Completed</div>
+                <div class="stat-value" id="stat-completed">0</div>
+            </div>
+            <div class="stat-card invoice">
+                <div class="stat-label">Outstanding £</div>
+                <div class="stat-value" id="stat-outstanding">£0</div>
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Search jobs, addresses, tenants..." oninput="filterJobs()">
+                </div>
+                <select id="statusFilter" onchange="filterJobs()">
+                    <option value="">All Statuses</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+                <select id="priorityFilter" onchange="filterJobs()">
+                    <option value="">All Priorities</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
+                </select>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-outline btn-sm" onclick="exportData()">
+                    <span>📥</span> Export JSON
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('importFile').click()">
+                    <span>📤</span> Import JSON
+                </button>
+                <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+                <button class="btn btn-danger btn-sm" onclick="clearAll()">
+                    <span>🗑️</span> Clear All
+                </button>
+            </div>
+        </div>
+
+        <!-- Jobs Grid -->
+        <div id="jobsContainer" class="jobs-grid"></div>
+
+        <!-- Job Detail View -->
+        <div id="detailView" style="display:none;"></div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state" style="display:none;">
+            <div class="empty-state-icon">📋</div>
+            <h3>No Jobs Found</h3>
+            <p>Add your first property maintenance job to get started.</p>
+            <button class="btn btn-primary" onclick="openModal()">
+                <span>➕</span> Add New Job
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">➕ Add New Job</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="jobForm" onsubmit="saveJob(event)">
+                    <input type="hidden" id="jobId">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Job Title <span class="required">*</span></label>
+                            <input type="text" id="jobTitle" required placeholder="e.g. Boiler Repair, Leaking Tap">
+                        </div>
+                        <div class="form-group">
+                            <label>Property Address <span class="required">*</span></label>
+                            <input type="text" id="propertyAddress" required placeholder="e.g. 12 Baker Street, London NW1">
+                        </div>
+                        <div class="form-group">
+                            <label>Tenant Name</label>
+                            <input type="text" id="tenantName" placeholder="e.g. John Smith">
+                        </div>
+                        <div class="form-group">
+                            <label>Tenant Contact</label>
+                            <input type="text" id="tenantContact" placeholder="Phone or email">
+                        </div>
+                        <div class="form-group">
+                            <label>Priority <span class="required">*</span></label>
+                            <select id="priority" required>
+                                <option value="Low">Low</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="High">High</option>
+                                <option value="Urgent">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Status <span class="required">*</span></label>
+                            <select id="status" required>
+                                <option value="Pending" selected>Pending</option>
+                                <option value="Contacted">Contacted</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                                <option value="On Hold">On Hold</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Assigned Technician</label>
+                            <input type="text" id="technician" list="tech-names-list" placeholder="e.g. Mike the Plumber Ltd" onchange="autofillTechContact()">
+                            <datalist id="tech-names-list"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>Technician Contact</label>
+                            <input type="text" id="techContact" placeholder="Phone or email">
+                        </div>
+                        <div class="form-group">
+                            <label>Date Reported <span class="required">*</span></label>
+                            <input type="date" id="dateReported" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Date Completed</label>
+                            <input type="date" id="dateCompleted">
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="category">
+                                <option value="">Select Category</option>
+                                <option value="Plumbing">Plumbing</option>
+                                <option value="Electrical">Electrical</option>
+                                <option value="Heating/Gas">Heating/Gas</option>
+                                <option value="Carpentry">Carpentry</option>
+                                <option value="Painting/Decorating">Painting/Decorating</option>
+                                <option value="Roofing">Roofing</option>
+                                <option value="Glazing">Glazing</option>
+                                <option value="Appliances">Appliances</option>
+                                <option value="Damp/Mould">Damp/Mould</option>
+                                <option value="Pest Control">Pest Control</option>
+                                <option value="Gardening">Gardening</option>
+                                <option value="Security">Security</option>
+                                <option value="General Maintenance">General Maintenance</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Estimated Cost (£)</label>
+                            <input type="number" id="estimatedCost" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Final Cost (£)</label>
+                            <input type="number" id="finalCost" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Invoice Status</label>
+                            <select id="invoiceStatus">
+                                <option value="Not Invoiced">Not Invoiced</option>
+                                <option value="Invoiced - Unpaid">Invoiced - Unpaid</option>
+                                <option value="Partially Paid">Partially Paid</option>
+                                <option value="Paid">Paid</option>
+                                <option value="Disputed">Disputed</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Invoice Number</label>
+                            <input type="text" id="invoiceNumber" placeholder="e.g. INV-001234">
+                        </div>
+                        <div class="form-group">
+                            <label>Property Type</label>
+                            <select id="propertyType">
+                                <option value="">Select Type</option>
+                                <option value="Flat/Apartment">Flat/Apartment</option>
+                                <option value="Terraced House">Terraced House</option>
+                                <option value="Semi-Detached">Semi-Detached</option>
+                                <option value="Detached">Detached</option>
+                                <option value="Bungalow">Bungalow</option>
+                                <option value="HMO">HMO</option>
+                                <option value="Commercial">Commercial</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Access Arrangements</label>
+                            <input type="text" id="accessArrangements" placeholder="e.g. Key with tenant, 9am-5pm">
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Issue Description <span class="required">*</span></label>
+                            <textarea id="issueDescription" required placeholder="Detailed description of the maintenance issue..."></textarea>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Work Carried Out / Resolution</label>
+                            <textarea id="workDone" placeholder="Details of work completed, parts used, etc."></textarea>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Notes & Follow-ups</label>
+                            <textarea id="notes" placeholder="Additional notes, tenant feedback, follow-up actions..."></textarea>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Photo URLs (comma separated)</label>
+                            <input type="text" id="photoUrls" placeholder="https://example.com/photo1.jpg, https://example.com/photo2.jpg">
+                            <small>Paste image URLs separated by commas</small>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Tags (comma separated)</label>
+                            <input type="text" id="tags" placeholder="e.g. emergency, warranty, insurance-claim">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">💾 Save Job</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Technicians Panel Modal -->
+    <div class="modal-overlay" id="techPanelModal">
+        <div class="modal" style="max-width:1000px;">
+            <div class="modal-header">
+                <h2>🔧 Technicians</h2>
+                <button class="modal-close" onclick="closeTechPanel()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; gap:12px; margin-bottom:20px;">
+                    <div class="search-box" style="flex:1;">
+                        <input type="text" id="techSearchInput" placeholder="Search name, area, specialty..." oninput="renderTechList()" style="width:100%;">
+                    </div>
+                    <button class="btn btn-primary" onclick="openAddTechModal()"><span>➕</span> Add Technician</button>
+                </div>
+                <div class="tech-grid" id="techGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Technician Modal -->
+    <div class="modal-overlay" id="techFormModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="techFormTitle">➕ New Technician</h2>
+                <button class="modal-close" onclick="closeTechFormModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="techId">
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label>Name <span class="required">*</span></label>
+                        <input type="text" id="techFormName" placeholder="e.g. Mehdi Uk">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="text" id="techFormPhone" placeholder="+44...">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="text" id="techFormEmail" placeholder="email@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Specialty</label>
+                        <input type="text" id="techFormSpecialty" placeholder="e.g. Plumber, Electrician">
+                    </div>
+                    <div class="form-group">
+                        <label>Areas Covered</label>
+                        <input type="text" id="techFormAreas" placeholder="e.g. Leeds, Bolton">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Notes</label>
+                        <textarea id="techFormNotes" placeholder="Anything worth remembering..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeTechFormModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveTechnician()">💾 Save Technician</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoice / Payment Advice Modal -->
+    <div class="modal-overlay" id="invoiceModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>💷 Payment Advice</h2>
+                <button class="modal-close" onclick="closeInvoiceModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-grid" id="paJobInfo" style="margin-bottom:20px;"></div>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label>Technician / Trade</label>
+                        <input type="text" id="paTechName" list="tech-names-list" placeholder="Name" onchange="paAutofillTech()">
+                    </div>
+                    <div class="form-group">
+                        <label>Technician Email</label>
+                        <input type="text" id="paTechEmail" placeholder="email@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Amount (£)</label>
+                        <input type="number" id="paAmount" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Job Date</label>
+                        <input type="date" id="paDate">
+                    </div>
+                </div>
+                <div style="margin-top:16px;">
+                    <button class="btn btn-primary" onclick="generatePaymentAdvice()">Generate Payment Advice</button>
+                </div>
+                <div id="paOutputWrap" style="display:none; margin-top:20px;">
+                    <label style="font-size:0.875rem; font-weight:600; margin-bottom:6px; display:block;">Payment Advice Text (copy this)</label>
+                    <textarea class="pa-textarea" id="paOutputText" readonly></textarea>
+                    <button class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="paCopyText()">📋 Copy Text</button>
+                    <span id="paCopyConfirm" style="display:none; color:var(--success); font-weight:600; margin-left:10px;">Copied!</span>
+                </div>
+                <div style="margin-top:24px; border-top:1px solid var(--border); padding-top:16px;">
+                    <label style="font-size:0.875rem; font-weight:600; margin-bottom:10px; display:block;">Previous Payment Advices</label>
+                    <div id="paHistoryList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // Icons mapping
+        const categoryIcons = {
+            'Plumbing': '🔧',
+            'Electrical': '⚡',
+            'Heating/Gas': '🔥',
+            'Carpentry': '🪚',
+            'Painting/Decorating': '🎨',
+            'Roofing': '🏠',
+            'Glazing': '🪟',
+            'Appliances': '🔌',
+            'Damp/Mould': '💧',
+            'Pest Control': '🐜',
+            'Gardening': '🌿',
+            'Security': '🔒',
+            'General Maintenance': '🛠️',
+            'Other': '📦'
+        };
+
+        const statusIcons = {
+            'Pending': '⏳',
+            'Contacted': '📞',
+            'In Progress': '🔨',
+            'Completed': '✅',
+            'On Hold': '⏸️',
+            'Cancelled': '❌'
+        };
+
+        // ===== Supabase connection =====
+        const supabaseUrl = 'https://ojxqplxgyfokhkoyacic.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qeHFwbHhneWZva2hrb3lhY2ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzg4MDcsImV4cCI6MjA5MzcxNDgwN30.G1m4yBF3MDMmpScVj9GQRDzZdy5TR38MxBowPHROlNY';
+        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        // Data storage
+        let jobs = [];
+        let editingId = null; // holds the real Supabase uuid while editing
+
+        // ===== Status/Priority mapping: this tracker's UI labels <-> your database's actual values =====
+        // (Both trackers share the same jobs table and the same DB-level constraints,
+        //  so this UI's friendlier labels get translated on the way in and out.)
+        const STATUS_UI_TO_DB = {
+            'Pending': 'active',
+            'Contacted': 'contacted',
+            'In Progress': 'booked',
+            'Completed': 'completed',
+            'On Hold': 'revisit',
+            'Cancelled': 'cancelled'
+        };
+        const STATUS_DB_TO_UI = {
+            'active': 'Pending',
+            'contacted': 'Contacted',
+            'booked': 'In Progress',
+            'completed': 'Completed',
+            'revisit': 'On Hold',
+            'cancelled': 'Cancelled'
+        };
+        const PRIORITY_UI_TO_DB = {
+            'Low': 'normal',
+            'Medium': 'normal',
+            'High': 'urgent',
+            'Urgent': 'emergency'
+        };
+        const PRIORITY_DB_TO_UI = {
+            'normal': 'Medium',
+            'urgent': 'High',
+            'emergency': 'Urgent'
+        };
+
+        function dbRowToJob(row) {
+            return {
+                id: row.id,               // real Supabase uuid - used internally
+                ref: row.ref,              // JOB-XXX - shown to the user
+                title: row.title || '',
+                propertyAddress: row.address || '',
+                tenantName: row.tenant || '',
+                tenantContact: row.tenant_phone || '',
+                priority: PRIORITY_DB_TO_UI[row.priority] || 'Medium',
+                status: STATUS_DB_TO_UI[row.status] || 'Pending',
+                technician: row.tech || '',
+                techContact: row.tech_phone || '',
+                dateReported: row.created || '',
+                dateCompleted: row.date_completed || '',
+                category: row.category || '',
+                estimatedCost: row.estimated_cost || 0,
+                finalCost: row.final_cost || 0,
+                invoiceStatus: row.invoice_status || 'Not Invoiced',
+                invoiceNumber: row.invoice_number || '',
+                propertyType: row.property_type || '',
+                accessArrangements: row.access_arrangements || '',
+                issueDescription: row.description || '',
+                workDone: row.work_done || '',
+                notes: row.quick_notes || '',
+                photoUrls: row.photo_urls ? row.photo_urls.split(',').map(s => s.trim()).filter(Boolean) : [],
+                tags: row.tags ? row.tags.split(',').map(s => s.trim()).filter(Boolean) : [],
+                createdAt: row.created_at || '',
+                updatedAt: row.updated_at || ''
+            };
+        }
+
+        function jobToDbFields(jobData) {
+            return {
+                title: jobData.title,
+                address: jobData.propertyAddress,
+                tenant: jobData.tenantName || null,
+                tenant_phone: jobData.tenantContact || null,
+                priority: PRIORITY_UI_TO_DB[jobData.priority] || 'normal',
+                status: STATUS_UI_TO_DB[jobData.status] || 'active',
+                tech: jobData.technician || null,
+                tech_phone: jobData.techContact || null,
+                date_completed: jobData.dateCompleted || null,
+                category: jobData.category || null,
+                estimated_cost: jobData.estimatedCost || null,
+                final_cost: jobData.finalCost || null,
+                invoice_status: jobData.invoiceStatus || null,
+                invoice_number: jobData.invoiceNumber || null,
+                property_type: jobData.propertyType || null,
+                access_arrangements: jobData.accessArrangements || null,
+                description: jobData.issueDescription,
+                work_done: jobData.workDone || null,
+                quick_notes: jobData.notes || null,
+                photo_urls: jobData.photoUrls && jobData.photoUrls.length ? jobData.photoUrls.join(', ') : null,
+                tags: jobData.tags && jobData.tags.length ? jobData.tags.join(', ') : null
+            };
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadJobs();
+            document.getElementById('dateReported').valueAsDate = new Date();
+        });
+
+        // ===== Supabase data functions (replacing sessionStorage) =====
+        async function loadJobs() {
+            const statusEl = document.getElementById('connStatus');
+            const { data, error } = await supabaseClient
+                .from('jobs')
+                .select('*')
+                .is('archived_at', null)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                statusEl.textContent = '⚠️ Not connected (see note below)';
+                statusEl.style.color = '#fde68a';
+                showToast('Could not load jobs: ' + error.message, 'error');
+                console.error(error);
+                return;
+            }
+
+            statusEl.textContent = `Connected — ${data.length} jobs loaded`;
+            jobs = data.map(dbRowToJob);
+            renderJobs();
+            updateStats();
+            fetchTechnicians();
+        }
+
+        // Modal functions
+        function openModal(jobId = null) {
+            editingId = jobId;
+            const modal = document.getElementById('modal');
+            const title = document.getElementById('modalTitle');
+            const form = document.getElementById('jobForm');
+
+            if (jobId) {
+                const job = jobs.find(j => j.id === jobId);
+                if (job) {
+                    title.textContent = `✏️ Edit Job (${job.ref})`;
+                    populateForm(job);
+                }
+            } else {
+                title.textContent = '➕ Add New Job';
+                form.reset();
+                document.getElementById('jobId').value = '';
+                document.getElementById('dateReported').valueAsDate = new Date();
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+            document.body.style.overflow = '';
+            editingId = null;
+        }
+
+        function populateForm(job) {
+            document.getElementById('jobId').value = job.id;
+            document.getElementById('jobTitle').value = job.title || '';
+            document.getElementById('propertyAddress').value = job.propertyAddress || '';
+            document.getElementById('tenantName').value = job.tenantName || '';
+            document.getElementById('tenantContact').value = job.tenantContact || '';
+            document.getElementById('priority').value = job.priority || 'Medium';
+            document.getElementById('status').value = job.status || 'Pending';
+            document.getElementById('technician').value = job.technician || '';
+            document.getElementById('techContact').value = job.techContact || '';
+            document.getElementById('dateReported').value = job.dateReported || '';
+            document.getElementById('dateCompleted').value = job.dateCompleted || '';
+            document.getElementById('category').value = job.category || '';
+            document.getElementById('estimatedCost').value = job.estimatedCost || '';
+            document.getElementById('finalCost').value = job.finalCost || '';
+            document.getElementById('invoiceStatus').value = job.invoiceStatus || 'Not Invoiced';
+            document.getElementById('invoiceNumber').value = job.invoiceNumber || '';
+            document.getElementById('propertyType').value = job.propertyType || '';
+            document.getElementById('accessArrangements').value = job.accessArrangements || '';
+            document.getElementById('issueDescription').value = job.issueDescription || '';
+            document.getElementById('workDone').value = job.workDone || '';
+            document.getElementById('notes').value = job.notes || '';
+            document.getElementById('photoUrls').value = job.photoUrls ? job.photoUrls.join(', ') : '';
+            document.getElementById('tags').value = job.tags ? job.tags.join(', ') : '';
+        }
+
+        async function saveJob(e) {
+            e.preventDefault();
+
+            const photoUrlsStr = document.getElementById('photoUrls').value;
+            const photoUrls = photoUrlsStr ? photoUrlsStr.split(',').map(u => u.trim()).filter(u => u) : [];
+
+            const tagsStr = document.getElementById('tags').value;
+            const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
+
+            const jobData = {
+                title: document.getElementById('jobTitle').value,
+                propertyAddress: document.getElementById('propertyAddress').value,
+                tenantName: document.getElementById('tenantName').value,
+                tenantContact: document.getElementById('tenantContact').value,
+                priority: document.getElementById('priority').value,
+                status: document.getElementById('status').value,
+                technician: document.getElementById('technician').value,
+                techContact: document.getElementById('techContact').value,
+                dateReported: document.getElementById('dateReported').value,
+                dateCompleted: document.getElementById('dateCompleted').value,
+                category: document.getElementById('category').value,
+                estimatedCost: parseFloat(document.getElementById('estimatedCost').value) || 0,
+                finalCost: parseFloat(document.getElementById('finalCost').value) || 0,
+                invoiceStatus: document.getElementById('invoiceStatus').value,
+                invoiceNumber: document.getElementById('invoiceNumber').value,
+                propertyType: document.getElementById('propertyType').value,
+                accessArrangements: document.getElementById('accessArrangements').value,
+                issueDescription: document.getElementById('issueDescription').value,
+                workDone: document.getElementById('workDone').value,
+                notes: document.getElementById('notes').value,
+                photoUrls: photoUrls,
+                tags: tags
+            };
+
+            const dbFields = jobToDbFields(jobData);
+            const saveBtn = document.querySelector('#jobForm button[type="submit"]');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            if (editingId) {
+                const { error } = await supabaseClient.from('jobs').update(dbFields).eq('id', editingId);
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Save Job';
+                if (error) { showToast('Failed to update: ' + error.message, 'error'); return; }
+                showToast('Job updated successfully!', 'success');
+            } else {
+                dbFields.created = jobData.dateReported;
+                const { error } = await supabaseClient.from('jobs').insert([dbFields]);
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Save Job';
+                if (error) { showToast('Failed to create: ' + error.message, 'error'); return; }
+                showToast('New job added successfully!', 'success');
+            }
+
+            await loadJobs();
+            closeModal();
+        }
+
+        async function deleteJob(id) {
+            if (!confirm('Are you sure you want to delete this job? It will be archived, not permanently erased.')) return;
+            const { error } = await supabaseClient.from('jobs').update({ archived_at: new Date().toISOString() }).eq('id', id);
+            if (error) { showToast('Failed to delete: ' + error.message, 'error'); return; }
+            showToast('Job archived', 'info');
+            await loadJobs();
+        }
+
+        async function duplicateJob(id) {
+            const job = jobs.find(j => j.id === id);
+            if (!job) return;
+            const dup = jobToDbFields({ ...job, status: 'Pending', dateCompleted: '' });
+            dup.created = new Date().toISOString().split('T')[0];
+            const { error } = await supabaseClient.from('jobs').insert([dup]);
+            if (error) { showToast('Failed to duplicate: ' + error.message, 'error'); return; }
+            showToast('Job duplicated', 'success');
+            await loadJobs();
+        }
+
+        async function clearAll() {
+            showToast('Clear All is disabled when connected to the live database - archive jobs individually instead.', 'info');
+        }
+
+        // ===== JOB DETAIL VIEW =====
+        function viewJobDetail(id) {
+            const job = jobs.find(j => j.id === id);
+            if (!job) return;
+
+            document.getElementById('jobsContainer').style.display = 'none';
+            document.querySelector('.toolbar').style.display = 'none';
+            document.querySelector('.stats-grid').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('backBtn').style.display = 'inline-flex';
+
+            const detailView = document.getElementById('detailView');
+            detailView.style.display = 'block';
+
+            const catIcon = categoryIcons[job.category] || '📋';
+            const statusIcon = statusIcons[job.status] || '';
+            const cost = job.finalCost > 0 ? job.finalCost : job.estimatedCost;
+
+            const photosHtml = job.photoUrls && job.photoUrls.length
+                ? `<div class="detail-section"><div class="detail-section-title">📷 Photos</div><div class="detail-photos">${job.photoUrls.map(u => `<img src="${u}" onclick="window.open('${u}','_blank')">`).join('')}</div></div>`
+                : '';
+
+            const tagsHtml = job.tags && job.tags.length
+                ? `<div class="detail-section"><div class="detail-section-title">🏷️ Tags</div><div class="tags-list">${job.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div></div>`
+                : '';
+
+            detailView.innerHTML = `
+                <div class="detail-card">
+                    <div class="detail-header">
+                        <div class="job-id">${job.ref}</div>
+                        <h2>${catIcon} ${escapeHtml(job.title)}</h2>
+                        <div class="detail-actions">
+                            <span class="job-status-badge status-${job.status.toLowerCase().replace(' ', '-')}">${statusIcon} ${job.status}</span>
+                            <button class="btn btn-primary btn-sm" onclick="openInvoiceModal('${job.id}')">💷 Invoice</button>
+                            <button class="btn btn-secondary btn-sm" onclick="openModal('${job.id}')">✏️ Edit</button>
+                            <button class="btn btn-secondary btn-sm" onclick="duplicateJob('${job.id}')">📋 Duplicate</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteJob('${job.id}')">🗑️ Delete</button>
+                        </div>
+                    </div>
+                    <div class="detail-body">
+                        <div class="detail-grid">
+                            <div class="detail-field">
+                                <div class="detail-field-label">📍 Property</div>
+                                <div class="detail-field-value">${escapeHtml(job.propertyAddress)}</div>
+                                ${job.propertyType ? `<div style="font-size:0.85rem;color:var(--text-light);margin-top:4px;">${escapeHtml(job.propertyType)}</div>` : ''}
+                            </div>
+                            <div class="detail-field">
+                                <div class="detail-field-label">👤 Tenant</div>
+                                <div class="detail-field-value">${escapeHtml(job.tenantName || '—')}</div>
+                                ${job.tenantContact ? `<div style="font-size:0.85rem;color:var(--text-light);margin-top:4px;">${escapeHtml(job.tenantContact)}</div>` : ''}
+                            </div>
+                            <div class="detail-field">
+                                <div class="detail-field-label">🔧 Technician</div>
+                                <div class="detail-field-value">${escapeHtml(job.technician || '—')}</div>
+                                ${job.techContact ? `<div style="font-size:0.85rem;color:var(--text-light);margin-top:4px;">${escapeHtml(job.techContact)}</div>` : ''}
+                            </div>
+                            <div class="detail-field">
+                                <div class="detail-field-label">⚠️ Priority</div>
+                                <div class="detail-field-value"><span class="priority-indicator priority-${job.priority.toLowerCase()}"></span>${job.priority}</div>
+                            </div>
+                            <div class="detail-field">
+                                <div class="detail-field-label">📅 Dates</div>
+                                <div class="detail-field-value" style="font-size:0.95rem;">Reported: ${formatDate(job.dateReported)}${job.dateCompleted ? `<br>Completed: ${formatDate(job.dateCompleted)}` : ''}</div>
+                            </div>
+                            <div class="detail-field">
+                                <div class="detail-field-label">💰 Cost / Invoice</div>
+                                <div class="detail-field-value"><span class="cost-highlight">£${(cost || 0).toFixed(2)}</span></div>
+                                ${job.invoiceStatus ? `<div style="font-size:0.85rem;color:var(--text-light);margin-top:4px;">${escapeHtml(job.invoiceStatus)} ${job.invoiceNumber ? '#' + escapeHtml(job.invoiceNumber) : ''}</div>` : ''}
+                            </div>
+                            ${job.category ? `<div class="detail-field"><div class="detail-field-label">Category</div><div class="detail-field-value">${escapeHtml(job.category)}</div></div>` : ''}
+                            ${job.accessArrangements ? `<div class="detail-field"><div class="detail-field-label">🔑 Access</div><div class="detail-field-value" style="font-size:0.9rem;">${escapeHtml(job.accessArrangements)}</div></div>` : ''}
+                        </div>
+
+                        <div class="detail-section">
+                            <div class="detail-section-title">📝 Issue Description</div>
+                            <div class="detail-section-text">${escapeHtml(job.issueDescription || '—')}</div>
+                        </div>
+
+                        ${job.workDone ? `
+                        <div class="detail-section">
+                            <div class="detail-section-title">✅ Work Carried Out</div>
+                            <div class="detail-section-text">${escapeHtml(job.workDone)}</div>
+                        </div>` : ''}
+
+                        ${job.notes ? `
+                        <div class="detail-section">
+                            <div class="detail-section-title">📌 Notes & Follow-ups</div>
+                            <div class="detail-section-text">${escapeHtml(job.notes)}</div>
+                        </div>` : ''}
+
+                        ${photosHtml}
+                        ${tagsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function showDashboard() {
+            document.getElementById('detailView').style.display = 'none';
+            document.getElementById('backBtn').style.display = 'none';
+            document.querySelector('.toolbar').style.display = 'flex';
+            document.querySelector('.stats-grid').style.display = 'grid';
+            document.getElementById('jobsContainer').style.display = 'grid';
+            renderJobs();
+        }
+
+        // ===== TECHNICIANS =====
+        let technicians = [];
+
+        async function fetchTechnicians() {
+            const { data, error } = await supabaseClient
+                .from('technicians')
+                .select('*')
+                .is('archived_at', null)
+                .order('name');
+            if (error) { console.error(error); return; }
+            technicians = data || [];
+            const dl = document.getElementById('tech-names-list');
+            if (dl) dl.innerHTML = technicians.map(t => `<option value="${escapeHtml(t.name)}">`).join('');
+        }
+
+        function autofillTechContact() {
+            const nameVal = document.getElementById('technician').value.trim().toLowerCase();
+            const match = technicians.find(t => (t.name || '').trim().toLowerCase() === nameVal);
+            if (match) document.getElementById('techContact').value = match.phone || match.email || '';
+        }
+
+        function openTechPanel() {
+            document.getElementById('techPanelModal').classList.add('active');
+            renderTechList();
+        }
+        function closeTechPanel() {
+            document.getElementById('techPanelModal').classList.remove('active');
+        }
+
+        function renderTechList() {
+            const q = (document.getElementById('techSearchInput')?.value || '').toLowerCase();
+            let filtered = technicians.filter(t => !q ||
+                [t.name, t.phone, t.email, t.specialty, t.areas, t.notes].some(v => (v || '').toLowerCase().includes(q))
+            );
+            filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+            const grid = document.getElementById('techGrid');
+            if (!filtered.length) {
+                grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-light);">No technicians found</div>`;
+                return;
+            }
+            grid.innerHTML = filtered.map(t => `
+                <div class="tech-card">
+                    ${t.specialty ? `<span class="tech-specialty-badge">${escapeHtml(t.specialty)}</span>` : ''}
+                    <div class="tech-card-name">${escapeHtml(t.name)}</div>
+                    ${t.phone ? `<div class="tech-card-row">📞 <a href="tel:${escapeHtml(t.phone)}">${escapeHtml(t.phone)}</a></div>` : ''}
+                    ${t.email ? `<div class="tech-card-row">✉️ ${escapeHtml(t.email)}</div>` : ''}
+                    ${t.areas ? `<div class="tech-card-row">📍 ${escapeHtml(t.areas)}</div>` : ''}
+                    ${t.notes ? `<div class="tech-card-row" style="font-style:italic;">${escapeHtml(t.notes)}</div>` : ''}
+                    <div class="tech-card-actions">
+                        <button class="btn btn-outline btn-sm" onclick="openEditTechModal('${t.id}')">Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteTechnician('${t.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+
+            window._techCache = filtered;
+        }
+
+        function openAddTechModal() {
+            document.getElementById('techFormTitle').textContent = '➕ New Technician';
+            document.getElementById('techId').value = '';
+            ['techFormName','techFormPhone','techFormEmail','techFormSpecialty','techFormAreas','techFormNotes'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('techFormModal').classList.add('active');
+        }
+
+        function openEditTechModal(id) {
+            const t = (window._techCache || technicians).find(x => x.id === id);
+            if (!t) return;
+            document.getElementById('techFormTitle').textContent = '✏️ Edit Technician';
+            document.getElementById('techId').value = t.id;
+            document.getElementById('techFormName').value = t.name || '';
+            document.getElementById('techFormPhone').value = t.phone || '';
+            document.getElementById('techFormEmail').value = t.email || '';
+            document.getElementById('techFormSpecialty').value = t.specialty || '';
+            document.getElementById('techFormAreas').value = t.areas || '';
+            document.getElementById('techFormNotes').value = t.notes || '';
+            document.getElementById('techFormModal').classList.add('active');
+        }
+
+        function closeTechFormModal() {
+            document.getElementById('techFormModal').classList.remove('active');
+        }
+
+        async function saveTechnician() {
+            const name = document.getElementById('techFormName').value.trim();
+            if (!name) { showToast('Please enter a technician name.', 'error'); return; }
+            const id = document.getElementById('techId').value;
+            const dbData = {
+                name,
+                phone: document.getElementById('techFormPhone').value.trim() || null,
+                email: document.getElementById('techFormEmail').value.trim() || null,
+                specialty: document.getElementById('techFormSpecialty').value.trim() || null,
+                areas: document.getElementById('techFormAreas').value.trim() || null,
+                notes: document.getElementById('techFormNotes').value.trim() || null
+            };
+            let error;
+            if (id) {
+                ({ error } = await supabaseClient.from('technicians').update(dbData).eq('id', id));
+            } else {
+                ({ error } = await supabaseClient.from('technicians').insert([dbData]));
+            }
+            if (error) { showToast('Failed to save: ' + error.message, 'error'); return; }
+            showToast('Technician saved', 'success');
+            closeTechFormModal();
+            await fetchTechnicians();
+            renderTechList();
+        }
+
+        async function deleteTechnician(id) {
+            if (!confirm('Remove this technician?')) return;
+            const { error } = await supabaseClient.from('technicians').update({ archived_at: new Date().toISOString() }).eq('id', id);
+            if (error) { showToast('Failed: ' + error.message, 'error'); return; }
+            await fetchTechnicians();
+            renderTechList();
+        }
+
+        // ===== INVOICE / PAYMENT ADVICE =====
+        let paCurrentJobId = null;
+
+        function paPropertyShorthand(address) {
+            if (!address) return 'PROPERTY';
+            const first = address.split(',')[0].trim();
+            const abbrev = { 'ROAD':'RD','STREET':'ST','AVENUE':'AVE','CLOSE':'CL','DRIVE':'DR','LANE':'LN','COURT':'CT','WALK':'WK','CRESCENT':'CRES','GROVE':'GR','PLACE':'PL','GARDENS':'GDNS','TERRACE':'TER','SQUARE':'SQ' };
+            let words = first.toUpperCase().split(/\s+/).map(w => abbrev[w] || w);
+            return words.join('').replace(/[^A-Z0-9]/g, '').slice(0, 14) || 'PROPERTY';
+        }
+        function paTradeInitials(name) {
+            if (!name) return 'XX';
+            const words = name.trim().split(/\s+/).filter(Boolean);
+            if (words.length === 1) return (words[0][0] + (words[0][1] || words[0][0])).toUpperCase();
+            return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+        }
+        async function paNextSequence(prefix) {
+            const { data } = await supabaseClient.from('payment_advices').select('reference').ilike('reference', prefix + '-%');
+            return String(data ? data.length : 0).padStart(3, '0');
+        }
+
+        function openInvoiceModal(jobId) {
+            paCurrentJobId = jobId;
+            const job = jobs.find(j => j.id === jobId);
+            if (!job) return;
+
+            document.getElementById('paJobInfo').innerHTML = `
+                <div class="pa-info-box"><div class="lbl">Property</div><div>${escapeHtml(job.propertyAddress)}</div></div>
+                <div class="pa-info-box"><div class="lbl">Tenant</div><div>${escapeHtml(job.tenantName || '—')}</div></div>
+                <div class="pa-info-box"><div class="lbl">Job Ref</div><div>${escapeHtml(job.ref)}</div></div>
+            `;
+            document.getElementById('paTechName').value = job.technician || '';
+            document.getElementById('paTechEmail').value = '';
+            document.getElementById('paAmount').value = job.finalCost || job.estimatedCost || '';
+            document.getElementById('paDate').value = job.dateCompleted || job.dateReported || new Date().toISOString().split('T')[0];
+            document.getElementById('paOutputWrap').style.display = 'none';
+            document.getElementById('paOutputText').value = '';
+
+            if (job.technician) paAutofillTech();
+            fetchPaymentAdvices(jobId);
+            document.getElementById('invoiceModal').classList.add('active');
+        }
+        function closeInvoiceModal() {
+            document.getElementById('invoiceModal').classList.remove('active');
+        }
+        function paAutofillTech() {
+            const nameVal = document.getElementById('paTechName').value.trim().toLowerCase();
+            const match = technicians.find(t => (t.name || '').trim().toLowerCase() === nameVal);
+            if (match && match.email) document.getElementById('paTechEmail').value = match.email;
+        }
+
+        async function generatePaymentAdvice() {
+            const job = jobs.find(j => j.id === paCurrentJobId);
+            if (!job) return;
+            const techName = document.getElementById('paTechName').value.trim();
+            const amount = parseFloat(document.getElementById('paAmount').value);
+            const jobDate = document.getElementById('paDate').value;
+
+            if (!techName) { showToast('Please enter a technician name.', 'error'); return; }
+            if (!amount || amount <= 0) { showToast('Please enter a valid amount.', 'error'); return; }
+            if (!jobDate) { showToast('Please enter the job date.', 'error'); return; }
+
+            const propShort = paPropertyShorthand(job.propertyAddress);
+            const tradeInit = paTradeInitials(techName);
+            const prefix = `${tradeInit}-${propShort}`;
+            const seq = await paNextSequence(prefix);
+            const reference = `${prefix}-${seq}`;
+
+            const adviceText = `Dear ${techName},
+
+
+This confirms that
+
+£${amount.toFixed(2)}
+
+was paid to your bank account on ${formatDate(jobDate)}.
+in relation to the job with details:
+${reference}
+${job.propertyAddress} - ${job.title || job.issueDescription || 'Job'}
+
+If you have any questions, please contact us on 01217203344.
+Kind regards,
+Fix & Go Ltd`;
+
+            document.getElementById('paOutputText').value = adviceText;
+            document.getElementById('paOutputWrap').style.display = 'block';
+
+            const { error } = await supabaseClient.from('payment_advices').insert([{
+                job_id: paCurrentJobId,
+                technician_name: techName,
+                technician_email: document.getElementById('paTechEmail').value.trim() || null,
+                amount: amount,
+                job_date: jobDate,
+                reference: reference,
+                advice_text: adviceText
+            }]);
+            if (error) { showToast('Saved locally but failed to store: ' + error.message, 'error'); return; }
+            fetchPaymentAdvices(paCurrentJobId);
+        }
+
+        function paCopyText() {
+            const box = document.getElementById('paOutputText');
+            box.select();
+            navigator.clipboard.writeText(box.value).then(() => {
+                const c = document.getElementById('paCopyConfirm');
+                c.style.display = 'inline';
+                setTimeout(() => c.style.display = 'none', 2000);
+            });
+        }
+
+        async function fetchPaymentAdvices(jobId) {
+            const { data, error } = await supabaseClient.from('payment_advices').select('*').eq('job_id', jobId).order('created_at', { ascending: false });
+            const list = document.getElementById('paHistoryList');
+            if (error || !data || !data.length) {
+                list.innerHTML = `<div style="color:var(--text-light);">No payment advices generated yet.</div>`;
+                return;
+            }
+            window._paCache = data;
+            list.innerHTML = data.map(pa => `
+                <div class="pa-list-item" onclick="paViewHistoryItem('${pa.id}')">
+                    <div><strong>${escapeHtml(pa.reference)}</strong> — ${escapeHtml(pa.technician_name)}</div>
+                    <div>£${parseFloat(pa.amount).toFixed(2)}</div>
+                </div>
+            `).join('');
+        }
+        function paViewHistoryItem(id) {
+            const item = (window._paCache || []).find(p => p.id === id);
+            if (!item) return;
+            document.getElementById('paOutputText').value = item.advice_text;
+            document.getElementById('paOutputWrap').style.display = 'block';
+        }
+
+        // Rendering
+        function renderJobs() {
+            const container = document.getElementById('jobsContainer');
+            const emptyState = document.getElementById('emptyState');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const priorityFilter = document.getElementById('priorityFilter').value;
+
+            let filtered = jobs.filter(job => {
+                const matchesSearch = !searchTerm || 
+                    job.title?.toLowerCase().includes(searchTerm) ||
+                    job.propertyAddress?.toLowerCase().includes(searchTerm) ||
+                    job.tenantName?.toLowerCase().includes(searchTerm) ||
+                    job.technician?.toLowerCase().includes(searchTerm) ||
+                    job.issueDescription?.toLowerCase().includes(searchTerm) ||
+                    job.id?.toLowerCase().includes(searchTerm) ||
+                    job.ref?.toLowerCase().includes(searchTerm);
+
+                const matchesStatus = !statusFilter || job.status === statusFilter;
+                const matchesPriority = !priorityFilter || job.priority === priorityFilter;
+
+                return matchesSearch && matchesStatus && matchesPriority;
+            });
+
+            // Sort: Urgent first, then by date reported desc
+            filtered.sort((a, b) => {
+                const priorityOrder = { 'Urgent': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
+                if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+                    return priorityOrder[a.priority] - priorityOrder[b.priority];
+                }
+                return new Date(b.dateReported) - new Date(a.dateReported);
+            });
+
+            if (filtered.length === 0) {
+                container.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            container.style.display = 'grid';
+            emptyState.style.display = 'none';
+
+            container.innerHTML = filtered.map(job => {
+                const catIcon = categoryIcons[job.category] || '📋';
+                const statusIcon = statusIcons[job.status] || '';
+                const cost = job.finalCost > 0 ? job.finalCost : job.estimatedCost;
+                const costDisplay = cost > 0 ? `£${cost.toFixed(2)}` : '£0.00';
+
+                const invoiceClass = {
+                    'Paid': 'invoice-paid',
+                    'Invoiced - Unpaid': 'invoice-unpaid',
+                    'Partially Paid': 'invoice-partial',
+                    'Not Invoiced': '',
+                    'Disputed': 'invoice-unpaid'
+                }[job.invoiceStatus] || '';
+
+                const invoiceBadge = job.invoiceStatus && job.invoiceStatus !== 'Not Invoiced' 
+                    ? `<span class="invoice-badge ${invoiceClass}">${job.invoiceStatus}</span>` 
+                    : '';
+
+                const tagsHtml = job.tags && job.tags.length > 0 
+                    ? `<div class="tags-list">${job.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>` 
+                    : '';
+
+                const photosHtml = job.photoUrls && job.photoUrls.length > 0
+                    ? `<div class="job-detail"><span class="job-detail-icon">📷</span><div><div class="job-detail-label">Photos</div><div class="job-detail-value">${job.photoUrls.length} photo(s) attached</div></div></div>`
+                    : '';
+
+                return `
+                    <div class="job-card" onclick="viewJobDetail('${job.id}')" style="cursor:pointer;">
+                        <div class="job-card-header">
+                            <div>
+                                <div class="job-id">${job.ref}</div>
+                                <div class="job-title">${catIcon} ${escapeHtml(job.title)}</div>
+                            </div>
+                            <span class="job-status-badge status-${job.status.toLowerCase().replace(' ', '-')}">${statusIcon} ${job.status}</span>
+                        </div>
+                        <div class="job-card-body">
+                            <div class="job-detail">
+                                <span class="job-detail-icon">📍</span>
+                                <div>
+                                    <div class="job-detail-label">Property</div>
+                                    <div class="job-detail-value address">${escapeHtml(job.propertyAddress)}</div>
+                                    ${job.propertyType ? `<div style="font-size:0.8rem;color:var(--text-light);">${job.propertyType}</div>` : ''}
+                                </div>
+                            </div>
+                            ${job.tenantName ? `
+                            <div class="job-detail">
+                                <span class="job-detail-icon">👤</span>
+                                <div>
+                                    <div class="job-detail-label">Tenant</div>
+                                    <div class="job-detail-value">${escapeHtml(job.tenantName)} ${job.tenantContact ? `<span style="color:var(--text-light);font-size:0.8rem;">(${escapeHtml(job.tenantContact)})</span>` : ''}</div>
+                                </div>
+                            </div>` : ''}
+                            <div class="job-detail">
+                                <span class="job-detail-icon">⚠️</span>
+                                <div>
+                                    <div class="job-detail-label">Priority</div>
+                                    <div class="job-detail-value">
+                                        <span class="priority-indicator priority-${job.priority.toLowerCase()}"></span>
+                                        ${job.priority}
+                                    </div>
+                                </div>
+                            </div>
+                            ${job.technician ? `
+                            <div class="job-detail">
+                                <span class="job-detail-icon">🔧</span>
+                                <div>
+                                    <div class="job-detail-label">Technician</div>
+                                    <div class="job-detail-value"><span class="tech-badge">${escapeHtml(job.technician)}</span> ${job.techContact ? `<span style="color:var(--text-light);font-size:0.8rem;">(${escapeHtml(job.techContact)})</span>` : ''}</div>
+                                </div>
+                            </div>` : ''}
+                            <div class="job-detail">
+                                <span class="job-detail-icon">📅</span>
+                                <div>
+                                    <div class="job-detail-label">Dates</div>
+                                    <div class="job-detail-value">
+                                        Reported: ${formatDate(job.dateReported)} 
+                                        ${job.dateCompleted ? `| Completed: ${formatDate(job.dateCompleted)}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="job-detail">
+                                <span class="job-detail-icon">💰</span>
+                                <div>
+                                    <div class="job-detail-label">Cost / Invoice</div>
+                                    <div class="job-detail-value">
+                                        <span class="cost-highlight">${costDisplay}</span>
+                                        ${invoiceBadge}
+                                        ${job.invoiceNumber ? `<span style="font-size:0.8rem;color:var(--text-light);">#${escapeHtml(job.invoiceNumber)}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="job-detail">
+                                <span class="job-detail-icon">📝</span>
+                                <div>
+                                    <div class="job-detail-label">Issue</div>
+                                    <div class="job-detail-value" style="font-size:0.875rem;line-height:1.5;">${escapeHtml(job.issueDescription?.substring(0, 120))}${job.issueDescription?.length > 120 ? '...' : ''}</div>
+                                </div>
+                            </div>
+                            ${job.workDone ? `
+                            <div class="job-detail">
+                                <span class="job-detail-icon">✅</span>
+                                <div>
+                                    <div class="job-detail-label">Work Done</div>
+                                    <div class="job-detail-value" style="font-size:0.875rem;line-height:1.5;">${escapeHtml(job.workDone?.substring(0, 120))}${job.workDone?.length > 120 ? '...' : ''}</div>
+                                </div>
+                            </div>` : ''}
+                            ${job.accessArrangements ? `
+                            <div class="job-detail">
+                                <span class="job-detail-icon">🔑</span>
+                                <div>
+                                    <div class="job-detail-label">Access</div>
+                                    <div class="job-detail-value" style="font-size:0.875rem;">${escapeHtml(job.accessArrangements)}</div>
+                                </div>
+                            </div>` : ''}
+                            ${photosHtml}
+                            ${tagsHtml ? `<div class="job-detail"><span class="job-detail-icon">🏷️</span><div><div class="job-detail-label">Tags</div>${tagsHtml}</div></div>` : ''}
+                            ${job.notes ? `
+                            <div class="job-detail">
+                                <span class="job-detail-icon">📌</span>
+                                <div>
+                                    <div class="job-detail-label">Notes</div>
+                                    <div class="job-detail-value" style="font-size:0.875rem;line-height:1.5;color:var(--text-light);">${escapeHtml(job.notes?.substring(0, 150))}${job.notes?.length > 150 ? '...' : ''}</div>
+                                </div>
+                            </div>` : ''}
+                        </div>
+                        <div class="job-card-footer" onclick="event.stopPropagation()">
+                            <span class="date-display">Updated: ${formatDateTime(job.updatedAt)}</span>
+                            <div class="job-actions">
+                                <button class="btn btn-secondary btn-sm btn-icon" onclick="duplicateJob('${job.id}')" title="Duplicate">📋</button>
+                                <button class="btn btn-secondary btn-sm btn-icon" onclick="openModal('${job.id}')" title="Edit">✏️</button>
+                                <button class="btn btn-danger btn-sm btn-icon" onclick="deleteJob('${job.id}')" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats() {
+            document.getElementById('stat-total').textContent = jobs.length;
+            document.getElementById('stat-pending').textContent = jobs.filter(j => j.status === 'Pending').length;
+            document.getElementById('stat-in-progress').textContent = jobs.filter(j => j.status === 'In Progress').length;
+            document.getElementById('stat-completed').textContent = jobs.filter(j => j.status === 'Completed').length;
+
+            const outstanding = jobs
+                .filter(j => j.invoiceStatus === 'Invoiced - Unpaid' || j.invoiceStatus === 'Partially Paid' || j.invoiceStatus === 'Disputed')
+                .reduce((sum, j) => sum + (j.finalCost || j.estimatedCost || 0), 0);
+            document.getElementById('stat-outstanding').textContent = '£' + outstanding.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function filterJobs() {
+            renderJobs();
+        }
+
+        // Export/Import
+        function exportData() {
+            const dataStr = JSON.stringify(jobs, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `property-maintenance-jobs-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Jobs exported successfully!', 'success');
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported)) {
+                        jobs = imported;
+                        saveToStorage();
+                        renderJobs();
+                        updateStats();
+                        showToast(`Imported ${imported.length} jobs successfully!`, 'success');
+                    } else {
+                        throw new Error('Invalid format');
+                    }
+                } catch (err) {
+                    showToast('Error importing file. Please check the format.', 'error');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // Utilities
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function formatDateTime(isoStr) {
+            if (!isoStr) return '—';
+            const date = new Date(isoStr);
+            return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + 
+                   date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+            toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span> ${escapeHtml(message)}`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Close modal on overlay click
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('modal')) {
+                closeModal();
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
