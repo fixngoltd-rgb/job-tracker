@@ -695,7 +695,7 @@ async function showPersonJobs(name){
     const tenantNames = (j.tenant || 'No Tenant');
     const sDate = j.scheduled_at ? ('Scheduled: ' + fmtDateTime(j.scheduled_at)) : 'Unscheduled';
     return `
-    <div class="job-card">
+    <div class="job-card" onclick="window.location.href='index.html?job=${encodeURIComponent(j.ref)}'" style="cursor:pointer;" title="Open full job details">
       <div class="jc-top">
         <span class="jc-ref">${j.ref}</span>
         <span class="p-dot" style="background:${priorityColor(j.priority)}"></span>
@@ -708,7 +708,7 @@ async function showPersonJobs(name){
         <span class="status-pill ${statusClass(j.status)}">${STATUS_LABELS[j.status]}</span>
       </div>
       <div class="jc-date">${sDate}</div>
-      <button class="unassign-btn" onclick="unassignJob('${j.id}','${name}')">Unassign from ${escHtml(name)}</button>
+      <button class="unassign-btn" onclick="event.stopPropagation();unassignJob('${j.id}','${name}')">Unassign from ${escHtml(name)}</button>
     </div>`;
   }).join('');
 }
