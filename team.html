@@ -521,6 +521,34 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 }
 .unassign-btn:hover{background:#fee2e2;color:#991b1b;border-color:#fecaca;}
 .empty-msg{grid-column:1/-1;padding:60px 20px;text-align:center;color:var(--muted);font-size:1.1rem;font-weight:600;}
+
+.assign-btn{
+  background:var(--accent);color:white;border:none;border-radius:8px;
+  width:32px;height:32px;font-size:1.3rem;font-weight:700;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  margin-left:10px;
+}
+.assign-btn:hover{opacity:0.85;}
+.person-hdr-row{display:flex;align-items:center;gap:4px;}
+.picker-search{width:100%;margin-bottom:14px;}
+.picker-list{max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
+.picker-row{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  background:var(--s3);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;
+}
+.picker-row-info{flex:1;min-width:0;}
+.picker-row-ref{font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--accent);font-size:0.85rem;}
+.picker-row-title{font-weight:700;font-size:0.95rem;margin-top:2px;}
+.picker-row-addr{color:var(--muted);font-size:0.85rem;margin-top:2px;}
+.picker-row-assignee{color:var(--muted);font-size:0.8rem;margin-top:4px;font-style:italic;}
+.picker-add-btn{
+  background:var(--accent);color:white;border:none;border-radius:8px;
+  width:36px;height:36px;font-size:1.5rem;font-weight:700;cursor:pointer;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+}
+.picker-add-btn:hover{opacity:0.85;}
+.picker-empty{text-align:center;color:var(--muted);padding:30px;font-weight:600;}
 </style>
 </head>
 <body>
@@ -542,10 +570,24 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 <div id="person-view" style="display:none;">
   <div class="page-hdr">
     <a href="#" class="back-link" onclick="showTeamView();return false;">&larr; Back to Team</a>
-    <h1 id="person-name-hdr"></h1>
+    <div class="person-hdr-row">
+      <h1 id="person-name-hdr"></h1>
+      <button class="assign-btn" onclick="openAssignPicker()" title="Assign a job to this person">+</button>
+    </div>
     <p id="person-count-hdr"></p>
   </div>
   <div class="job-grid" id="person-job-grid"></div>
+</div>
+
+<div class="overlay" id="assign-picker-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">Assign a Job</div>
+      <button class="modal-close" onclick="closeAssignPicker()">&times;</button>
+    </div>
+    <input class="field picker-search" id="picker-search-input" placeholder="Search by job ID, address, or title..." oninput="renderPickerList()">
+    <div class="picker-list" id="picker-list"></div>
+  </div>
 </div>
 
 <script>
@@ -676,6 +718,58 @@ async function unassignJob(jobId, name){
   const { error } = await supabaseClient.from('jobs').update({ assigned_to: null }).eq('id', jobId);
   if(error){ alert('Failed: ' + error.message); return; }
   showPersonJobs(name);
+}
+
+let pickerCurrentPerson = null;
+
+async function openAssignPicker(){
+  pickerCurrentPerson = document.getElementById('person-name-hdr').textContent;
+  await fetchJobs();
+  document.getElementById('picker-search-input').value = '';
+  renderPickerList();
+  document.getElementById('assign-picker-modal').classList.add('open');
+}
+
+function closeAssignPicker(){
+  document.getElementById('assign-picker-modal').classList.remove('open');
+}
+
+function renderPickerList(){
+  const q = document.getElementById('picker-search-input').value.trim().toLowerCase();
+  const list = document.getElementById('picker-list');
+
+  let candidates = allJobs.filter(j => j.assigned_to !== pickerCurrentPerson);
+  if(q){
+    candidates = candidates.filter(j =>
+      (j.ref||'').toLowerCase().includes(q) ||
+      (j.address||'').toLowerCase().includes(q) ||
+      (j.title||'').toLowerCase().includes(q)
+    );
+  }
+
+  if(!candidates.length){
+    list.innerHTML = `<div class="picker-empty">No matching jobs found.</div>`;
+    return;
+  }
+
+  list.innerHTML = candidates.map(j => `
+    <div class="picker-row">
+      <div class="picker-row-info">
+        <div class="picker-row-ref">${escHtml(j.ref)}</div>
+        <div class="picker-row-title">${escHtml(j.title || 'Untitled Job')}</div>
+        <div class="picker-row-addr">${escHtml(j.address || 'No Address')}</div>
+        ${j.assigned_to ? `<div class="picker-row-assignee">Currently assigned to: ${escHtml(j.assigned_to)}</div>` : ''}
+      </div>
+      <button class="picker-add-btn" onclick="assignJobToPerson('${j.id}')" title="Assign to ${escHtml(pickerCurrentPerson)}">+</button>
+    </div>
+  `).join('');
+}
+
+async function assignJobToPerson(jobId){
+  const { error } = await supabaseClient.from('jobs').update({ assigned_to: pickerCurrentPerson }).eq('id', jobId);
+  if(error){ alert('Failed to assign: ' + error.message); return; }
+  closeAssignPicker();
+  showPersonJobs(pickerCurrentPerson);
 }
 
 init();
