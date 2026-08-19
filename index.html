@@ -495,6 +495,10 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
   <div class="logo">FIX AND GO<span> TRACKER</span></div>
   <div class="topbar-right">
     <input type="date" id="date-filter" class="field" onchange="renderList()" title="Filter by date created">
+    <select id="assigned-filter" class="field" onchange="renderList()" title="Filter by who a job is assigned to">
+      <option value="">All People</option>
+      <option value="__unassigned__">Unassigned</option>
+    </select>
     <input id="search-input" class="field" placeholder="Search jobs..." oninput="renderList()">
     <button class="btn-add" onclick="openAddModal()">+ New Job</button>
     <button class="btn-tech" onclick="openTechPanel()">🔧 Technicians</button>
@@ -868,6 +872,7 @@ async function fetchJobs() {
     updateSummaryStats();
     renderList();
     if (currentJobId) renderDetail();
+    if (!window._urlJobChecked) { window._urlJobChecked = true; openJobFromUrl(); }
   }
 }
 
@@ -935,6 +940,7 @@ function setSummaryFilter(f){
 function renderList(){
   const q = document.getElementById('search-input').value.toLowerCase();
   const dateFilter = document.getElementById('date-filter').value;
+  const assignedFilter = document.getElementById('assigned-filter').value;
   const todayStr = today();
   const next7Days = new Date();
   next7Days.setDate(next7Days.getDate() + 7);
@@ -946,6 +952,9 @@ function renderList(){
     if(currentFilter!=='all' && j.status!==currentFilter) return false;
     
     if(dateFilter && j.created && !j.created.startsWith(dateFilter)) return false;
+
+    if(assignedFilter === '__unassigned__' && j.assigned_to) return false;
+    if(assignedFilter && assignedFilter !== '__unassigned__' && j.assigned_to !== assignedFilter) return false;
 
     if(summaryFilter === 'today' && !(j.scheduled_at && j.scheduled_at.startsWith(todayStr))) return false;
     if(summaryFilter === 'upcoming') {
@@ -1013,6 +1022,14 @@ function selectJob(id){
   document.getElementById('detail').style.display = 'flex';
   document.getElementById('tech-panel').style.display = 'none';
   document.querySelector('.topbar-back').style.display = 'flex';
+}
+
+function openJobFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const jobRef = params.get('job');
+  if(!jobRef) return;
+  const match = jobs.find(j => j.ref === jobRef);
+  if(match) selectJob(match.id);
 }
 
 function showDashboard(){
@@ -1528,6 +1545,14 @@ async function fetchTeamMembers(){
   if(error){ console.error('Error fetching team members:', error); return; }
   const dl = document.getElementById('team-names-list');
   if(dl) dl.innerHTML = (data || []).map(t => `<option value="${escHtml(t.name)}">`).join('');
+
+  const filterSelect = document.getElementById('assigned-filter');
+  if(filterSelect){
+    const current = filterSelect.value;
+    filterSelect.innerHTML = `<option value="">All People</option><option value="__unassigned__">Unassigned</option>` +
+      (data || []).map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`).join('');
+    filterSelect.value = current;
+  }
 }
 
 function refreshTechDatalist(){
