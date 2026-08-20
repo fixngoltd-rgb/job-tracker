@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Archive - Fix & Go</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f6f8; --s1:#ffffff; --s3:#f8fafc;
+  --text:#0f172a; --muted:#64748b; --muted2:#94a3b8;
+  --border:#e2e8f0; --border2:#cbd5e1;
+  --accent:#4f46e5; --purple:#8451a1; --orange:#f39c12; --navy:#2c3e50;
+  --green:#16a34a; --amber:#d97706; --red:#dc2626;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);}
+
+#topbar{
+  background:var(--navy);color:white;padding:18px 28px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+}
+.logo{font-size:1.3rem;font-weight:800;letter-spacing:.04em;}
+.logo span{color:var(--orange);}
+.job-count{font-size:0.9rem;opacity:0.85;font-weight:600;}
+
+.controls{
+  background:var(--s1);border-bottom:1px solid var(--border);
+  padding:18px 28px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;
+  position:sticky;top:0;z-index:10;
+}
+.controls input, .controls select{
+  font-family:'Inter',sans-serif;font-size:0.95rem;
+  padding:10px 14px;border:1px solid var(--border2);border-radius:8px;
+  background:var(--s3);color:var(--text);
+}
+#search-box{flex:1;min-width:220px;}
+.controls select{cursor:pointer;}
+.clear-btn{
+  background:none;border:1px solid var(--border2);border-radius:8px;
+  padding:10px 16px;cursor:pointer;font-weight:600;color:var(--muted);font-size:0.9rem;
+}
+.clear-btn:hover{background:var(--s3);}
+
+#results-info{padding:16px 28px 0 28px;color:var(--muted);font-size:0.9rem;font-weight:600;}
+
+.job-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:16px;padding:16px 28px 28px 28px;
+}
+.job-card{
+  background:var(--s1);border:1px solid var(--border);border-radius:12px;
+  padding:20px;transition:all .15s;
+}
+.job-card:hover{border-color:var(--border2);box-shadow:0 4px 12px rgba(0,0,0,0.05);}
+
+.jc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;}
+.jc-agent{
+  font-family:'IBM Plex Mono',monospace;font-size:0.72rem;font-weight:700;
+  color:var(--purple);background:#ede9fe;padding:4px 9px;border-radius:5px;
+  text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;
+}
+.jc-type{
+  font-size:0.72rem;font-weight:700;color:var(--muted2);
+  background:var(--s3);border:1px solid var(--border);padding:4px 9px;border-radius:5px;
+  text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;
+}
+.jc-address{font-size:1.05rem;font-weight:700;margin-bottom:8px;line-height:1.3;}
+.jc-summary{font-size:0.9rem;color:var(--muted);line-height:1.5;margin-bottom:14px;}
+
+.jc-status{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:0.78rem;font-weight:700;padding:5px 10px;border-radius:6px;margin-bottom:10px;
+}
+.jc-status.status-booked{background:#dbeafe;color:#1e40af;}
+.jc-status.status-completed{background:#d1fae5;color:#065f46;}
+.jc-status.status-pending{background:#fef3c7;color:#92400e;}
+.jc-status.status-noresponse{background:#fee2e2;color:#991b1b;}
+.jc-status.status-scheduling{background:#f3e8ff;color:#6b21a8;}
+.jc-status.status-declined{background:#f1f5f9;color:#475569;}
+
+.jc-dates{
+  display:flex;justify-content:space-between;font-size:0.78rem;color:var(--muted2);
+  padding-top:12px;border-top:1px solid var(--border);font-weight:600;
+}
+
+.empty-state{
+  grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted);
+  font-size:1.05rem;font-weight:600;
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="logo">FIX AND GO<span> ARCHIVE</span></div>
+  <div class="job-count" id="job-count"></div>
+</div>
+
+<div class="controls">
+  <input id="search-box" type="text" placeholder="Search address, summary, agent...">
+  <select id="agent-filter"><option value="">All Agents</option></select>
+  <select id="type-filter"><option value="">All Job Types</option></select>
+  <select id="status-filter"><option value="">All Statuses</option></select>
+  <button class="clear-btn" onclick="clearFilters()">Clear Filters</button>
+</div>
+
+<div id="results-info"></div>
+<div class="job-grid" id="job-grid"></div>
+
+<script>
+// ============================================================
+// HARDCODED JOB DATA — no database, no login, just this array.
+// Add more entries here as more agents' exports are processed.
+// ============================================================
+const JOBS = [
+  {
+    agent: "Veverly",
+    address: "8 Hesketh Close, Darwen, BB3 2UR",
+    type: "Gas Safety Certificate",
+    summary: "Asked to confirm coverage and rate for this area. Rate given, Veverly said she'd check with the landlord.",
+    status: "Pending Decision",
+    statusClass: "status-pending",
+    firstContact: "06 Aug 2026",
+    lastActivity: "07 Aug 2026"
+  },
+  {
+    agent: "Veverly",
+    address: "1 Mallards Walk, Preston, PR5 6AY",
+    type: "Gas Safety Certificate",
+    summary: "Certificate sent for reference. No reply received since.",
+    status: "No Response",
+    statusClass: "status-noresponse",
+    firstContact: "20 Jul 2026",
+    lastActivity: "21 Jul 2026"
+  },
+  {
+    agent: "Veverly",
+    address: "17 Springburn Close, Bolton, BL6 6SR",
+    type: "EICR Certificate",
+    summary: "EICR completed and certificate provided. Remedial works were quoted, but the landlord has declined to proceed with them.",
+    status: "Completed - Remedial Declined",
+    statusClass: "status-declined",
+    firstContact: "16 Jul 2026",
+    lastActivity: "19 Aug 2026"
+  },
+  {
+    agent: "Veverly",
+    address: "305a Padiham Road, Burnley, BB12 6PR",
+    type: "EICR Certificate",
+    summary: "EICR came back unsatisfactory. Long thread involving a wrong-property mix-up on our side (sent Bolton's docs by mistake). Now resolved - remedial works booked for Thursday 27th August, 1-5pm.",
+    status: "Booked - 27 Aug, 1-5pm",
+    statusClass: "status-booked",
+    firstContact: "20 Jul 2026",
+    lastActivity: "19 Aug 2026"
+  },
+  {
+    agent: "Veverly",
+    address: "96 Hillview Drive, Glasgow, G76 7JD",
+    type: "PAT Test",
+    summary: "PAT test completed, invoice paid. Separately, the oven failed the test - replacement quote sent and forwarded to the landlord for approval.",
+    status: "PAT Paid / Oven Quote Pending",
+    statusClass: "status-pending",
+    firstContact: "22 Jul 2026",
+    lastActivity: "29 Jul 2026"
+  },
+  {
+    agent: "Veverly",
+    address: "Flat 3, Bridlington, YO15 3JA",
+    type: "EICR Certificate",
+    summary: "Extended scheduling saga over weekend surcharge (landlord wouldn't approve extra £50 fee). Eventually resolved - booked for Friday 28th with tenant David.",
+    status: "Booked - Fri 28 Aug",
+    statusClass: "status-booked",
+    firstContact: "30 Jul 2026",
+    lastActivity: "18 Aug 2026"
+  },
+  {
+    agent: "Veverly",
+    address: "259c (Flat above), Orrell Road, Orrell, Wigan, WN5 8NB",
+    type: "EICR Certificate",
+    summary: "Rate confirmed and tenant details provided (Shanna Rodriguez Ortiz & Mason Bernstein). Trying to schedule for the morning of the 20th.",
+    status: "Scheduling",
+    statusClass: "status-scheduling",
+    firstContact: "13 Aug 2026",
+    lastActivity: "19 Aug 2026"
+  }
+];
+
+function populateFilters(){
+  const agents = [...new Set(JOBS.map(j => j.agent))].sort();
+  const types = [...new Set(JOBS.map(j => j.type))].sort();
+  const statuses = [...new Set(JOBS.map(j => j.status))].sort();
+
+  document.getElementById('agent-filter').innerHTML =
+    '<option value="">All Agents</option>' + agents.map(a => `<option value="${a}">${a}</option>`).join('');
+  document.getElementById('type-filter').innerHTML =
+    '<option value="">All Job Types</option>' + types.map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('status-filter').innerHTML =
+    '<option value="">All Statuses</option>' + statuses.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function render(){
+  const q = document.getElementById('search-box').value.toLowerCase();
+  const agentF = document.getElementById('agent-filter').value;
+  const typeF = document.getElementById('type-filter').value;
+  const statusF = document.getElementById('status-filter').value;
+
+  let filtered = JOBS.filter(j => {
+    if(agentF && j.agent !== agentF) return false;
+    if(typeF && j.type !== typeF) return false;
+    if(statusF && j.status !== statusF) return false;
+    if(q){
+      const haystack = `${j.agent} ${j.address} ${j.type} ${j.summary} ${j.status}`.toLowerCase();
+      if(!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('job-count').textContent = `${JOBS.length} jobs total`;
+  document.getElementById('results-info').textContent = `Showing ${filtered.length} of ${JOBS.length} jobs`;
+
+  const grid = document.getElementById('job-grid');
+  if(!filtered.length){
+    grid.innerHTML = `<div class="empty-state">No jobs match your search/filters.</div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(j => `
+    <div class="job-card">
+      <div class="jc-top">
+        <span class="jc-agent">${escHtml(j.agent)}</span>
+        <span class="jc-type">${escHtml(j.type)}</span>
+      </div>
+      <div class="jc-address">${escHtml(j.address)}</div>
+      <div class="jc-summary">${escHtml(j.summary)}</div>
+      <span class="jc-status ${j.statusClass}">${escHtml(j.status)}</span>
+      <div class="jc-dates">
+        <span>First: ${escHtml(j.firstContact)}</span>
+        <span>Latest: ${escHtml(j.lastActivity)}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function clearFilters(){
+  document.getElementById('search-box').value = '';
+  document.getElementById('agent-filter').value = '';
+  document.getElementById('type-filter').value = '';
+  document.getElementById('status-filter').value = '';
+  render();
+}
+
+document.getElementById('search-box').addEventListener('input', render);
+document.getElementById('agent-filter').addEventListener('change', render);
+document.getElementById('type-filter').addEventListener('change', render);
+document.getElementById('status-filter').addEventListener('change', render);
+
+populateFilters();
+render();
+</script>
+</body>
+</html>
