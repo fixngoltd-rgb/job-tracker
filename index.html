@@ -67,6 +67,8 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
 .logo{font-size:1.4rem;font-weight:900;letter-spacing:.06em;color:var(--accent)}
 .logo span{color:var(--muted);font-weight:500}
 .topbar-right{display:flex;align-items:center;gap:12px}
+#topbar-more{display:flex;align-items:center;gap:12px}
+#topbar-more-toggle{display:none;}
 .field{
   background:var(--s1);border:1px solid var(--border2);
   border-radius:8px;padding:10px 16px;
@@ -442,30 +444,60 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 @media(max-width:768px){
   #topbar {
     height: auto;
-    padding: 16px 20px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
+    padding: 14px 20px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo {
+    font-size: 1.3rem;
+    flex: 1;
+  }
+  #topbar-more-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    background: var(--s3, #f1f5f9);
+    border: 1px solid var(--border2, #cbd5e1);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-family: 'Barlow', sans-serif;
+    color: var(--text, #0f172a);
   }
   .topbar-right {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
+  }
+  #search-input {
     width: 100%;
   }
   .topbar-right .btn-add {
-    grid-column: span 2;
+    width: 100%;
     padding: 12px;
   }
-  .topbar-right .btn-logout {
-    grid-column: span 2;
-  }
-  .logo {
-    text-align: center;
-    font-size: 1.5rem;
-  }
-  #search-input, #date-filter {
+  #topbar-more {
+    display: none;
     width: 100%;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  #topbar-more.expanded {
+    display: grid;
+  }
+  #topbar-more #date-filter,
+  #topbar-more #assigned-filter {
+    width: 100%;
+    grid-column: span 1;
+  }
+  #topbar-more .btn-tech {
+    grid-column: span 1;
+  }
+  #topbar-more .btn-logout {
+    grid-column: span 2;
   }
   .dh{flex-direction:column;gap:12px;}
   .dh-left h2{font-size:1.7rem;}
@@ -493,19 +525,22 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 <div id="topbar">
   <button class="topbar-back" onclick="showDashboard()">← Dashboard</button>
   <div class="logo">FIX AND GO<span> TRACKER</span></div>
+  <button id="topbar-more-toggle" onclick="toggleTopbarMore()">☰ More</button>
   <div class="topbar-right">
-    <input type="date" id="date-filter" class="field" onchange="renderList()" title="Filter by date created">
-    <select id="assigned-filter" class="field" onchange="renderList()" title="Filter by who a job is assigned to">
-      <option value="">All People</option>
-      <option value="__unassigned__">Unassigned</option>
-    </select>
     <input id="search-input" class="field" placeholder="Search jobs..." oninput="renderList()">
     <button class="btn-add" onclick="openAddModal()">+ New Job</button>
-    <button class="btn-tech" onclick="openTechPanel()">🔧 Technicians</button>
-    <a href="team.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">👥 Team</a>
-    <a href="tracker-new.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">🆕 New Tracker</a>
-    <a href="history.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">📋 History</a>
-    <button class="btn-logout" onclick="logOut()">Sign Out</button>
+    <div id="topbar-more">
+      <input type="date" id="date-filter" class="field" onchange="renderList()" title="Filter by date created">
+      <select id="assigned-filter" class="field" onchange="renderList()" title="Filter by who a job is assigned to">
+        <option value="">All People</option>
+        <option value="__unassigned__">Unassigned</option>
+      </select>
+      <button class="btn-tech" onclick="openTechPanel()">🔧 Technicians</button>
+      <a href="team.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">👥 Team</a>
+      <a href="tracker-new.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">🆕 New Tracker</a>
+      <a href="history.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">📋 History</a>
+      <button class="btn-logout" onclick="logOut()">Sign Out</button>
+    </div>
   </div>
 </div>
 
@@ -1842,6 +1877,10 @@ function paViewHistoryItem(id){
   document.getElementById('pa-output-text').value = item.advice_text;
   document.getElementById('pa-output-wrap').style.display = 'block';
   document.getElementById('pa-tech-email').value = item.technician_email || '';
+}
+
+function toggleTopbarMore(){
+  document.getElementById('topbar-more').classList.toggle('expanded');
 }
 
 checkAuth();
