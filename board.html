@@ -42,14 +42,27 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
 /* ===== BOARD ===== */
 #board {
-  display:flex; gap:16px; padding:20px; overflow-x:auto;
+  display:flex; flex-wrap:wrap; gap:16px; padding:20px;
   align-items:flex-start;
 }
 .column {
   background:var(--card); border:1px solid var(--border); border-radius:10px;
-  min-width:300px; max-width:340px; flex:1 0 300px;
+  min-width:260px; flex:0 0 auto;
   display:flex; flex-direction:column;
   max-height:calc(100vh - 90px);
+}
+.column-wrap {
+  display:flex; align-items:flex-start; flex:0 0 auto;
+}
+.resize-handle {
+  width:10px; align-self:stretch; cursor:col-resize; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center;
+}
+.resize-handle::after {
+  content:''; width:3px; height:36px; background:var(--border); border-radius:2px;
+}
+.resize-handle:hover::after, .resize-handle.resizing::after {
+  background:var(--accent);
 }
 .column-header {
   padding:14px 16px; border-bottom:1px solid var(--border);
@@ -300,6 +313,11 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 let JOBS = [];
+let COLUMN_WIDTHS = {};
+try {
+  const saved = localStorage.getItem('boardColumnWidths');
+  if(saved) COLUMN_WIDTHS = JSON.parse(saved);
+} catch(e){}
 let currentDetailId = null;
 let draggedJobId = null;
 
@@ -382,21 +400,20 @@ async function fetchAllJobs(){
     tech: j.tech,
     invoiced: !!j.invoiced,
     invoice_number: j.invoice_number,
+    created: j.created,
     created_at: j.created_at || j.created
   }));
 
-  // Deterministic sort: newest first by created_at, with ref number (JOB-XXX) as a
-  // tie-breaker for rows sharing the exact same timestamp (e.g. bulk inserts).
-  // Since ref numbers are sequential and chronological, this guarantees a stable,
-  // genuinely "latest added first" order with no possibility of random-looking ties.
+  // Deterministic sort: "latest added" means the real-world job date (created),
+  // not when this row happened to be typed into the database. Ref number breaks
+  // ties on the same date, since refs are sequential and chronological.
   function refNum(ref){
     const m = (ref || '').match(/(\d+)/);
     return m ? parseInt(m[1], 10) : 0;
   }
   JOBS.sort((a, b) => {
-    const dateA = new Date(a.created_at).getTime() || 0;
-    const dateB = new Date(b.created_at).getTime() || 0;
-    if(dateB !== dateA) return dateB - dateA;
+    const dateCmp = (b.created || '').localeCompare(a.created || '');
+    if(dateCmp !== 0) return dateCmp;
     return refNum(b.ref) - refNum(a.ref);
   });
 
@@ -463,7 +480,7 @@ const COLUMNS = [
 
 function render(){
   const board = document.getElementById('board');
-  board.innerHTML = COLUMNS.map(col => {
+  board.innerHTML = COLUMNS.map((col, idx) => {
     const jobs = JOBS.filter(col.filter);
     const rows = jobs.map(j => {
       let badgeHtml;
@@ -487,8 +504,9 @@ function render(){
       `;
     }).join('');
 
-    return `
-      <div class="column">
+    const width = COLUMN_WIDTHS[col.key] || 300;
+    const columnHtml = `
+      <div class="column" data-col-key="${col.key}" style="width:${width}px;">
         <div class="column-header">
           <span>${col.title}</span>
           <span class="column-count">${jobs.length}</span>
@@ -499,7 +517,49 @@ function render(){
         </div>
       </div>
     `;
+
+    // Wrap each column with a resize handle on its right edge
+    return `
+      <div class="column-wrap">
+        ${columnHtml}
+        <div class="resize-handle" data-col-key="${col.key}"
+             onmousedown="startResize(event,'${col.key}')" title="Drag to resize"></div>
+      </div>
+    `;
   }).join('');
+}
+
+/* ===== RESIZABLE COLUMNS ===== */
+let resizingCol = null;
+let resizeStartX = 0;
+let resizeStartWidth = 0;
+
+function startResize(e, colKey){
+  e.preventDefault();
+  resizingCol = colKey;
+  resizeStartX = e.clientX;
+  resizeStartWidth = COLUMN_WIDTHS[colKey] || 300;
+  e.target.classList.add('resizing');
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+}
+
+function onResizeMove(e){
+  if(!resizingCol) return;
+  const delta = e.clientX - resizeStartX;
+  const newWidth = Math.max(220, resizeStartWidth + delta);
+  COLUMN_WIDTHS[resizingCol] = newWidth;
+  const colEl = document.querySelector('.column[data-col-key="' + resizingCol + '"]');
+  if(colEl) colEl.style.width = newWidth + 'px';
+}
+
+function onResizeEnd(){
+  if(!resizingCol) return;
+  document.querySelectorAll('.resize-handle.resizing').forEach(el => el.classList.remove('resizing'));
+  try { localStorage.setItem('boardColumnWidths', JSON.stringify(COLUMN_WIDTHS)); } catch(e){}
+  resizingCol = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
 }
 
 /* ===== DRAG AND DROP ===== */
