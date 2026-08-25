@@ -385,6 +385,21 @@ async function fetchAllJobs(){
     created_at: j.created_at || j.created
   }));
 
+  // Deterministic sort: newest first by created_at, with ref number (JOB-XXX) as a
+  // tie-breaker for rows sharing the exact same timestamp (e.g. bulk inserts).
+  // Since ref numbers are sequential and chronological, this guarantees a stable,
+  // genuinely "latest added first" order with no possibility of random-looking ties.
+  function refNum(ref){
+    const m = (ref || '').match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  JOBS.sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime() || 0;
+    const dateB = new Date(b.created_at).getTime() || 0;
+    if(dateB !== dateA) return dateB - dateA;
+    return refNum(b.ref) - refNum(a.ref);
+  });
+
   document.getElementById('range-note').textContent = JOBS.length + ' jobs total';
   render();
 }
