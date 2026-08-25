@@ -1049,7 +1049,8 @@ function renderList(){
   });
   
   const pOrder = { emergency:0, urgent:1, normal:2 };
-  filtered.sort((a,b)=> (b.created_at||b.created||'').localeCompare(a.created_at||a.created||'') || pOrder[a.priority]-pOrder[b.priority]);
+  function refNum(ref){ const m = (ref || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : 0; }
+  filtered.sort((a,b)=> (b.created||'').localeCompare(a.created||'') || refNum(b.ref)-refNum(a.ref) || pOrder[a.priority]-pOrder[b.priority]);
 
   const list = document.getElementById('job-grid');
   if(!filtered.length){
