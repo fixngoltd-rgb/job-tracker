@@ -205,12 +205,6 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   <div class="range-note" id="range-note"></div>
 </div>
 
-<div id="money-summary" style="display:flex;gap:24px;padding:10px 28px;background:#f9fafb;border-bottom:1px solid var(--border);font-size:0.85rem;font-weight:700;flex-wrap:wrap;">
-  <span>Total Budget: <b id="sum-budget" style="color:var(--text);">£0</b></span>
-  <span>Total Cost to Us: <b id="sum-cost" style="color:var(--red);">£0</b></span>
-  <span>Total Invoiced: <b id="sum-invoiced" style="color:var(--green);">£0</b></span>
-</div>
-
 <div id="locked-view" style="display:none;">
 
   <div class="locked-notice">
@@ -621,7 +615,6 @@ async function fetchAllJobs(){
     return refNum(b.ref) - refNum(a.ref);
   });
 
-  updateMoneySummary();
   document.getElementById('range-note').textContent = JOBS.length + ' jobs total';
   render();
 }
@@ -700,22 +693,9 @@ function getVisibleJobs(){
 
 function onSearchOrFilterChange(){
   render();
-  updateMoneySummary();
 }
 
-function updateMoneySummary(){
-  const visible = getVisibleJobs();
-  const totalBudget = visible.reduce((sum, j) => sum + (Number(j.budget) || 0), 0);
-  const totalCost = visible.reduce((sum, j) => sum + (Number(j.cost_to_us) || 0), 0);
-  const totalInvoiced = visible.reduce((sum, j) => sum + (j.invoiced ? (Number(j.invoice_amount) || 0) : 0), 0);
 
-  const bEl = document.getElementById('sum-budget');
-  const cEl = document.getElementById('sum-cost');
-  const iEl = document.getElementById('sum-invoiced');
-  if(bEl) bEl.textContent = '£' + totalBudget.toFixed(2);
-  if(cEl) cEl.textContent = '£' + totalCost.toFixed(2);
-  if(iEl) iEl.textContent = '£' + totalInvoiced.toFixed(2);
-}
 
 function render(){
   const board = document.getElementById('board');
@@ -962,7 +942,6 @@ async function deleteJob(){
   JOBS = JOBS.filter(j => j.id !== currentDetailId);
   closeDetail();
   render();
-  updateMoneySummary();
 }
 
 async function saveDetail(){
@@ -1007,7 +986,6 @@ async function saveDetail(){
 
   closeDetail();
   render();
-  updateMoneySummary();
 }
 
 /* ===== COMMENTS ===== */
