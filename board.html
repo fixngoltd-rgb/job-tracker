@@ -197,12 +197,10 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   <a class="back" href="index.html">&larr; Main Tracker</a>
   <div class="logo">FIX AND GO<span> BOARD</span></div>
   <input id="board-search" type="text" placeholder="Search ref, address, tenant, tech, issue..." style="flex:1;min-width:200px;max-width:340px;padding:8px 12px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" oninput="onSearchOrFilterChange()">
-  <select id="tech-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
-    <option value="">All Technicians</option>
-  </select>
   <select id="team-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
     <option value="">All Team Members</option>
   </select>
+  <button onclick="openTechPanel()" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Technicians</button>
   <button onclick="openNewJobModal()" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
   <div class="range-note" id="range-note"></div>
 </div>
@@ -435,6 +433,115 @@ async function createJob(){
   await fetchAllJobs();
 }
 
+/* ===== TECHNICIANS ===== */
+let technicians = [];
+let editingTechId = null;
+
+async function fetchTechniciansList(){
+  const { data, error } = await supabaseClient
+    .from('technicians')
+    .select('*')
+    .is('archived_at', null)
+    .order('name');
+  if(error){ console.error('Error fetching technicians:', error); return; }
+  technicians = data || [];
+}
+
+function openTechPanel(){
+  fetchTechniciansList().then(renderTechList);
+  document.getElementById('tech-panel-overlay').style.display = 'flex';
+}
+function closeTechPanel(){
+  document.getElementById('tech-panel-overlay').style.display = 'none';
+}
+
+function renderTechList(){
+  const q = (document.getElementById('tech-search')?.value || '').toLowerCase();
+  let filtered = technicians.filter(t => {
+    if(!q) return true;
+    return [t.name, t.phone, t.specialty, t.areas, t.notes].some(v => (v||'').toLowerCase().includes(q));
+  });
+  filtered.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+  const grid = document.getElementById('tech-grid');
+  if(!filtered.length){
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:30px;text-align:center;color:var(--muted);">No technicians found</div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(t => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:14px;">
+      ${t.specialty ? `<span style="font-size:0.72rem;font-weight:700;background:#e0e7ff;color:#3730a3;padding:3px 8px;border-radius:10px;">${escHtml(t.specialty)}</span>` : ''}
+      <div style="font-weight:700;font-size:1rem;margin:6px 0 4px;">${escHtml(t.name)}</div>
+      ${t.phone ? `<div style="font-size:0.85rem;color:var(--muted);">📞 <a href="tel:${escHtml(t.phone)}" style="color:var(--accent);">${escHtml(t.phone)}</a></div>` : ''}
+      ${t.areas ? `<div style="font-size:0.85rem;color:var(--muted);">📍 ${escHtml(t.areas)}</div>` : ''}
+      ${t.notes ? `<div style="font-size:0.8rem;color:var(--muted2);font-style:italic;margin-top:4px;">${escHtml(t.notes)}</div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn" style="flex:1;font-size:0.78rem;padding:6px;" onclick="openEditTechModal('${t.id}')">Edit</button>
+        <button class="btn" style="flex:1;font-size:0.78rem;padding:6px;background:#fee2e2;color:#991b1b;border-color:#fecaca;" onclick="deleteTechnician('${t.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openAddTechModal(){
+  editingTechId = null;
+  document.getElementById('tech-form-title').textContent = 'New Technician';
+  ['t-name','t-phone','t-specialty','t-areas','t-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('tech-form-overlay').style.display = 'flex';
+}
+
+function openEditTechModal(id){
+  const t = technicians.find(x => x.id === id);
+  if(!t) return;
+  editingTechId = id;
+  document.getElementById('tech-form-title').textContent = 'Edit Technician';
+  document.getElementById('t-name').value = t.name || '';
+  document.getElementById('t-phone').value = t.phone || '';
+  document.getElementById('t-specialty').value = t.specialty || '';
+  document.getElementById('t-areas').value = t.areas || '';
+  document.getElementById('t-notes').value = t.notes || '';
+  document.getElementById('tech-form-overlay').style.display = 'flex';
+}
+
+function closeTechFormModal(){
+  document.getElementById('tech-form-overlay').style.display = 'none';
+  editingTechId = null;
+}
+
+async function saveTechnician(){
+  const name = document.getElementById('t-name').value.trim();
+  if(!name){ alert('Please provide a technician name.'); return; }
+
+  const dbData = {
+    name: name,
+    phone: document.getElementById('t-phone').value.trim() || null,
+    specialty: document.getElementById('t-specialty').value.trim() || null,
+    areas: document.getElementById('t-areas').value.trim() || null,
+    notes: document.getElementById('t-notes').value.trim() || null
+  };
+
+  let error;
+  if(editingTechId){
+    ({ error } = await supabaseClient.from('technicians').update(dbData).eq('id', editingTechId));
+  } else {
+    ({ error } = await supabaseClient.from('technicians').insert([dbData]));
+  }
+
+  if(error){ alert('Database error: ' + error.message); return; }
+
+  closeTechFormModal();
+  await fetchTechniciansList();
+  renderTechList();
+}
+
+async function deleteTechnician(id){
+  if(!confirm('Remove this technician from the list?')) return;
+  const { error } = await supabaseClient.from('technicians').update({ archived_at: new Date().toISOString() }).eq('id', id);
+  if(error){ alert('Failed: ' + error.message); return; }
+  await fetchTechniciansList();
+  renderTechList();
+}
+
 async function fetchTeamMembers(){
   const { data, error } = await supabaseClient
     .from('team_members')
@@ -514,7 +621,6 @@ async function fetchAllJobs(){
     return refNum(b.ref) - refNum(a.ref);
   });
 
-  populateTechFilter();
   updateMoneySummary();
   document.getElementById('range-note').textContent = JOBS.length + ' jobs total';
   render();
@@ -577,21 +683,11 @@ const COLUMNS = [
   }
 ];
 
-function populateTechFilter(){
-  const sel = document.getElementById('tech-filter');
-  const current = sel.value;
-  const techs = [...new Set(JOBS.map(j => j.tech).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">All Technicians</option>' + techs.map(t => `<option value="${t}">${t}</option>`).join('');
-  sel.value = current;
-}
-
 function getVisibleJobs(){
   const q = (document.getElementById('board-search')?.value || '').toLowerCase().trim();
-  const techF = document.getElementById('tech-filter')?.value || '';
   const teamF = document.getElementById('team-filter')?.value || '';
 
   return JOBS.filter(j => {
-    if(techF && j.tech !== techF) return false;
     if(teamF && j.assigned_to !== teamF) return false;
     if(q){
       const haystack = [j.ref, j.address, j.tenant, j.tech, j.assigned_to, j.title, j.description]
@@ -996,6 +1092,44 @@ init();
     <div class="save-row">
       <button class="btn" onclick="closeNewJobModal()">Cancel</button>
       <button class="btn btn-primary" onclick="createJob()">Create Job</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="tech-panel-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:100;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;">
+  <div class="detail-modal" style="background:var(--card);border-radius:12px;max-width:800px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <div class="detail-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+      <h2>🔧 Technicians</h2>
+      <button onclick="closeTechPanel()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);">&times;</button>
+    </div>
+    <div style="padding:20px 26px;">
+      <div style="display:flex;gap:12px;margin-bottom:16px;">
+        <input class="field-input" id="tech-search" placeholder="Search name, area, specialty..." oninput="renderTechList()" style="flex:1;">
+        <button class="btn btn-primary" onclick="openAddTechModal()">+ Add Technician</button>
+      </div>
+      <div id="tech-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;max-height:60vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="tech-form-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:101;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;">
+  <div class="detail-modal" style="background:var(--card);border-radius:12px;max-width:480px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <div class="detail-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 id="tech-form-title">New Technician</h2>
+      <button onclick="closeTechFormModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);">&times;</button>
+    </div>
+    <div style="padding:22px 26px;">
+      <div class="detail-field"><label>Name</label><input class="field-input" id="t-name" placeholder="Technician name"></div>
+      <div class="field-row">
+        <div class="detail-field"><label>Phone</label><input class="field-input" id="t-phone" placeholder="+44..."></div>
+        <div class="detail-field"><label>Specialty</label><input class="field-input" id="t-specialty" placeholder="e.g. Plumber"></div>
+      </div>
+      <div class="detail-field"><label>Areas Covered</label><input class="field-input" id="t-areas" placeholder="e.g. Leeds, Bolton"></div>
+      <div class="detail-field"><label>Notes</label><textarea class="field-input" id="t-notes" rows="2"></textarea></div>
+    </div>
+    <div class="save-row">
+      <button class="btn" onclick="closeTechFormModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTechnician()">Save Technician</button>
     </div>
   </div>
 </div>
