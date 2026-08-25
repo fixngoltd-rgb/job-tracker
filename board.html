@@ -172,6 +172,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 <div id="topbar">
   <a class="back" href="index.html">&larr; Main Tracker</a>
   <div class="logo">FIX AND GO<span> BOARD</span></div>
+  <button onclick="openNewJobModal()" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
   <div class="range-note" id="range-note"></div>
 </div>
 
@@ -302,6 +303,48 @@ let JOBS = [];
 let currentDetailId = null;
 let draggedJobId = null;
 
+function openNewJobModal(){
+  document.getElementById('nj-title').value = '';
+  document.getElementById('nj-address').value = '';
+  document.getElementById('nj-tenant').value = '';
+  document.getElementById('nj-tenant-phone').value = '';
+  document.getElementById('nj-description').value = '';
+  document.getElementById('nj-status').value = 'active';
+  document.getElementById('nj-priority').value = 'normal';
+  document.getElementById('newjob-overlay').style.display = 'flex';
+}
+
+function closeNewJobModal(){
+  document.getElementById('newjob-overlay').style.display = 'none';
+}
+
+async function createJob(){
+  const title = document.getElementById('nj-title').value.trim();
+  const address = document.getElementById('nj-address').value.trim();
+
+  if(!title || !address){
+    alert('Please enter at least a title and address.');
+    return;
+  }
+
+  const newJob = {
+    title,
+    address,
+    tenant: document.getElementById('nj-tenant').value.trim() || 'Not provided',
+    tenant_phone: document.getElementById('nj-tenant-phone').value.trim() || null,
+    description: document.getElementById('nj-description').value.trim() || null,
+    status: document.getElementById('nj-status').value,
+    priority: document.getElementById('nj-priority').value,
+    created: new Date().toISOString().split('T')[0]
+  };
+
+  const { error } = await supabaseClient.from('jobs').insert([newJob]);
+  if(error){ alert('Failed to create job: ' + error.message); return; }
+
+  closeNewJobModal();
+  await fetchAllJobs();
+}
+
 async function init(){
   const { data: { session } } = await supabaseClient.auth.getSession();
   if(!session){
@@ -315,17 +358,18 @@ async function init(){
 }
 
 async function fetchAllJobs(){
-  const [trackerRes, archiveRes] = await Promise.all([
-    supabaseClient.from('jobs').select('*').is('archived_at', null).order('created_at', { ascending: false }),
-    supabaseClient.from('archive_jobs').select('*').order('created_at', { ascending: false })
-  ]);
+  const { data, error } = await supabaseClient
+    .from('jobs')
+    .select('*')
+    .is('archived_at', null)
+    .order('created_at', { ascending: false });
 
-  if(trackerRes.error){
-    document.getElementById('board').innerHTML = '<div style="padding:30px;">Failed to load tracker jobs: ' + trackerRes.error.message + '</div>';
+  if(error){
+    document.getElementById('board').innerHTML = '<div style="padding:30px;">Failed to load: ' + error.message + '</div>';
     return;
   }
 
-  const trackerJobs = (trackerRes.data || []).map(j => ({
+  JOBS = (data || []).map(j => ({
     id: j.id,
     ref: j.ref,
     title: j.title,
@@ -338,34 +382,10 @@ async function fetchAllJobs(){
     tech: j.tech,
     invoiced: !!j.invoiced,
     invoice_number: j.invoice_number,
-    created_at: j.created_at || j.created,
-    source: 'tracker'
+    created_at: j.created_at || j.created
   }));
 
-  const archiveJobs = (archiveRes.data || []).map(j => ({
-    id: j.id,
-    ref: j.agent,
-    title: j.address,
-    address: j.address,
-    tenant: null,
-    tenant_phone: null,
-    description: j.summary,
-    status: j.completed ? 'completed' : 'active',
-    scheduled_at: null,
-    tech: null,
-    invoiced: !!j.invoiced,
-    invoice_number: null,
-    created_at: j.created_at,
-    source: 'archive',
-    archiveOriginalStatus: j.status,
-    archivePaid: j.paid
-  }));
-
-  JOBS = trackerJobs.concat(archiveJobs);
-
-  document.getElementById('range-note').textContent =
-    JOBS.length + ' jobs total (' + trackerJobs.length + ' tracker + ' + archiveJobs.length + ' archive)';
-
+  document.getElementById('range-note').textContent = JOBS.length + ' jobs total';
   render();
 }
 
@@ -500,27 +520,13 @@ async function onDrop(e, colKey){
     return;
   }
 
-  if(job.source === 'archive' && col.requiresDate){
-    alert('Archive jobs don\'t support appointment scheduling - only Completed/Invoiced status can be changed on archive-sourced jobs.');
-    draggedJobId = null;
-    return;
-  }
+  const updates = { status: col.targetStatus };
+  if(col.setInvoiced !== undefined) updates.invoiced = col.setInvoiced;
 
-  let error;
-  if(job.source === 'archive'){
-    const archiveUpdates = { completed: col.targetStatus === 'completed' };
-    if(col.setInvoiced !== undefined) archiveUpdates.invoiced = col.setInvoiced;
-    ({ error } = await supabaseClient.from('archive_jobs').update(archiveUpdates).eq('id', job.id));
-    if(!error){ job.status = archiveUpdates.completed ? 'completed' : 'active'; if(col.setInvoiced !== undefined) job.invoiced = col.setInvoiced; }
-  } else {
-    const updates = { status: col.targetStatus };
-    if(col.setInvoiced !== undefined) updates.invoiced = col.setInvoiced;
-    ({ error } = await supabaseClient.from('jobs').update(updates).eq('id', job.id));
-    if(!error) Object.assign(job, updates);
-  }
-
+  const { error } = await supabaseClient.from('jobs').update(updates).eq('id', job.id);
   if(error){ alert('Failed to move job: ' + error.message); draggedJobId = null; return; }
 
+  Object.assign(job, updates);
   draggedJobId = null;
   render();
 }
@@ -542,24 +548,22 @@ function openDetail(id){
   document.getElementById('d-invoiced').checked = !!j.invoiced;
   document.getElementById('d-invoice-number').value = j.invoice_number || '';
 
-  // Archive-sourced jobs don't support the full tracker workflow - disable what doesn't apply
-  const isArchive = j.source === 'archive';
-  document.getElementById('d-status').disabled = isArchive;
-  document.getElementById('d-scheduled').disabled = isArchive;
-  document.getElementById('d-tech-input').disabled = isArchive;
-  document.getElementById('d-invoice-number').disabled = isArchive;
+  document.getElementById('d-status').disabled = false;
+  document.getElementById('d-scheduled').disabled = false;
+  document.getElementById('d-tech-input').disabled = false;
+  document.getElementById('d-invoice-number').disabled = false;
 
   // Sidebar
-  document.getElementById('sb-source').textContent = isArchive ? 'Archive (' + (j.ref || 'agent') + ')' : 'Live Tracker';
-  document.getElementById('sb-source').className = 'sb-source-tag ' + (isArchive ? 'sb-source-archive' : 'sb-source-tracker');
+  document.getElementById('sb-source').textContent = 'Live Tracker';
+  document.getElementById('sb-source').className = 'sb-source-tag sb-source-tracker';
   const pill = document.getElementById('sb-status-pill');
-  pill.textContent = isArchive ? (j.archiveOriginalStatus || j.status) : j.status;
+  pill.textContent = j.status;
   pill.className = 'sb-status-pill sb-status-' + j.status;
   document.getElementById('sb-address').textContent = j.address || '—';
   document.getElementById('sb-tenant').textContent = j.tenant || '—';
   document.getElementById('sb-tech').textContent = j.tech || 'Unassigned';
   document.getElementById('sb-appointment').textContent = j.scheduled_at ? formatShortDate(j.scheduled_at) : 'Not set';
-  document.getElementById('sb-invoiced').textContent = j.invoiced ? ('Yes' + (j.archivePaid ? ' - ' + j.archivePaid : '')) : 'No';
+  document.getElementById('sb-invoiced').textContent = j.invoiced ? 'Yes' : 'No';
 
   onStatusChange();
   switchTab('details');
@@ -590,20 +594,6 @@ function switchTab(tab){
 
 async function saveDetail(){
   if(!currentDetailId) return;
-  const j = JOBS.find(x => x.id === currentDetailId);
-  if(!j) return;
-
-  const invoicedVal = document.getElementById('d-invoiced').checked;
-
-  if(j.source === 'archive'){
-    const archiveUpdates = { invoiced: invoicedVal };
-    const { error } = await supabaseClient.from('archive_jobs').update(archiveUpdates).eq('id', currentDetailId);
-    if(error){ alert('Failed to save: ' + error.message); return; }
-    j.invoiced = invoicedVal;
-    closeDetail();
-    render();
-    return;
-  }
 
   const newStatus = document.getElementById('d-status').value;
   const scheduledVal = document.getElementById('d-scheduled').value;
@@ -618,14 +608,16 @@ async function saveDetail(){
     status: newStatus,
     scheduled_at: scheduledVal || null,
     tech: document.getElementById('d-tech-input').value.trim() || null,
-    invoiced: invoicedVal,
+    invoiced: document.getElementById('d-invoiced').checked,
     invoice_number: document.getElementById('d-invoice-number').value.trim() || null
   };
 
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', currentDetailId);
   if(error){ alert('Failed to save: ' + error.message); return; }
 
-  Object.assign(j, updates);
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j) Object.assign(j, updates);
+
   closeDetail();
   render();
 }
@@ -677,5 +669,44 @@ async function addComment(){
 
 init();
 </script>
+<div class="overlay" id="newjob-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:100;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;">
+  <div class="detail-modal" style="background:var(--card);border-radius:12px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <div class="detail-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+      <h2>New Job</h2>
+      <button onclick="closeNewJobModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);">&times;</button>
+    </div>
+    <div style="padding:22px 26px;">
+      <div class="detail-field"><label>Title</label><input class="field-input" id="nj-title" placeholder="Short job title"></div>
+      <div class="detail-field"><label>Address</label><input class="field-input" id="nj-address" placeholder="Full property address"></div>
+      <div class="field-row">
+        <div class="detail-field"><label>Tenant</label><input class="field-input" id="nj-tenant" placeholder="Tenant name"></div>
+        <div class="detail-field"><label>Tenant Phone</label><input class="field-input" id="nj-tenant-phone" placeholder="+44..."></div>
+      </div>
+      <div class="detail-field"><label>Description</label><textarea class="field-input" id="nj-description" rows="3" placeholder="What's the issue?"></textarea></div>
+      <div class="field-row">
+        <div class="detail-field">
+          <label>Status</label>
+          <select class="status-select" id="nj-status">
+            <option value="active">Active</option>
+            <option value="contacted">Contacted</option>
+          </select>
+        </div>
+        <div class="detail-field">
+          <label>Priority</label>
+          <select class="status-select" id="nj-priority">
+            <option value="normal">Normal</option>
+            <option value="urgent">Urgent</option>
+            <option value="emergency">Emergency</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="save-row">
+      <button class="btn" onclick="closeNewJobModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createJob()">Create Job</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
