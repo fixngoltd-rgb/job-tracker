@@ -136,6 +136,35 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .comment-time { font-size:0.72rem; color:var(--muted2); margin-bottom:6px; }
 .comment-text { font-size:0.88rem; line-height:1.5; }
 .no-comments { color:var(--muted2); font-size:0.88rem; text-align:center; padding:20px 0; }
+
+/* Sidebar layout */
+.detail-body-wrap { display:flex; }
+.detail-main { flex:1; min-width:0; }
+.detail-sidebar {
+  width:220px; flex-shrink:0; border-left:1px solid var(--border);
+  padding:22px 20px; background:#fafbfc;
+}
+.sb-field { margin-bottom:18px; }
+.sb-field label { display:block; font-size:0.7rem; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+.sb-field .val { font-size:0.87rem; font-weight:600; color:var(--text); line-height:1.4; }
+.sb-status-pill {
+  display:inline-block; padding:4px 10px; border-radius:12px; font-size:0.75rem; font-weight:700;
+}
+.sb-status-active, .sb-status-contacted { background:#fef3c7; color:#92400e; }
+.sb-status-booked { background:#dbeafe; color:#1e40af; }
+.sb-status-completed { background:#d1fae5; color:#065f46; }
+.sb-status-revisit { background:#f3e8ff; color:#6b21a8; }
+.sb-status-cancelled { background:#f1f5f9; color:#475569; }
+.sb-source-tag {
+  font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+  padding:3px 8px; border-radius:5px; display:inline-block; margin-bottom:14px;
+}
+.sb-source-tracker { background:#e0e7ff; color:#3730a3; }
+.sb-source-archive { background:#fce7f3; color:#9d174d; }
+@media(max-width:640px){
+  .detail-body-wrap { flex-direction:column; }
+  .detail-sidebar { width:100%; border-left:none; border-top:1px solid var(--border); }
+}
 </style>
 </head>
 <body>
@@ -166,6 +195,9 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
         <div class="ref" id="d-ref"></div>
         <h2 id="d-title"></h2>
       </div>
+
+      <div class="detail-body-wrap">
+      <div class="detail-main">
       <div class="tabs">
         <button class="tab-btn active" data-tab="details" onclick="switchTab('details')">Details</button>
         <button class="tab-btn" data-tab="nextsteps" onclick="switchTab('nextsteps')">Next Steps</button>
@@ -227,6 +259,36 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
         <button class="btn" onclick="closeDetail()">Cancel</button>
         <button class="btn btn-primary" onclick="saveDetail()">Save Changes</button>
       </div>
+      </div>
+
+      <div class="detail-sidebar">
+        <span class="sb-source-tag" id="sb-source"></span>
+        <div class="sb-field">
+          <label>Status</label>
+          <div class="val"><span class="sb-status-pill" id="sb-status-pill"></span></div>
+        </div>
+        <div class="sb-field">
+          <label>Address</label>
+          <div class="val" id="sb-address"></div>
+        </div>
+        <div class="sb-field">
+          <label>Tenant</label>
+          <div class="val" id="sb-tenant"></div>
+        </div>
+        <div class="sb-field">
+          <label>Technician</label>
+          <div class="val" id="sb-tech"></div>
+        </div>
+        <div class="sb-field">
+          <label>Appointment</label>
+          <div class="val" id="sb-appointment"></div>
+        </div>
+        <div class="sb-field">
+          <label>Invoiced</label>
+          <div class="val" id="sb-invoiced"></div>
+        </div>
+      </div>
+      </div>
     </div>
   </div>
 </div>
@@ -247,32 +309,63 @@ async function init(){
     return;
   }
   document.getElementById('board').style.display = 'flex';
+  document.getElementById('range-note').textContent = 'Loading...';
 
-  const twoWeeksAgo = new Date();
-  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-  document.getElementById('range-note').textContent =
-    'Showing jobs from ' + twoWeeksAgo.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' onward (prototype - last 2 weeks only)';
-
-  await fetchJobs();
+  await fetchAllJobs();
 }
 
-async function fetchJobs(){
-  const twoWeeksAgo = new Date();
-  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+async function fetchAllJobs(){
+  const [trackerRes, archiveRes] = await Promise.all([
+    supabaseClient.from('jobs').select('*').is('archived_at', null).order('created_at', { ascending: false }),
+    supabaseClient.from('archive_jobs').select('*').order('created_at', { ascending: false })
+  ]);
 
-  const { data, error } = await supabaseClient
-    .from('jobs')
-    .select('*')
-    .is('archived_at', null)
-    .gte('created_at', twoWeeksAgo.toISOString())
-    .order('created_at', { ascending: false });
-
-  if(error){
-    document.getElementById('board').innerHTML = '<div style="padding:30px;">Failed to load: ' + error.message + '</div>';
+  if(trackerRes.error){
+    document.getElementById('board').innerHTML = '<div style="padding:30px;">Failed to load tracker jobs: ' + trackerRes.error.message + '</div>';
     return;
   }
 
-  JOBS = data || [];
+  const trackerJobs = (trackerRes.data || []).map(j => ({
+    id: j.id,
+    ref: j.ref,
+    title: j.title,
+    address: j.address,
+    tenant: j.tenant,
+    tenant_phone: j.tenant_phone,
+    description: j.description,
+    status: j.status,
+    scheduled_at: j.scheduled_at,
+    tech: j.tech,
+    invoiced: !!j.invoiced,
+    invoice_number: j.invoice_number,
+    created_at: j.created_at || j.created,
+    source: 'tracker'
+  }));
+
+  const archiveJobs = (archiveRes.data || []).map(j => ({
+    id: j.id,
+    ref: j.agent,
+    title: j.address,
+    address: j.address,
+    tenant: null,
+    tenant_phone: null,
+    description: j.summary,
+    status: j.completed ? 'completed' : 'active',
+    scheduled_at: null,
+    tech: null,
+    invoiced: !!j.invoiced,
+    invoice_number: null,
+    created_at: j.created_at,
+    source: 'archive',
+    archiveOriginalStatus: j.status,
+    archivePaid: j.paid
+  }));
+
+  JOBS = trackerJobs.concat(archiveJobs);
+
+  document.getElementById('range-note').textContent =
+    JOBS.length + ' jobs total (' + trackerJobs.length + ' tracker + ' + archiveJobs.length + ' archive)';
+
   render();
 }
 
@@ -407,13 +500,27 @@ async function onDrop(e, colKey){
     return;
   }
 
-  const updates = { status: col.targetStatus };
-  if(col.setInvoiced !== undefined) updates.invoiced = col.setInvoiced;
+  if(job.source === 'archive' && col.requiresDate){
+    alert('Archive jobs don\'t support appointment scheduling - only Completed/Invoiced status can be changed on archive-sourced jobs.');
+    draggedJobId = null;
+    return;
+  }
 
-  const { error } = await supabaseClient.from('jobs').update(updates).eq('id', job.id);
+  let error;
+  if(job.source === 'archive'){
+    const archiveUpdates = { completed: col.targetStatus === 'completed' };
+    if(col.setInvoiced !== undefined) archiveUpdates.invoiced = col.setInvoiced;
+    ({ error } = await supabaseClient.from('archive_jobs').update(archiveUpdates).eq('id', job.id));
+    if(!error){ job.status = archiveUpdates.completed ? 'completed' : 'active'; if(col.setInvoiced !== undefined) job.invoiced = col.setInvoiced; }
+  } else {
+    const updates = { status: col.targetStatus };
+    if(col.setInvoiced !== undefined) updates.invoiced = col.setInvoiced;
+    ({ error } = await supabaseClient.from('jobs').update(updates).eq('id', job.id));
+    if(!error) Object.assign(job, updates);
+  }
+
   if(error){ alert('Failed to move job: ' + error.message); draggedJobId = null; return; }
 
-  Object.assign(job, updates);
   draggedJobId = null;
   render();
 }
@@ -434,6 +541,25 @@ function openDetail(id){
   document.getElementById('d-tech-input').value = j.tech || '';
   document.getElementById('d-invoiced').checked = !!j.invoiced;
   document.getElementById('d-invoice-number').value = j.invoice_number || '';
+
+  // Archive-sourced jobs don't support the full tracker workflow - disable what doesn't apply
+  const isArchive = j.source === 'archive';
+  document.getElementById('d-status').disabled = isArchive;
+  document.getElementById('d-scheduled').disabled = isArchive;
+  document.getElementById('d-tech-input').disabled = isArchive;
+  document.getElementById('d-invoice-number').disabled = isArchive;
+
+  // Sidebar
+  document.getElementById('sb-source').textContent = isArchive ? 'Archive (' + (j.ref || 'agent') + ')' : 'Live Tracker';
+  document.getElementById('sb-source').className = 'sb-source-tag ' + (isArchive ? 'sb-source-archive' : 'sb-source-tracker');
+  const pill = document.getElementById('sb-status-pill');
+  pill.textContent = isArchive ? (j.archiveOriginalStatus || j.status) : j.status;
+  pill.className = 'sb-status-pill sb-status-' + j.status;
+  document.getElementById('sb-address').textContent = j.address || '—';
+  document.getElementById('sb-tenant').textContent = j.tenant || '—';
+  document.getElementById('sb-tech').textContent = j.tech || 'Unassigned';
+  document.getElementById('sb-appointment').textContent = j.scheduled_at ? formatShortDate(j.scheduled_at) : 'Not set';
+  document.getElementById('sb-invoiced').textContent = j.invoiced ? ('Yes' + (j.archivePaid ? ' - ' + j.archivePaid : '')) : 'No';
 
   onStatusChange();
   switchTab('details');
@@ -464,6 +590,21 @@ function switchTab(tab){
 
 async function saveDetail(){
   if(!currentDetailId) return;
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(!j) return;
+
+  const invoicedVal = document.getElementById('d-invoiced').checked;
+
+  if(j.source === 'archive'){
+    const archiveUpdates = { invoiced: invoicedVal };
+    const { error } = await supabaseClient.from('archive_jobs').update(archiveUpdates).eq('id', currentDetailId);
+    if(error){ alert('Failed to save: ' + error.message); return; }
+    j.invoiced = invoicedVal;
+    closeDetail();
+    render();
+    return;
+  }
+
   const newStatus = document.getElementById('d-status').value;
   const scheduledVal = document.getElementById('d-scheduled').value;
 
@@ -477,16 +618,14 @@ async function saveDetail(){
     status: newStatus,
     scheduled_at: scheduledVal || null,
     tech: document.getElementById('d-tech-input').value.trim() || null,
-    invoiced: document.getElementById('d-invoiced').checked,
+    invoiced: invoicedVal,
     invoice_number: document.getElementById('d-invoice-number').value.trim() || null
   };
 
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', currentDetailId);
   if(error){ alert('Failed to save: ' + error.message); return; }
 
-  const j = JOBS.find(x => x.id === currentDetailId);
-  if(j) Object.assign(j, updates);
-
+  Object.assign(j, updates);
   closeDetail();
   render();
 }
