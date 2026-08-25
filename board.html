@@ -200,6 +200,9 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   <select id="tech-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
     <option value="">All Technicians</option>
   </select>
+  <select id="team-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
+    <option value="">All Team Members</option>
+  </select>
   <button onclick="openNewJobModal()" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
   <div class="range-note" id="range-note"></div>
 </div>
@@ -441,6 +444,14 @@ async function fetchTeamMembers(){
   if(error){ console.error(error); return; }
   const dl = document.getElementById('team-names-list');
   if(dl) dl.innerHTML = (data || []).map(t => `<option value="${escHtml(t.name)}">`).join('');
+
+  const filterSel = document.getElementById('team-filter');
+  if(filterSel){
+    const current = filterSel.value;
+    filterSel.innerHTML = '<option value="">All Team Members</option>' +
+      (data || []).map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`).join('');
+    filterSel.value = current;
+  }
 }
 
 async function init(){
@@ -577,11 +588,13 @@ function populateTechFilter(){
 function getVisibleJobs(){
   const q = (document.getElementById('board-search')?.value || '').toLowerCase().trim();
   const techF = document.getElementById('tech-filter')?.value || '';
+  const teamF = document.getElementById('team-filter')?.value || '';
 
   return JOBS.filter(j => {
     if(techF && j.tech !== techF) return false;
+    if(teamF && j.assigned_to !== teamF) return false;
     if(q){
-      const haystack = [j.ref, j.address, j.tenant, j.tech, j.title, j.description]
+      const haystack = [j.ref, j.address, j.tenant, j.tech, j.assigned_to, j.title, j.description]
         .filter(Boolean).join(' ').toLowerCase();
       if(!haystack.includes(q)) return false;
     }
