@@ -64,6 +64,17 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .resize-handle:hover::after, .resize-handle.resizing::after {
   background:var(--accent);
 }
+.resize-handle-h {
+  height:10px; width:100%; cursor:row-resize; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center;
+  border-top:1px solid var(--border); border-radius:0 0 10px 10px;
+}
+.resize-handle-h::after {
+  content:''; height:3px; width:36px; background:var(--border); border-radius:2px;
+}
+.resize-handle-h:hover::after, .resize-handle-h.resizing::after {
+  background:var(--accent);
+}
 .column-header {
   padding:14px 16px; border-bottom:1px solid var(--border);
   display:flex; justify-content:space-between; align-items:center;
@@ -185,11 +196,22 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 <div id="topbar">
   <a class="back" href="index.html">&larr; Main Tracker</a>
   <div class="logo">FIX AND GO<span> BOARD</span></div>
+  <input id="board-search" type="text" placeholder="Search ref, address, tenant, tech, issue..." style="flex:1;min-width:200px;max-width:340px;padding:8px 12px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" oninput="onSearchOrFilterChange()">
+  <select id="tech-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
+    <option value="">All Technicians</option>
+  </select>
   <button onclick="openNewJobModal()" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
   <div class="range-note" id="range-note"></div>
 </div>
 
+<div id="money-summary" style="display:flex;gap:24px;padding:10px 28px;background:#f9fafb;border-bottom:1px solid var(--border);font-size:0.85rem;font-weight:700;flex-wrap:wrap;">
+  <span>Total Budget: <b id="sum-budget" style="color:var(--text);">£0</b></span>
+  <span>Total Cost to Us: <b id="sum-cost" style="color:var(--red);">£0</b></span>
+  <span>Total Invoiced: <b id="sum-invoiced" style="color:var(--green);">£0</b></span>
+</div>
+
 <div id="locked-view" style="display:none;">
+
   <div class="locked-notice">
     <h2>Please sign in first</h2>
     <p style="color:var(--muted);margin:10px 0 16px;">This page uses the same login as your main tracker.</p>
@@ -219,9 +241,13 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
       </div>
 
       <div class="tab-panel active" id="panel-details">
-        <div class="detail-field"><label>Address</label><div class="value" id="d-address"></div></div>
-        <div class="detail-field"><label>Tenant</label><div class="value" id="d-tenant"></div></div>
-        <div class="detail-field"><label>Description</label><div class="value" id="d-desc"></div></div>
+        <div class="detail-field"><label>Title</label><input class="field-input" id="d-title-input" placeholder="Short job title"></div>
+        <div class="detail-field"><label>Address</label><input class="field-input" id="d-address-input" placeholder="Full property address"></div>
+        <div class="field-row">
+          <div class="detail-field"><label>Tenant Name</label><input class="field-input" id="d-tenant-input" placeholder="Tenant name"></div>
+          <div class="detail-field"><label>Tenant Phone</label><input class="field-input" id="d-tenant-phone-input" placeholder="+44..."></div>
+        </div>
+        <div class="detail-field"><label>Description</label><textarea class="field-input" id="d-desc-input" rows="4" placeholder="What's the issue?"></textarea></div>
       </div>
 
       <div class="tab-panel" id="panel-nextsteps">
@@ -243,9 +269,36 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           </div>
         </div>
 
+        <div class="field-row">
+          <div class="detail-field">
+            <label>Technician Name</label>
+            <input class="field-input" id="d-tech-input" placeholder="Technician name">
+          </div>
+          <div class="detail-field">
+            <label>Technician Phone</label>
+            <input class="field-input" id="d-tech-phone-input" placeholder="+44...">
+          </div>
+        </div>
+
         <div class="detail-field">
-          <label>Technician</label>
-          <input class="field-input" id="d-tech-input" placeholder="Technician name">
+          <label>Assigned To (Team)</label>
+          <input class="field-input" id="d-assigned-input" list="team-names-list" placeholder="Team member name">
+          <datalist id="team-names-list"></datalist>
+        </div>
+
+        <div class="field-row">
+          <div class="detail-field">
+            <label>Budget (£)</label>
+            <input class="field-input" type="number" step="0.01" id="d-budget" placeholder="200.00">
+          </div>
+          <div class="detail-field">
+            <label>Cost to Us (£)</label>
+            <input class="field-input" type="number" step="0.01" id="d-cost" placeholder="What it's costing us">
+          </div>
+          <div class="detail-field">
+            <label>Invoice Amount (£)</label>
+            <input class="field-input" type="number" step="0.01" id="d-invoice-amount" placeholder="What we're invoicing">
+          </div>
         </div>
 
         <div class="field-row">
@@ -270,6 +323,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
       </div>
 
       <div class="save-row">
+        <button class="btn" style="background:#fee2e2;color:#991b1b;border-color:#fecaca;margin-right:auto;" onclick="deleteJob()">Delete Job</button>
         <button class="btn" onclick="closeDetail()">Cancel</button>
         <button class="btn btn-primary" onclick="saveDetail()">Save Changes</button>
       </div>
@@ -294,8 +348,20 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <div class="val" id="sb-tech"></div>
         </div>
         <div class="sb-field">
+          <label>Assigned To</label>
+          <div class="val" id="sb-assigned"></div>
+        </div>
+        <div class="sb-field">
           <label>Appointment</label>
           <div class="val" id="sb-appointment"></div>
+        </div>
+        <div class="sb-field">
+          <label>Budget</label>
+          <div class="val" id="sb-budget"></div>
+        </div>
+        <div class="sb-field">
+          <label>Cost to Us</label>
+          <div class="val" id="sb-cost"></div>
         </div>
         <div class="sb-field">
           <label>Invoiced</label>
@@ -314,9 +380,12 @@ const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 let JOBS = [];
 let COLUMN_WIDTHS = {};
+let COLUMN_HEIGHTS = {};
 try {
   const saved = localStorage.getItem('boardColumnWidths');
   if(saved) COLUMN_WIDTHS = JSON.parse(saved);
+  const savedH = localStorage.getItem('boardColumnHeights');
+  if(savedH) COLUMN_HEIGHTS = JSON.parse(savedH);
 } catch(e){}
 let currentDetailId = null;
 let draggedJobId = null;
@@ -363,6 +432,17 @@ async function createJob(){
   await fetchAllJobs();
 }
 
+async function fetchTeamMembers(){
+  const { data, error } = await supabaseClient
+    .from('team_members')
+    .select('*')
+    .is('archived_at', null)
+    .order('name');
+  if(error){ console.error(error); return; }
+  const dl = document.getElementById('team-names-list');
+  if(dl) dl.innerHTML = (data || []).map(t => `<option value="${escHtml(t.name)}">`).join('');
+}
+
 async function init(){
   const { data: { session } } = await supabaseClient.auth.getSession();
   if(!session){
@@ -371,6 +451,7 @@ async function init(){
   }
   document.getElementById('board').style.display = 'flex';
   document.getElementById('range-note').textContent = 'Loading...';
+  fetchTeamMembers();
 
   await fetchAllJobs();
 }
@@ -398,6 +479,11 @@ async function fetchAllJobs(){
     status: j.status,
     scheduled_at: j.scheduled_at,
     tech: j.tech,
+    tech_phone: j.tech_phone,
+    assigned_to: j.assigned_to,
+    budget: j.budget,
+    cost_to_us: j.cost_to_us,
+    invoice_amount: j.invoice_amount,
     invoiced: !!j.invoiced,
     invoice_number: j.invoice_number,
     created: j.created,
@@ -417,6 +503,8 @@ async function fetchAllJobs(){
     return refNum(b.ref) - refNum(a.ref);
   });
 
+  populateTechFilter();
+  updateMoneySummary();
   document.getElementById('range-note').textContent = JOBS.length + ' jobs total';
   render();
 }
@@ -478,13 +566,59 @@ const COLUMNS = [
   }
 ];
 
+function populateTechFilter(){
+  const sel = document.getElementById('tech-filter');
+  const current = sel.value;
+  const techs = [...new Set(JOBS.map(j => j.tech).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All Technicians</option>' + techs.map(t => `<option value="${t}">${t}</option>`).join('');
+  sel.value = current;
+}
+
+function getVisibleJobs(){
+  const q = (document.getElementById('board-search')?.value || '').toLowerCase().trim();
+  const techF = document.getElementById('tech-filter')?.value || '';
+
+  return JOBS.filter(j => {
+    if(techF && j.tech !== techF) return false;
+    if(q){
+      const haystack = [j.ref, j.address, j.tenant, j.tech, j.title, j.description]
+        .filter(Boolean).join(' ').toLowerCase();
+      if(!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function onSearchOrFilterChange(){
+  render();
+  updateMoneySummary();
+}
+
+function updateMoneySummary(){
+  const visible = getVisibleJobs();
+  const totalBudget = visible.reduce((sum, j) => sum + (Number(j.budget) || 0), 0);
+  const totalCost = visible.reduce((sum, j) => sum + (Number(j.cost_to_us) || 0), 0);
+  const totalInvoiced = visible.reduce((sum, j) => sum + (j.invoiced ? (Number(j.invoice_amount) || 0) : 0), 0);
+
+  const bEl = document.getElementById('sum-budget');
+  const cEl = document.getElementById('sum-cost');
+  const iEl = document.getElementById('sum-invoiced');
+  if(bEl) bEl.textContent = '£' + totalBudget.toFixed(2);
+  if(cEl) cEl.textContent = '£' + totalCost.toFixed(2);
+  if(iEl) iEl.textContent = '£' + totalInvoiced.toFixed(2);
+}
+
 function render(){
   const board = document.getElementById('board');
+  const visibleJobs = getVisibleJobs();
   board.innerHTML = COLUMNS.map((col, idx) => {
-    const jobs = JOBS.filter(col.filter);
+    const jobs = visibleJobs.filter(col.filter);
     const rows = jobs.map(j => {
       let badgeHtml;
-      if(col.key === 'awaiting_completion' && j.scheduled_at){
+      if(col.key === 'completed_invoiced'){
+        // Once it's done and invoiced, a plain green "done" marker is more useful than an age number
+        badgeHtml = `<div class="day-badge green" style="font-size:0.95rem;">✓</div>`;
+      } else if(col.key === 'awaiting_completion' && j.scheduled_at){
         badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>`;
       } else {
         const days = daysSince(j.created_at || j.created);
@@ -505,8 +639,10 @@ function render(){
     }).join('');
 
     const width = COLUMN_WIDTHS[col.key] || 300;
+    const height = COLUMN_HEIGHTS[col.key];
+    const heightStyle = height ? `height:${height}px;max-height:${height}px;` : '';
     const columnHtml = `
-      <div class="column" data-col-key="${col.key}" style="width:${width}px;">
+      <div class="column" data-col-key="${col.key}" style="width:${width}px;${heightStyle}">
         <div class="column-header">
           <span>${col.title}</span>
           <span class="column-count">${jobs.length}</span>
@@ -515,6 +651,8 @@ function render(){
              ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${col.key}')">
           ${rows || '<div class="empty-col">No jobs here</div>'}
         </div>
+        <div class="resize-handle-h" data-col-key="${col.key}"
+             onmousedown="startResizeHeight(event,'${col.key}')" title="Drag to resize height"></div>
       </div>
     `;
 
@@ -560,6 +698,39 @@ function onResizeEnd(){
   resizingCol = null;
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('mouseup', onResizeEnd);
+}
+
+let resizingColH = null;
+let resizeStartY = 0;
+let resizeStartHeight = 0;
+
+function startResizeHeight(e, colKey){
+  e.preventDefault();
+  resizingColH = colKey;
+  resizeStartY = e.clientY;
+  const colEl = document.querySelector('.column[data-col-key="' + colKey + '"]');
+  resizeStartHeight = COLUMN_HEIGHTS[colKey] || (colEl ? colEl.offsetHeight : 500);
+  e.target.classList.add('resizing');
+  document.addEventListener('mousemove', onResizeHeightMove);
+  document.addEventListener('mouseup', onResizeHeightEnd);
+}
+
+function onResizeHeightMove(e){
+  if(!resizingColH) return;
+  const delta = e.clientY - resizeStartY;
+  const newHeight = Math.max(160, resizeStartHeight + delta);
+  COLUMN_HEIGHTS[resizingColH] = newHeight;
+  const colEl = document.querySelector('.column[data-col-key="' + resizingColH + '"]');
+  if(colEl){ colEl.style.height = newHeight + 'px'; colEl.style.maxHeight = newHeight + 'px'; }
+}
+
+function onResizeHeightEnd(){
+  if(!resizingColH) return;
+  document.querySelectorAll('.resize-handle-h.resizing').forEach(el => el.classList.remove('resizing'));
+  try { localStorage.setItem('boardColumnHeights', JSON.stringify(COLUMN_HEIGHTS)); } catch(e){}
+  resizingColH = null;
+  document.removeEventListener('mousemove', onResizeHeightMove);
+  document.removeEventListener('mouseup', onResizeHeightEnd);
 }
 
 /* ===== DRAG AND DROP ===== */
@@ -614,19 +785,21 @@ function openDetail(id){
 
   document.getElementById('d-ref').textContent = j.ref;
   document.getElementById('d-title').textContent = j.title || 'Untitled Job';
-  document.getElementById('d-address').textContent = j.address || '—';
-  document.getElementById('d-tenant').textContent = (j.tenant || '—') + (j.tenant_phone ? ' · ' + j.tenant_phone : '');
-  document.getElementById('d-desc').textContent = j.description || '—';
+  document.getElementById('d-title-input').value = j.title || '';
+  document.getElementById('d-address-input').value = j.address || '';
+  document.getElementById('d-tenant-input').value = j.tenant || '';
+  document.getElementById('d-tenant-phone-input').value = j.tenant_phone || '';
+  document.getElementById('d-desc-input').value = j.description || '';
   document.getElementById('d-status').value = j.status;
   document.getElementById('d-scheduled').value = j.scheduled_at ? j.scheduled_at.split('T')[0] : '';
   document.getElementById('d-tech-input').value = j.tech || '';
+  document.getElementById('d-tech-phone-input').value = j.tech_phone || '';
+  document.getElementById('d-assigned-input').value = j.assigned_to || '';
+  document.getElementById('d-budget').value = j.budget != null ? j.budget : 200;
+  document.getElementById('d-cost').value = j.cost_to_us != null ? j.cost_to_us : '';
+  document.getElementById('d-invoice-amount').value = j.invoice_amount != null ? j.invoice_amount : '';
   document.getElementById('d-invoiced').checked = !!j.invoiced;
   document.getElementById('d-invoice-number').value = j.invoice_number || '';
-
-  document.getElementById('d-status').disabled = false;
-  document.getElementById('d-scheduled').disabled = false;
-  document.getElementById('d-tech-input').disabled = false;
-  document.getElementById('d-invoice-number').disabled = false;
 
   // Sidebar
   document.getElementById('sb-source').textContent = 'Live Tracker';
@@ -637,7 +810,10 @@ function openDetail(id){
   document.getElementById('sb-address').textContent = j.address || '—';
   document.getElementById('sb-tenant').textContent = j.tenant || '—';
   document.getElementById('sb-tech').textContent = j.tech || 'Unassigned';
+  document.getElementById('sb-assigned').textContent = j.assigned_to || 'Unassigned';
   document.getElementById('sb-appointment').textContent = j.scheduled_at ? formatShortDate(j.scheduled_at) : 'Not set';
+  document.getElementById('sb-budget').textContent = j.budget != null ? '£' + Number(j.budget).toFixed(2) : '—';
+  document.getElementById('sb-cost').textContent = j.cost_to_us != null ? '£' + Number(j.cost_to_us).toFixed(2) : 'Not set';
   document.getElementById('sb-invoiced').textContent = j.invoiced ? 'Yes' : 'No';
 
   onStatusChange();
@@ -667,6 +843,19 @@ function switchTab(tab){
   document.getElementById('panel-' + tab).classList.add('active');
 }
 
+async function deleteJob(){
+  if(!currentDetailId) return;
+  if(!confirm('Delete this job? It will be archived, not permanently erased, and will disappear from the board.')) return;
+
+  const { error } = await supabaseClient.from('jobs').update({ archived_at: new Date().toISOString() }).eq('id', currentDetailId);
+  if(error){ alert('Failed to delete: ' + error.message); return; }
+
+  JOBS = JOBS.filter(j => j.id !== currentDetailId);
+  closeDetail();
+  render();
+  updateMoneySummary();
+}
+
 async function saveDetail(){
   if(!currentDetailId) return;
 
@@ -679,10 +868,24 @@ async function saveDetail(){
     return;
   }
 
+  const budgetVal = document.getElementById('d-budget').value;
+  const costVal = document.getElementById('d-cost').value;
+  const invoiceAmtVal = document.getElementById('d-invoice-amount').value;
+
   const updates = {
+    title: document.getElementById('d-title-input').value.trim() || 'Untitled Job',
+    address: document.getElementById('d-address-input').value.trim(),
+    tenant: document.getElementById('d-tenant-input').value.trim() || null,
+    tenant_phone: document.getElementById('d-tenant-phone-input').value.trim() || null,
+    description: document.getElementById('d-desc-input').value.trim() || null,
     status: newStatus,
     scheduled_at: scheduledVal || null,
     tech: document.getElementById('d-tech-input').value.trim() || null,
+    tech_phone: document.getElementById('d-tech-phone-input').value.trim() || null,
+    assigned_to: document.getElementById('d-assigned-input').value.trim() || null,
+    budget: budgetVal !== '' ? parseFloat(budgetVal) : 200,
+    cost_to_us: costVal !== '' ? parseFloat(costVal) : null,
+    invoice_amount: invoiceAmtVal !== '' ? parseFloat(invoiceAmtVal) : null,
     invoiced: document.getElementById('d-invoiced').checked,
     invoice_number: document.getElementById('d-invoice-number').value.trim() || null
   };
@@ -695,6 +898,7 @@ async function saveDetail(){
 
   closeDetail();
   render();
+  updateMoneySummary();
 }
 
 /* ===== COMMENTS ===== */
