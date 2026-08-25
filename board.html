@@ -26,6 +26,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 #topbar {
   background:#1f2937; color:white; padding:16px 28px;
   display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+  position:sticky; top:0; z-index:20;
 }
 #topbar a.back { color:#cbd5e1; text-decoration:none; font-weight:600; font-size:0.9rem; }
 #topbar a.back:hover { color:white; }
@@ -39,6 +40,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 }
 .locked-notice a { color:var(--accent); font-weight:700; text-decoration:none; }
 
+/* ===== BOARD ===== */
 #board {
   display:flex; gap:16px; padding:20px; overflow-x:auto;
   align-items:flex-start;
@@ -47,7 +49,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   background:var(--card); border:1px solid var(--border); border-radius:10px;
   min-width:300px; max-width:340px; flex:1 0 300px;
   display:flex; flex-direction:column;
-  max-height:calc(100vh - 110px);
+  max-height:calc(100vh - 90px);
 }
 .column-header {
   padding:14px 16px; border-bottom:1px solid var(--border);
@@ -58,62 +60,82 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   background:#eef0f3; color:var(--muted); font-size:0.75rem; font-weight:700;
   padding:2px 8px; border-radius:10px;
 }
-.column-body { overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; flex:1; }
+.column-body { overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; flex:1; min-height:60px; }
+.column-body.drag-over { background:#eef2ff; }
 
 .row {
   border:1px solid var(--border); border-radius:8px; padding:10px 12px;
   display:flex; justify-content:space-between; align-items:center; gap:10px;
-  cursor:pointer; transition:border-color .12s, box-shadow .12s;
+  cursor:grab; transition:border-color .12s, box-shadow .12s;
+  background:var(--card);
 }
 .row:hover { border-color:#c7cbd1; box-shadow:0 1px 4px rgba(0,0,0,0.05); }
+.row.dragging { opacity:0.4; }
 .row-main { min-width:0; flex:1; }
 .row-id { font-size:0.72rem; color:var(--muted2); font-weight:600; margin-bottom:2px; }
 .row-title { font-size:0.88rem; font-weight:700; color:var(--text); line-height:1.3; margin-bottom:3px; }
 .row-address { font-size:0.78rem; color:var(--muted); line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .day-badge {
-  min-width:26px; height:26px; border-radius:50%; color:white; font-weight:800; font-size:0.78rem;
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  min-width:26px; height:26px; padding:0 6px; border-radius:13px; color:white; font-weight:800; font-size:0.72rem;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; white-space:nowrap;
 }
 .day-badge.green { background:var(--green); }
 .day-badge.amber { background:var(--amber); }
 .day-badge.red { background:var(--red); }
+.day-badge.date { background:#374151; border-radius:6px; padding:4px 8px; font-size:0.68rem; }
 
 .empty-col { padding:30px 14px; text-align:center; color:var(--muted2); font-size:0.85rem; }
 
-/* Detail overlay */
-.overlay {
-  display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:100;
-  align-items:flex-start; justify-content:center; padding:40px 20px; overflow-y:auto;
+/* ===== FULL PAGE DETAIL ===== */
+#detail-view { display:none; }
+.detail-container { max-width:760px; margin:0 auto; padding:24px 20px 60px; }
+.detail-topbar {
+  display:flex; align-items:center; gap:14px; margin-bottom:18px;
 }
-.overlay.open { display:flex; }
-.detail-modal {
-  background:var(--card); border-radius:12px; max-width:640px; width:100%;
-  padding:0; box-shadow:0 10px 40px rgba(0,0,0,0.2);
+.detail-back {
+  background:var(--card); border:1px solid var(--border); border-radius:7px;
+  padding:8px 14px; font-weight:700; font-size:0.85rem; cursor:pointer; color:var(--text);
+  font-family:'Inter',sans-serif;
 }
-.detail-hdr {
-  padding:20px 24px; border-bottom:1px solid var(--border);
-  display:flex; justify-content:space-between; align-items:flex-start;
-}
-.detail-hdr h2 { font-size:1.2rem; }
-.detail-hdr .ref { font-size:0.78rem; color:var(--muted2); font-weight:700; margin-bottom:4px; }
-.detail-close { background:none; border:none; font-size:1.3rem; cursor:pointer; color:var(--muted); }
+.detail-card { background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.detail-hdr { padding:22px 26px; border-bottom:1px solid var(--border); }
+.detail-hdr .ref { font-size:0.78rem; color:var(--muted2); font-weight:700; margin-bottom:6px; letter-spacing:.03em; }
+.detail-hdr h2 { font-size:1.4rem; }
 
-.tabs { display:flex; border-bottom:1px solid var(--border); padding:0 24px; gap:4px; }
+.tabs { display:flex; border-bottom:1px solid var(--border); padding:0 26px; gap:4px; }
 .tab-btn {
-  padding:12px 14px; font-size:0.85rem; font-weight:700; color:var(--muted);
+  padding:13px 14px; font-size:0.87rem; font-weight:700; color:var(--muted);
   background:none; border:none; cursor:pointer; border-bottom:2px solid transparent;
   font-family:'Inter',sans-serif;
 }
 .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
-.tab-panel { display:none; padding:20px 24px; font-size:0.9rem; line-height:1.6; }
+.tab-panel { display:none; padding:22px 26px; font-size:0.9rem; line-height:1.6; }
 .tab-panel.active { display:block; }
-.detail-field { margin-bottom:14px; }
-.detail-field label { display:block; font-size:0.75rem; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
-.status-select { padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif; font-size:0.88rem; }
-.save-row { padding:16px 24px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; }
+.detail-field { margin-bottom:16px; }
+.detail-field label { display:block; font-size:0.75rem; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+.detail-field .value { font-size:0.95rem; }
+.field-input, .status-select {
+  width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:7px;
+  font-family:'Inter',sans-serif; font-size:0.9rem;
+}
+.field-row { display:flex; gap:14px; flex-wrap:wrap; }
+.field-row > div { flex:1; min-width:180px; }
+.checkbox-row { display:flex; align-items:center; gap:8px; }
+.checkbox-row input { width:16px; height:16px; }
+.save-row { padding:18px 26px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; }
 .btn { padding:9px 16px; border-radius:7px; font-weight:700; font-size:0.85rem; cursor:pointer; border:1px solid var(--border); background:var(--card); font-family:'Inter',sans-serif; }
 .btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+.btn-secondary { background:#eef0f3; border-color:#eef0f3; }
+
+/* Comments */
+.comment-form { display:flex; flex-direction:column; gap:10px; margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid var(--border); }
+.comment-list { display:flex; flex-direction:column; gap:14px; }
+.comment-item { background:#f8f9fb; border-radius:8px; padding:12px 14px; }
+.comment-author { font-weight:700; font-size:0.85rem; margin-bottom:2px; }
+.comment-time { font-size:0.72rem; color:var(--muted2); margin-bottom:6px; }
+.comment-text { font-size:0.88rem; line-height:1.5; }
+.no-comments { color:var(--muted2); font-size:0.88rem; text-align:center; padding:20px 0; }
 </style>
 </head>
 <body>
@@ -134,48 +156,77 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
 <div id="board"></div>
 
-<div class="overlay" id="detail-overlay">
-  <div class="detail-modal">
-    <div class="detail-hdr">
-      <div>
+<div id="detail-view">
+  <div class="detail-container">
+    <div class="detail-topbar">
+      <button class="detail-back" onclick="closeDetail()">&larr; Back to Board</button>
+    </div>
+    <div class="detail-card">
+      <div class="detail-hdr">
         <div class="ref" id="d-ref"></div>
         <h2 id="d-title"></h2>
       </div>
-      <button class="detail-close" onclick="closeDetail()">&times;</button>
-    </div>
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="details" onclick="switchTab('details')">Details</button>
-      <button class="tab-btn" data-tab="nextsteps" onclick="switchTab('nextsteps')">Next Steps</button>
-      <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">Comments</button>
-    </div>
-    <div class="tab-panel active" id="panel-details">
-      <div class="detail-field"><label>Address</label><div id="d-address"></div></div>
-      <div class="detail-field"><label>Tenant</label><div id="d-tenant"></div></div>
-      <div class="detail-field"><label>Technician</label><div id="d-tech"></div></div>
-      <div class="detail-field"><label>Description</label><div id="d-desc"></div></div>
-    </div>
-    <div class="tab-panel" id="panel-nextsteps">
-      <div class="detail-field">
-        <label>Status</label>
-        <select class="status-select" id="d-status">
-          <option value="active">Active</option>
-          <option value="contacted">Contacted</option>
-          <option value="booked">Booked</option>
-          <option value="completed">Completed</option>
-          <option value="revisit">Revisit</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="details" onclick="switchTab('details')">Details</button>
+        <button class="tab-btn" data-tab="nextsteps" onclick="switchTab('nextsteps')">Next Steps</button>
+        <button class="tab-btn" data-tab="comments" onclick="switchTab('comments')">Comments</button>
       </div>
-      <div class="detail-field">
-        <label><input type="checkbox" id="d-invoiced"> Invoiced</label>
+
+      <div class="tab-panel active" id="panel-details">
+        <div class="detail-field"><label>Address</label><div class="value" id="d-address"></div></div>
+        <div class="detail-field"><label>Tenant</label><div class="value" id="d-tenant"></div></div>
+        <div class="detail-field"><label>Description</label><div class="value" id="d-desc"></div></div>
       </div>
-    </div>
-    <div class="tab-panel" id="panel-notes">
-      <div id="d-notes-list" style="color:var(--muted);"></div>
-    </div>
-    <div class="save-row">
-      <button class="btn" onclick="closeDetail()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveDetail()">Save Changes</button>
+
+      <div class="tab-panel" id="panel-nextsteps">
+        <div class="field-row">
+          <div class="detail-field">
+            <label>Status</label>
+            <select class="status-select" id="d-status" onchange="onStatusChange()">
+              <option value="active">Active</option>
+              <option value="contacted">Contacted</option>
+              <option value="booked">Booked</option>
+              <option value="completed">Completed</option>
+              <option value="revisit">Revisit</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="detail-field" id="d-scheduled-wrap">
+            <label>Appointment Date <span id="d-scheduled-required" style="color:var(--red);"></span></label>
+            <input class="field-input" type="date" id="d-scheduled">
+          </div>
+        </div>
+
+        <div class="detail-field">
+          <label>Technician</label>
+          <input class="field-input" id="d-tech-input" placeholder="Technician name">
+        </div>
+
+        <div class="field-row">
+          <div class="detail-field checkbox-row">
+            <input type="checkbox" id="d-invoiced">
+            <label style="margin:0;text-transform:none;font-size:0.9rem;color:var(--text);">Invoiced</label>
+          </div>
+          <div class="detail-field">
+            <label>Invoice Number</label>
+            <input class="field-input" id="d-invoice-number" placeholder="e.g. INV-1024">
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="panel-comments">
+        <div class="comment-form">
+          <input class="field-input" id="c-author" placeholder="Your name">
+          <textarea class="field-input" id="c-message" placeholder="Write a message..." rows="3"></textarea>
+          <button class="btn btn-primary" style="align-self:flex-start;" onclick="addComment()">Post Comment</button>
+        </div>
+        <div class="comment-list" id="comment-list"></div>
+      </div>
+
+      <div class="save-row">
+        <button class="btn" onclick="closeDetail()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveDetail()">Save Changes</button>
+      </div>
     </div>
   </div>
 </div>
@@ -187,6 +238,7 @@ const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 let JOBS = [];
 let currentDetailId = null;
+let draggedJobId = null;
 
 async function init(){
   const { data: { session } } = await supabaseClient.auth.getSession();
@@ -200,6 +252,13 @@ async function init(){
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
   document.getElementById('range-note').textContent =
     'Showing jobs from ' + twoWeeksAgo.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' onward (prototype - last 2 weeks only)';
+
+  await fetchJobs();
+}
+
+async function fetchJobs(){
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
   const { data, error } = await supabaseClient
     .from('jobs')
@@ -230,33 +289,47 @@ function badgeColor(days){
   return 'red';
 }
 
+function formatShortDate(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
+}
+
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 const COLUMNS = [
   {
     key: 'awaiting_start',
     title: 'Jobs Awaiting a Start Date',
-    filter: j => ['active','contacted'].includes(j.status) && !j.scheduled_at
+    filter: j => ['active','contacted'].includes(j.status) && !j.scheduled_at,
+    targetStatus: 'active'
   },
   {
     key: 'awaiting_completion',
     title: 'Jobs Awaiting Completion',
-    filter: j => j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')
+    filter: j => j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled'),
+    targetStatus: 'booked',
+    requiresDate: true
   },
   {
     key: 'awaiting_invoice',
     title: 'Jobs Awaiting Invoice',
-    filter: j => j.status === 'completed' && !j.invoiced
+    filter: j => j.status === 'completed' && !j.invoiced,
+    targetStatus: 'completed',
+    setInvoiced: false
   },
   {
     key: 'completed_invoiced',
     title: 'Completed & Invoiced',
-    filter: j => j.status === 'completed' && j.invoiced
+    filter: j => j.status === 'completed' && j.invoiced,
+    targetStatus: 'completed',
+    setInvoiced: true
   },
   {
     key: 'revisit',
     title: 'Revisit Needed',
-    filter: j => j.status === 'revisit'
+    filter: j => j.status === 'revisit',
+    targetStatus: 'revisit'
   }
 ];
 
@@ -265,16 +338,23 @@ function render(){
   board.innerHTML = COLUMNS.map(col => {
     const jobs = JOBS.filter(col.filter);
     const rows = jobs.map(j => {
-      const days = daysSince(j.created_at || j.created);
-      const color = badgeColor(days);
+      let badgeHtml;
+      if(col.key === 'awaiting_completion' && j.scheduled_at){
+        badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>`;
+      } else {
+        const days = daysSince(j.created_at || j.created);
+        badgeHtml = `<div class="day-badge ${badgeColor(days)}">${days}</div>`;
+      }
       return `
-        <div class="row" onclick="openDetail('${j.id}')">
+        <div class="row" draggable="true" data-job-id="${j.id}"
+             ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)"
+             onclick="openDetail('${j.id}')">
           <div class="row-main">
             <div class="row-id">${escHtml(j.ref)}</div>
             <div class="row-title">${escHtml(j.title || 'Untitled')}</div>
             <div class="row-address">${escHtml(j.address || '')}</div>
           </div>
-          <div class="day-badge ${color}">${days}</div>
+          ${badgeHtml}
         </div>
       `;
     }).join('');
@@ -285,7 +365,8 @@ function render(){
           <span>${col.title}</span>
           <span class="column-count">${jobs.length}</span>
         </div>
-        <div class="column-body">
+        <div class="column-body" data-col-key="${col.key}"
+             ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${col.key}')">
           ${rows || '<div class="empty-col">No jobs here</div>'}
         </div>
       </div>
@@ -293,6 +374,51 @@ function render(){
   }).join('');
 }
 
+/* ===== DRAG AND DROP ===== */
+function onDragStart(e, jobId){
+  draggedJobId = jobId;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragEnd(e){
+  e.target.classList.remove('dragging');
+}
+function onDragOver(e){
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e){
+  e.currentTarget.classList.remove('drag-over');
+}
+async function onDrop(e, colKey){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if(!draggedJobId) return;
+
+  const job = JOBS.find(j => j.id === draggedJobId);
+  const col = COLUMNS.find(c => c.key === colKey);
+  if(!job || !col) return;
+
+  if(col.requiresDate && !job.scheduled_at){
+    alert('This job needs an appointment date before it can move to "Jobs Awaiting Completion". Opening it now so you can set one.');
+    openDetail(draggedJobId);
+    switchTab('nextsteps');
+    draggedJobId = null;
+    return;
+  }
+
+  const updates = { status: col.targetStatus };
+  if(col.setInvoiced !== undefined) updates.invoiced = col.setInvoiced;
+
+  const { error } = await supabaseClient.from('jobs').update(updates).eq('id', job.id);
+  if(error){ alert('Failed to move job: ' + error.message); draggedJobId = null; return; }
+
+  Object.assign(job, updates);
+  draggedJobId = null;
+  render();
+}
+
+/* ===== DETAIL VIEW (full page) ===== */
 function openDetail(id){
   const j = JOBS.find(x => x.id === id);
   if(!j) return;
@@ -302,18 +428,32 @@ function openDetail(id){
   document.getElementById('d-title').textContent = j.title || 'Untitled Job';
   document.getElementById('d-address').textContent = j.address || '—';
   document.getElementById('d-tenant').textContent = (j.tenant || '—') + (j.tenant_phone ? ' · ' + j.tenant_phone : '');
-  document.getElementById('d-tech').textContent = j.tech || 'Unassigned';
   document.getElementById('d-desc').textContent = j.description || '—';
   document.getElementById('d-status').value = j.status;
+  document.getElementById('d-scheduled').value = j.scheduled_at ? j.scheduled_at.split('T')[0] : '';
+  document.getElementById('d-tech-input').value = j.tech || '';
   document.getElementById('d-invoiced').checked = !!j.invoiced;
+  document.getElementById('d-invoice-number').value = j.invoice_number || '';
 
+  onStatusChange();
   switchTab('details');
-  document.getElementById('detail-overlay').classList.add('open');
+  loadComments(id);
+
+  document.getElementById('board').style.display = 'none';
+  document.getElementById('detail-view').style.display = 'block';
+  window.scrollTo(0,0);
 }
 
 function closeDetail(){
-  document.getElementById('detail-overlay').classList.remove('open');
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('board').style.display = 'flex';
   currentDetailId = null;
+}
+
+function onStatusChange(){
+  const status = document.getElementById('d-status').value;
+  const requiredLabel = document.getElementById('d-scheduled-required');
+  requiredLabel.textContent = status === 'booked' ? '(required)' : '';
 }
 
 function switchTab(tab){
@@ -325,20 +465,75 @@ function switchTab(tab){
 async function saveDetail(){
   if(!currentDetailId) return;
   const newStatus = document.getElementById('d-status').value;
-  const newInvoiced = document.getElementById('d-invoiced').checked;
+  const scheduledVal = document.getElementById('d-scheduled').value;
 
-  const { error } = await supabaseClient
-    .from('jobs')
-    .update({ status: newStatus, invoiced: newInvoiced })
-    .eq('id', currentDetailId);
+  if(newStatus === 'booked' && !scheduledVal){
+    alert('Please set an appointment date before marking this job as Booked.');
+    switchTab('nextsteps');
+    return;
+  }
 
+  const updates = {
+    status: newStatus,
+    scheduled_at: scheduledVal || null,
+    tech: document.getElementById('d-tech-input').value.trim() || null,
+    invoiced: document.getElementById('d-invoiced').checked,
+    invoice_number: document.getElementById('d-invoice-number').value.trim() || null
+  };
+
+  const { error } = await supabaseClient.from('jobs').update(updates).eq('id', currentDetailId);
   if(error){ alert('Failed to save: ' + error.message); return; }
 
   const j = JOBS.find(x => x.id === currentDetailId);
-  if(j){ j.status = newStatus; j.invoiced = newInvoiced; }
+  if(j) Object.assign(j, updates);
 
   closeDetail();
   render();
+}
+
+/* ===== COMMENTS ===== */
+async function loadComments(jobId){
+  const { data, error } = await supabaseClient
+    .from('board_comments')
+    .select('*')
+    .eq('job_id', jobId)
+    .order('created_at', { ascending: true });
+
+  const list = document.getElementById('comment-list');
+  if(error){
+    list.innerHTML = '<div class="no-comments">Failed to load comments.</div>';
+    return;
+  }
+  if(!data || !data.length){
+    list.innerHTML = '<div class="no-comments">No comments yet.</div>';
+    return;
+  }
+
+  list.innerHTML = data.map(c => {
+    const time = new Date(c.created_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    return `
+      <div class="comment-item">
+        <div class="comment-author">${escHtml(c.author)}</div>
+        <div class="comment-time">${time}</div>
+        <div class="comment-text">${escHtml(c.message)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function addComment(){
+  const author = document.getElementById('c-author').value.trim();
+  const message = document.getElementById('c-message').value.trim();
+  if(!author || !message){ alert('Please enter your name and a message.'); return; }
+  if(!currentDetailId) return;
+
+  const { error } = await supabaseClient.from('board_comments').insert([{
+    job_id: currentDetailId, author, message
+  }]);
+  if(error){ alert('Failed to post comment: ' + error.message); return; }
+
+  document.getElementById('c-message').value = '';
+  loadComments(currentDetailId);
 }
 
 init();
