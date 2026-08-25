@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Board - Fix & Go Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --border: #e3e5e8;
+  --text: #1f2328;
+  --muted: #6b7280;
+  --muted2: #9199a3;
+  --accent: #2563eb;
+  --green: #22a06b;
+  --amber: #d97706;
+  --red: #dc2626;
+}
+body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); }
+
+#topbar {
+  background:#1f2937; color:white; padding:16px 28px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+}
+#topbar a.back { color:#cbd5e1; text-decoration:none; font-weight:600; font-size:0.9rem; }
+#topbar a.back:hover { color:white; }
+.logo { font-size:1.2rem; font-weight:800; }
+.logo span { color:#93c5fd; font-weight:600; }
+.range-note { font-size:0.85rem; color:#9ca3af; }
+
+.locked-notice {
+  max-width:480px; margin:100px auto; text-align:center; padding:40px;
+  background:var(--card); border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.06);
+}
+.locked-notice a { color:var(--accent); font-weight:700; text-decoration:none; }
+
+#board {
+  display:flex; gap:16px; padding:20px; overflow-x:auto;
+  align-items:flex-start;
+}
+.column {
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  min-width:300px; max-width:340px; flex:1 0 300px;
+  display:flex; flex-direction:column;
+  max-height:calc(100vh - 110px);
+}
+.column-header {
+  padding:14px 16px; border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center;
+  font-weight:700; font-size:0.92rem;
+}
+.column-count {
+  background:#eef0f3; color:var(--muted); font-size:0.75rem; font-weight:700;
+  padding:2px 8px; border-radius:10px;
+}
+.column-body { overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; flex:1; }
+
+.row {
+  border:1px solid var(--border); border-radius:8px; padding:10px 12px;
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  cursor:pointer; transition:border-color .12s, box-shadow .12s;
+}
+.row:hover { border-color:#c7cbd1; box-shadow:0 1px 4px rgba(0,0,0,0.05); }
+.row-main { min-width:0; flex:1; }
+.row-id { font-size:0.72rem; color:var(--muted2); font-weight:600; margin-bottom:2px; }
+.row-title { font-size:0.88rem; font-weight:700; color:var(--text); line-height:1.3; margin-bottom:3px; }
+.row-address { font-size:0.78rem; color:var(--muted); line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.day-badge {
+  min-width:26px; height:26px; border-radius:50%; color:white; font-weight:800; font-size:0.78rem;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.day-badge.green { background:var(--green); }
+.day-badge.amber { background:var(--amber); }
+.day-badge.red { background:var(--red); }
+
+.empty-col { padding:30px 14px; text-align:center; color:var(--muted2); font-size:0.85rem; }
+
+/* Detail overlay */
+.overlay {
+  display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:100;
+  align-items:flex-start; justify-content:center; padding:40px 20px; overflow-y:auto;
+}
+.overlay.open { display:flex; }
+.detail-modal {
+  background:var(--card); border-radius:12px; max-width:640px; width:100%;
+  padding:0; box-shadow:0 10px 40px rgba(0,0,0,0.2);
+}
+.detail-hdr {
+  padding:20px 24px; border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:flex-start;
+}
+.detail-hdr h2 { font-size:1.2rem; }
+.detail-hdr .ref { font-size:0.78rem; color:var(--muted2); font-weight:700; margin-bottom:4px; }
+.detail-close { background:none; border:none; font-size:1.3rem; cursor:pointer; color:var(--muted); }
+
+.tabs { display:flex; border-bottom:1px solid var(--border); padding:0 24px; gap:4px; }
+.tab-btn {
+  padding:12px 14px; font-size:0.85rem; font-weight:700; color:var(--muted);
+  background:none; border:none; cursor:pointer; border-bottom:2px solid transparent;
+  font-family:'Inter',sans-serif;
+}
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab-panel { display:none; padding:20px 24px; font-size:0.9rem; line-height:1.6; }
+.tab-panel.active { display:block; }
+.detail-field { margin-bottom:14px; }
+.detail-field label { display:block; font-size:0.75rem; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+.status-select { padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif; font-size:0.88rem; }
+.save-row { padding:16px 24px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; }
+.btn { padding:9px 16px; border-radius:7px; font-weight:700; font-size:0.85rem; cursor:pointer; border:1px solid var(--border); background:var(--card); font-family:'Inter',sans-serif; }
+.btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a class="back" href="index.html">&larr; Main Tracker</a>
+  <div class="logo">FIX AND GO<span> BOARD</span></div>
+  <div class="range-note" id="range-note"></div>
+</div>
+
+<div id="locked-view" style="display:none;">
+  <div class="locked-notice">
+    <h2>Please sign in first</h2>
+    <p style="color:var(--muted);margin:10px 0 16px;">This page uses the same login as your main tracker.</p>
+    <a href="index.html">Go to Tracker</a>
+  </div>
+</div>
+
+<div id="board"></div>
+
+<div class="overlay" id="detail-overlay">
+  <div class="detail-modal">
+    <div class="detail-hdr">
+      <div>
+        <div class="ref" id="d-ref"></div>
+        <h2 id="d-title"></h2>
+      </div>
+      <button class="detail-close" onclick="closeDetail()">&times;</button>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="details" onclick="switchTab('details')">Details</button>
+      <button class="tab-btn" data-tab="nextsteps" onclick="switchTab('nextsteps')">Next Steps</button>
+      <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">Comments</button>
+    </div>
+    <div class="tab-panel active" id="panel-details">
+      <div class="detail-field"><label>Address</label><div id="d-address"></div></div>
+      <div class="detail-field"><label>Tenant</label><div id="d-tenant"></div></div>
+      <div class="detail-field"><label>Technician</label><div id="d-tech"></div></div>
+      <div class="detail-field"><label>Description</label><div id="d-desc"></div></div>
+    </div>
+    <div class="tab-panel" id="panel-nextsteps">
+      <div class="detail-field">
+        <label>Status</label>
+        <select class="status-select" id="d-status">
+          <option value="active">Active</option>
+          <option value="contacted">Contacted</option>
+          <option value="booked">Booked</option>
+          <option value="completed">Completed</option>
+          <option value="revisit">Revisit</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="detail-field">
+        <label><input type="checkbox" id="d-invoiced"> Invoiced</label>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-notes">
+      <div id="d-notes-list" style="color:var(--muted);"></div>
+    </div>
+    <div class="save-row">
+      <button class="btn" onclick="closeDetail()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDetail()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const supabaseUrl = 'https://ojxqplxgyfokhkoyacic.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qeHFwbHhneWZva2hrb3lhY2ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzg4MDcsImV4cCI6MjA5MzcxNDgwN30.G1m4yBF3MDMmpScVj9GQRDzZdy5TR38MxBowPHROlNY';
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+let JOBS = [];
+let currentDetailId = null;
+
+async function init(){
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if(!session){
+    document.getElementById('locked-view').style.display = 'block';
+    return;
+  }
+  document.getElementById('board').style.display = 'flex';
+
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+  document.getElementById('range-note').textContent =
+    'Showing jobs from ' + twoWeeksAgo.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' onward (prototype - last 2 weeks only)';
+
+  const { data, error } = await supabaseClient
+    .from('jobs')
+    .select('*')
+    .is('archived_at', null)
+    .gte('created_at', twoWeeksAgo.toISOString())
+    .order('created_at', { ascending: false });
+
+  if(error){
+    document.getElementById('board').innerHTML = '<div style="padding:30px;">Failed to load: ' + error.message + '</div>';
+    return;
+  }
+
+  JOBS = data || [];
+  render();
+}
+
+function daysSince(dateStr){
+  if(!dateStr) return 0;
+  const then = new Date(dateStr);
+  const now = new Date();
+  return Math.max(0, Math.floor((now - then) / (1000*60*60*24)));
+}
+
+function badgeColor(days){
+  if(days <= 2) return 'green';
+  if(days <= 5) return 'amber';
+  return 'red';
+}
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+const COLUMNS = [
+  {
+    key: 'awaiting_start',
+    title: 'Jobs Awaiting a Start Date',
+    filter: j => ['active','contacted'].includes(j.status) && !j.scheduled_at
+  },
+  {
+    key: 'awaiting_completion',
+    title: 'Jobs Awaiting Completion',
+    filter: j => j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')
+  },
+  {
+    key: 'awaiting_invoice',
+    title: 'Jobs Awaiting Invoice',
+    filter: j => j.status === 'completed' && !j.invoiced
+  },
+  {
+    key: 'completed_invoiced',
+    title: 'Completed & Invoiced',
+    filter: j => j.status === 'completed' && j.invoiced
+  },
+  {
+    key: 'revisit',
+    title: 'Revisit Needed',
+    filter: j => j.status === 'revisit'
+  }
+];
+
+function render(){
+  const board = document.getElementById('board');
+  board.innerHTML = COLUMNS.map(col => {
+    const jobs = JOBS.filter(col.filter);
+    const rows = jobs.map(j => {
+      const days = daysSince(j.created_at || j.created);
+      const color = badgeColor(days);
+      return `
+        <div class="row" onclick="openDetail('${j.id}')">
+          <div class="row-main">
+            <div class="row-id">${escHtml(j.ref)}</div>
+            <div class="row-title">${escHtml(j.title || 'Untitled')}</div>
+            <div class="row-address">${escHtml(j.address || '')}</div>
+          </div>
+          <div class="day-badge ${color}">${days}</div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="column">
+        <div class="column-header">
+          <span>${col.title}</span>
+          <span class="column-count">${jobs.length}</span>
+        </div>
+        <div class="column-body">
+          ${rows || '<div class="empty-col">No jobs here</div>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openDetail(id){
+  const j = JOBS.find(x => x.id === id);
+  if(!j) return;
+  currentDetailId = id;
+
+  document.getElementById('d-ref').textContent = j.ref;
+  document.getElementById('d-title').textContent = j.title || 'Untitled Job';
+  document.getElementById('d-address').textContent = j.address || '—';
+  document.getElementById('d-tenant').textContent = (j.tenant || '—') + (j.tenant_phone ? ' · ' + j.tenant_phone : '');
+  document.getElementById('d-tech').textContent = j.tech || 'Unassigned';
+  document.getElementById('d-desc').textContent = j.description || '—';
+  document.getElementById('d-status').value = j.status;
+  document.getElementById('d-invoiced').checked = !!j.invoiced;
+
+  switchTab('details');
+  document.getElementById('detail-overlay').classList.add('open');
+}
+
+function closeDetail(){
+  document.getElementById('detail-overlay').classList.remove('open');
+  currentDetailId = null;
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+async function saveDetail(){
+  if(!currentDetailId) return;
+  const newStatus = document.getElementById('d-status').value;
+  const newInvoiced = document.getElementById('d-invoiced').checked;
+
+  const { error } = await supabaseClient
+    .from('jobs')
+    .update({ status: newStatus, invoiced: newInvoiced })
+    .eq('id', currentDetailId);
+
+  if(error){ alert('Failed to save: ' + error.message); return; }
+
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j){ j.status = newStatus; j.invoiced = newInvoiced; }
+
+  closeDetail();
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
