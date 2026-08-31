@@ -195,12 +195,13 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
 <div id="topbar">
   <a class="back" href="index.html">&larr; Main Tracker</a>
-  <div class="logo">FIX AND GO<span> BOARD</span></div>
+  <div class="logo" onclick="closeDetail()" style="cursor:pointer;" title="Back to Board">FIX AND GO<span> BOARD</span></div>
   <input id="board-search" type="text" placeholder="Search ref, address, tenant, tech, issue..." style="flex:1;min-width:200px;max-width:340px;padding:8px 12px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" oninput="onSearchOrFilterChange()">
   <select id="team-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
     <option value="">All Team Members</option>
   </select>
   <button onclick="openTechPanel()" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Technicians</button>
+  <button onclick="openTeamPanel()" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👥 Team</button>
   <button onclick="openNewJobModal()" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
   <div class="range-note" id="range-note"></div>
 </div>
@@ -285,7 +286,9 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
         <div class="detail-field">
           <label>Assigned To (Team)</label>
-          <input class="field-input" id="d-assigned-input" list="team-names-list" placeholder="Team member name">
+          <select class="status-select" id="d-assigned-input" style="width:100%;">
+            <option value="">Unassigned</option>
+          </select>
           <datalist id="team-names-list"></datalist>
         </div>
 
@@ -542,6 +545,59 @@ async function deleteTechnician(id){
   renderTechList();
 }
 
+function openTeamPanel(){
+  renderTeamGrid();
+  document.getElementById('team-panel-overlay').style.display = 'flex';
+}
+function closeTeamPanel(){
+  document.getElementById('team-panel-overlay').style.display = 'none';
+}
+
+function renderTeamGrid(){
+  const grid = document.getElementById('team-grid');
+  if(!teamMembersList.length){
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted);">No team members yet. Add one below.</div>`;
+    return;
+  }
+  grid.innerHTML = teamMembersList.map(t => {
+    const count = JOBS.filter(j => j.assigned_to === t.name).length;
+    return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;cursor:pointer;position:relative;" onclick="filterByTeamMember('${escHtml(t.name)}')">
+        <button onclick="event.stopPropagation();deleteTeamMember('${t.id}')" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted2);cursor:pointer;font-size:0.9rem;">&times;</button>
+        <div style="width:44px;height:44px;border-radius:50%;background:#ede9fe;color:#6d28d9;display:flex;align-items:center;justify-content:center;font-weight:800;margin:0 auto 8px;">${escHtml((t.name||'?')[0].toUpperCase())}</div>
+        <div style="font-weight:700;">${escHtml(t.name)}</div>
+        <div style="font-size:0.78rem;color:var(--muted);">${count} job${count===1?'':'s'}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterByTeamMember(name){
+  closeTeamPanel();
+  document.getElementById('team-filter').value = name;
+  onSearchOrFilterChange();
+}
+
+async function addTeamMember(){
+  const name = document.getElementById('new-team-name').value.trim();
+  if(!name){ alert('Please enter a name.'); return; }
+  const { error } = await supabaseClient.from('team_members').insert([{ name }]);
+  if(error){ alert('Failed to add: ' + error.message); return; }
+  document.getElementById('new-team-name').value = '';
+  await fetchTeamMembers();
+  renderTeamGrid();
+}
+
+async function deleteTeamMember(id){
+  if(!confirm('Remove this team member? Jobs already assigned to them will keep showing their name until reassigned.')) return;
+  const { error } = await supabaseClient.from('team_members').update({ archived_at: new Date().toISOString() }).eq('id', id);
+  if(error){ alert('Failed: ' + error.message); return; }
+  await fetchTeamMembers();
+  renderTeamGrid();
+}
+
+let teamMembersList = [];
+
 async function fetchTeamMembers(){
   const { data, error } = await supabaseClient
     .from('team_members')
@@ -549,6 +605,7 @@ async function fetchTeamMembers(){
     .is('archived_at', null)
     .order('name');
   if(error){ console.error(error); return; }
+  teamMembersList = data || [];
   const dl = document.getElementById('team-names-list');
   if(dl) dl.innerHTML = (data || []).map(t => `<option value="${escHtml(t.name)}">`).join('');
 
@@ -558,6 +615,14 @@ async function fetchTeamMembers(){
     filterSel.innerHTML = '<option value="">All Team Members</option>' +
       (data || []).map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`).join('');
     filterSel.value = current;
+  }
+
+  const assignSel = document.getElementById('d-assigned-input');
+  if(assignSel){
+    const current = assignSel.value;
+    assignSel.innerHTML = '<option value="">Unassigned</option>' +
+      (data || []).map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`).join('');
+    assignSel.value = current;
   }
 }
 
@@ -1163,6 +1228,23 @@ init();
     <div class="save-row">
       <button class="btn" onclick="closeTechFormModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveTechnician()">Save Technician</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="team-panel-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:100;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;">
+  <div class="detail-modal" style="background:var(--card);border-radius:12px;max-width:700px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <div class="detail-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+      <h2>👥 Team</h2>
+      <button onclick="closeTeamPanel()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);">&times;</button>
+    </div>
+    <div style="padding:20px 26px;">
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px;">Click a name to see everything assigned to them on the board.</p>
+      <div id="team-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;max-height:55vh;overflow-y:auto;margin-bottom:16px;"></div>
+      <div style="display:flex;gap:12px;">
+        <input class="field-input" id="new-team-name" placeholder="New team member name">
+        <button class="btn btn-primary" onclick="addTeamMember()" style="white-space:nowrap;">+ Add</button>
+      </div>
     </div>
   </div>
 </div>
