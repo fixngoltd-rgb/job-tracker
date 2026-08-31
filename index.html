@@ -69,6 +69,15 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);disp
 .topbar-right{display:flex;align-items:center;gap:12px}
 #topbar-more{display:flex;align-items:center;gap:12px}
 #topbar-more-toggle{display:none;}
+#topbar-more.dropdown-mode{
+  display:none;position:absolute;top:70px;right:24px;
+  background:var(--s1);border:1px solid var(--border);border-radius:10px;
+  padding:16px;box-shadow:0 8px 24px rgba(0,0,0,0.12);
+  flex-direction:column;align-items:stretch;gap:10px;z-index:250;min-width:220px;
+}
+#topbar-more.dropdown-mode.expanded{display:flex;}
+#topbar-more.dropdown-mode #date-filter,
+#topbar-more.dropdown-mode #assigned-filter{width:100%;}
 .field{
   background:var(--s1);border:1px solid var(--border2);
   border-radius:8px;padding:10px 16px;
@@ -568,7 +577,6 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
       </select>
       <button class="btn-tech" onclick="openTechPanel()">🔧 Technicians</button>
       <a href="team.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">👥 Team</a>
-      <a href="tracker-new.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">🆕 New Tracker</a>
       <a href="history.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">📋 History</a>
       <a href="board.html" class="btn-tech" style="text-decoration:none; display:inline-flex; align-items:center;">📊 Board</a>
       <button class="btn-logout" onclick="logOut()">Sign Out</button>
@@ -862,6 +870,7 @@ async function checkAuth(){
     fetchJobs();
     fetchTechnicians();
     fetchTeamMembers();
+    setTimeout(checkTopbarFit, 300);
   } else {
     document.getElementById('login-screen').style.display = 'flex';
   }
@@ -889,6 +898,7 @@ async function doLogin(){
   fetchJobs();
   fetchTechnicians();
   fetchTeamMembers();
+  setTimeout(checkTopbarFit, 300);
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
@@ -1915,6 +1925,31 @@ function paViewHistoryItem(id){
 function toggleTopbarMore(){
   document.getElementById('topbar-more').classList.toggle('expanded');
 }
+
+function checkTopbarFit(){
+  const topbar = document.getElementById('topbar');
+  const toggle = document.getElementById('topbar-more-toggle');
+  const more = document.getElementById('topbar-more');
+
+  // Temporarily force everything inline to measure the true natural width needed
+  more.classList.remove('dropdown-mode', 'expanded');
+  toggle.style.display = 'none';
+  more.style.display = 'flex';
+
+  const overflowing = topbar.scrollWidth > topbar.clientWidth + 2;
+
+  if(overflowing){
+    more.classList.add('dropdown-mode');
+    more.style.display = '';
+    toggle.style.display = 'inline-flex';
+  } else {
+    more.style.display = 'flex';
+    toggle.style.display = 'none';
+  }
+}
+
+window.addEventListener('resize', checkTopbarFit);
+window.addEventListener('load', checkTopbarFit);
 
 checkAuth();
 </script>
