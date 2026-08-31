@@ -246,9 +246,13 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
       </div>
 
       <div class="tab-panel" id="panel-nextsteps">
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div id="ns-mark-completed-box" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:20px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
           <div style="font-size:0.85rem;color:var(--muted);">Job finished on site, but no invoice sent yet?</div>
           <button class="btn" style="background:var(--green);color:white;border:none;white-space:nowrap;" onclick="markCompletedAwaitingInvoice()">✓ Mark Completed - Awaiting Invoice</button>
+        </div>
+        <div id="ns-mark-invoiced-box" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:20px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div style="font-size:0.85rem;color:var(--muted);">Completed - have you invoiced this yet?</div>
+          <button class="btn" style="background:var(--accent);color:white;border:none;white-space:nowrap;" onclick="markInvoiced()">✓ Mark Invoiced</button>
         </div>
         <div class="field-row">
           <div class="detail-field">
@@ -300,11 +304,9 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           </div>
         </div>
 
+        <input type="checkbox" id="d-invoiced" style="display:none;">
+
         <div class="field-row">
-          <div class="detail-field checkbox-row">
-            <input type="checkbox" id="d-invoiced">
-            <label style="margin:0;text-transform:none;font-size:0.9rem;color:var(--text);">Invoiced</label>
-          </div>
           <div class="detail-field">
             <label>Invoice Number</label>
             <input class="field-input" id="d-invoice-number" placeholder="e.g. INV-1024">
@@ -876,6 +878,12 @@ function openDetail(id){
   if(!j) return;
   currentDetailId = id;
 
+  // Show only the action button relevant to the column this job is actually in right now
+  const inAwaitingCompletion = COLUMNS.find(c => c.key === 'awaiting_completion').filter(j);
+  const inAwaitingInvoice = COLUMNS.find(c => c.key === 'awaiting_invoice').filter(j);
+  document.getElementById('ns-mark-completed-box').style.display = inAwaitingCompletion ? 'flex' : 'none';
+  document.getElementById('ns-mark-invoiced-box').style.display = inAwaitingInvoice ? 'flex' : 'none';
+
   document.getElementById('d-ref').textContent = j.ref;
   document.getElementById('d-title').textContent = j.title || 'Untitled Job';
   document.getElementById('d-title-input').value = j.title || '';
@@ -960,6 +968,23 @@ async function markCompletedAwaitingInvoice(){
 
   const j = JOBS.find(x => x.id === currentDetailId);
   if(j){ j.status = 'completed'; j.invoiced = false; }
+
+  closeDetail();
+  render();
+}
+
+async function markInvoiced(){
+  if(!currentDetailId) return;
+
+  const { error } = await supabaseClient
+    .from('jobs')
+    .update({ invoiced: true })
+    .eq('id', currentDetailId);
+
+  if(error){ alert('Failed to update: ' + error.message); return; }
+
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j){ j.invoiced = true; }
 
   closeDetail();
   render();
