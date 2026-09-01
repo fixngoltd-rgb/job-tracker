@@ -268,10 +268,6 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <div style="font-size:0.85rem;color:var(--muted);">Quote needed - have you sent it yet?</div>
           <button class="btn" style="background:#7c3aed;color:white;border:none;white-space:nowrap;" onclick="markQuoted()">✓ Mark as Quoted</button>
         </div>
-        <div class="detail-field checkbox-row" style="margin-bottom:18px;">
-          <input type="checkbox" id="d-quote-needed">
-          <label style="margin:0;text-transform:none;font-size:0.9rem;color:var(--text);">This job only needs a quotation right now (move to Quotation Needed)</label>
-        </div>
         <div class="detail-field">
           <label>Category</label>
           <input class="field-input" id="d-category-input" placeholder="e.g. Plumbing, Electrical...">
@@ -797,12 +793,6 @@ setupAutocomplete('c-author', 'c-author-suggestions', () => teamMembersList.map(
 
 const COLUMNS = [
   {
-    key: 'quote_needed',
-    title: 'Quotation Needed',
-    filter: j => j.quote_needed === true,
-    isQuoteColumn: true
-  },
-  {
     key: 'awaiting_start',
     title: 'Jobs Awaiting a Start Date',
     filter: j => !j.quote_needed && ['active','contacted'].includes(j.status) && !j.scheduled_at,
@@ -834,6 +824,12 @@ const COLUMNS = [
     title: 'Revisit Needed',
     filter: j => !j.quote_needed && j.status === 'revisit',
     targetStatus: 'revisit'
+  },
+  {
+    key: 'quote_needed',
+    title: 'Quotation Needed',
+    filter: j => j.quote_needed === true,
+    isQuoteColumn: true
   }
 ];
 
@@ -1048,7 +1044,6 @@ function openDetail(id){
   document.getElementById('ns-mark-invoiced-box').style.display = inAwaitingInvoice ? 'flex' : 'none';
   document.getElementById('ns-mark-quoted-box').style.display = inQuoteNeeded ? 'flex' : 'none';
 
-  document.getElementById('d-quote-needed').checked = !!j.quote_needed;
   document.getElementById('d-category-input').value = j.category || '';
 
   document.getElementById('d-ref').textContent = j.ref;
@@ -1208,13 +1203,6 @@ async function saveDetail(){
     invoiced: document.getElementById('d-invoiced').checked,
     invoice_number: document.getElementById('d-invoice-number').value.trim() || null
   };
-
-  const quoteNeededChecked = document.getElementById('d-quote-needed').checked;
-  const existingJob = JOBS.find(x => x.id === currentDetailId);
-  const wasAlreadyQuoteNeeded = existingJob ? existingJob.quote_needed : false;
-  updates.quote_needed = quoteNeededChecked;
-  // Keep existing "quoted" state only if it was already in this column before; otherwise reset it
-  updates.quoted = (quoteNeededChecked && wasAlreadyQuoteNeeded) ? (existingJob.quoted || false) : false;
 
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', currentDetailId);
   if(error){ alert('Failed to save: ' + error.message); return; }
