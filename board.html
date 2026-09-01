@@ -144,6 +144,15 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   font-family:'Inter',sans-serif; font-size:0.9rem;
 }
 .field-row { display:flex; gap:14px; flex-wrap:wrap; }
+.ac-wrap { position:relative; }
+.ac-suggestions {
+  display:none; position:absolute; top:calc(100% + 4px); left:0; right:0;
+  background:var(--card); border:1px solid var(--border); border-radius:8px;
+  box-shadow:0 6px 18px rgba(0,0,0,0.12); max-height:220px; overflow-y:auto; z-index:300;
+}
+.ac-suggestions.open { display:block; }
+.ac-item { padding:9px 12px; cursor:pointer; font-size:0.9rem; }
+.ac-item:hover, .ac-item.active { background:#f1f5f9; }
 .field-row > div { flex:1; min-width:180px; }
 .checkbox-row { display:flex; align-items:center; gap:8px; }
 .checkbox-row input { width:16px; height:16px; }
@@ -276,8 +285,10 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
         <div class="field-row">
           <div class="detail-field">
             <label>Technician Name</label>
-            <input class="field-input" id="d-tech-input" list="tech-names-list" placeholder="Start typing a technician name...">
-            <datalist id="tech-names-list"></datalist>
+            <div class="ac-wrap">
+              <input class="field-input" id="d-tech-input" placeholder="Start typing a technician name..." autocomplete="off">
+              <div class="ac-suggestions" id="d-tech-suggestions"></div>
+            </div>
           </div>
           <div class="detail-field">
             <label>Technician Phone</label>
@@ -320,7 +331,10 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
       <div class="tab-panel" id="panel-comments">
         <div class="comment-form">
-          <input class="field-input" id="c-author" placeholder="Your name">
+          <div class="ac-wrap">
+            <input class="field-input" id="c-author" placeholder="Your name" autocomplete="off">
+            <div class="ac-suggestions" id="c-author-suggestions"></div>
+          </div>
           <textarea class="field-input" id="c-message" placeholder="Write a message..." rows="3"></textarea>
           <div style="display:flex;align-items:center;gap:10px;">
             <input type="file" id="c-attachment" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="font-size:0.85rem;">
@@ -717,6 +731,50 @@ function formatShortDate(dateStr){
 }
 
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ===== Custom autocomplete: only shows suggestions once at least 1 character is typed ===== */
+function setupAutocomplete(inputId, boxId, getSourceNames){
+  const input = document.getElementById(inputId);
+  const box = document.getElementById(boxId);
+  if(!input || !box) return;
+
+  function renderSuggestions(){
+    const q = input.value.trim().toLowerCase();
+    if(!q){
+      box.classList.remove('open');
+      box.innerHTML = '';
+      return;
+    }
+    const names = getSourceNames();
+    const matches = names.filter(n => n.toLowerCase().includes(q)).slice(0, 8);
+    if(!matches.length){
+      box.classList.remove('open');
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = matches.map(n => `<div class="ac-item" data-value="${escHtml(n)}">${escHtml(n)}</div>`).join('');
+    box.classList.add('open');
+  }
+
+  input.addEventListener('input', renderSuggestions);
+  input.addEventListener('focus', renderSuggestions);
+
+  box.addEventListener('mousedown', (e) => {
+    const item = e.target.closest('.ac-item');
+    if(!item) return;
+    e.preventDefault();
+    input.value = item.dataset.value;
+    box.classList.remove('open');
+    box.innerHTML = '';
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => { box.classList.remove('open'); }, 150);
+  });
+}
+
+setupAutocomplete('d-tech-input', 'd-tech-suggestions', () => technicians.map(t => t.name).filter(Boolean));
+setupAutocomplete('c-author', 'c-author-suggestions', () => teamMembersList.map(t => t.name).filter(Boolean));
 
 const COLUMNS = [
   {
