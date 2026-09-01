@@ -748,7 +748,7 @@ function formatShortDate(dateStr){
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* ===== Custom autocomplete: only shows suggestions once at least 1 character is typed ===== */
-function setupAutocomplete(inputId, boxId, getSourceNames){
+function setupAutocomplete(inputId, boxId, getSourceNames, onSelect){
   const input = document.getElementById(inputId);
   const box = document.getElementById(boxId);
   if(!input || !box) return;
@@ -781,6 +781,7 @@ function setupAutocomplete(inputId, boxId, getSourceNames){
     input.value = item.dataset.value;
     box.classList.remove('open');
     box.innerHTML = '';
+    if(onSelect) onSelect(item.dataset.value);
   });
 
   input.addEventListener('blur', () => {
@@ -788,7 +789,12 @@ function setupAutocomplete(inputId, boxId, getSourceNames){
   });
 }
 
-setupAutocomplete('d-tech-input', 'd-tech-suggestions', () => technicians.map(t => t.name).filter(Boolean));
+setupAutocomplete('d-tech-input', 'd-tech-suggestions', () => technicians.map(t => t.name).filter(Boolean), (selectedName) => {
+  const match = technicians.find(t => (t.name || '').trim().toLowerCase() === selectedName.trim().toLowerCase());
+  if(match){
+    document.getElementById('d-tech-phone-input').value = match.phone || '';
+  }
+});
 setupAutocomplete('c-author', 'c-author-suggestions', () => teamMembersList.map(t => t.name).filter(Boolean));
 
 const COLUMNS = [
