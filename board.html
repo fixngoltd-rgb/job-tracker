@@ -1099,11 +1099,28 @@ async function saveDetail(){
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', currentDetailId);
   if(error){ alert('Failed to save: ' + error.message); return; }
 
+  await autoAddTechnicianIfNew(updates.tech, updates.tech_phone);
+
   const j = JOBS.find(x => x.id === currentDetailId);
   if(j) Object.assign(j, updates);
 
   closeDetail();
   render();
+}
+
+async function autoAddTechnicianIfNew(techName, techPhone){
+  if(!techName) return;
+
+  const alreadyExists = technicians.some(t => (t.name || '').trim().toLowerCase() === techName.trim().toLowerCase());
+  if(alreadyExists) return;
+
+  const { error } = await supabaseClient.from('technicians').insert([{
+    name: techName, phone: techPhone || null
+  }]);
+
+  if(error){ console.error('Failed to auto-add technician:', error.message); return; }
+
+  await fetchTechniciansList();
 }
 
 /* ===== COMMENTS ===== */
