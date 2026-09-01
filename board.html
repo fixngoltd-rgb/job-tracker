@@ -264,6 +264,18 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <div style="font-size:0.85rem;color:var(--muted);">Completed - have you invoiced this yet?</div>
           <button class="btn" style="background:var(--accent);color:white;border:none;white-space:nowrap;" onclick="markInvoiced()">✓ Mark Invoiced</button>
         </div>
+        <div id="ns-mark-quoted-box" style="display:none;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:14px 16px;margin-bottom:20px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div style="font-size:0.85rem;color:var(--muted);">Quote needed - have you sent it yet?</div>
+          <button class="btn" style="background:#7c3aed;color:white;border:none;white-space:nowrap;" onclick="markQuoted()">✓ Mark as Quoted</button>
+        </div>
+        <div class="detail-field checkbox-row" style="margin-bottom:18px;">
+          <input type="checkbox" id="d-quote-needed">
+          <label style="margin:0;text-transform:none;font-size:0.9rem;color:var(--text);">This job only needs a quotation right now (move to Quotation Needed)</label>
+        </div>
+        <div class="detail-field">
+          <label>Category</label>
+          <input class="field-input" id="d-category-input" placeholder="e.g. Plumbing, Electrical...">
+        </div>
         <div class="field-row">
           <div class="detail-field">
             <label>Status</label>
@@ -420,6 +432,8 @@ function openNewJobModal(){
   document.getElementById('nj-description').value = '';
   document.getElementById('nj-status').value = 'active';
   document.getElementById('nj-priority').value = 'normal';
+  document.getElementById('nj-category').value = '';
+  document.getElementById('nj-quote-needed').checked = false;
   document.getElementById('newjob-overlay').style.display = 'flex';
 }
 
@@ -444,6 +458,8 @@ async function createJob(){
     description: document.getElementById('nj-description').value.trim() || null,
     status: document.getElementById('nj-status').value,
     priority: document.getElementById('nj-priority').value,
+    category: document.getElementById('nj-category').value.trim() || null,
+    quote_needed: document.getElementById('nj-quote-needed').checked,
     created: new Date().toISOString().split('T')[0]
   };
 
@@ -690,6 +706,9 @@ async function fetchAllJobs(){
     invoice_amount: j.invoice_amount,
     invoiced: !!j.invoiced,
     invoice_number: j.invoice_number,
+    quote_needed: !!j.quote_needed,
+    quoted: !!j.quoted,
+    category: j.category,
     created: j.created,
     created_at: j.created_at || j.created
   }));
@@ -778,36 +797,42 @@ setupAutocomplete('c-author', 'c-author-suggestions', () => teamMembersList.map(
 
 const COLUMNS = [
   {
+    key: 'quote_needed',
+    title: 'Quotation Needed',
+    filter: j => j.quote_needed === true,
+    isQuoteColumn: true
+  },
+  {
     key: 'awaiting_start',
     title: 'Jobs Awaiting a Start Date',
-    filter: j => ['active','contacted'].includes(j.status) && !j.scheduled_at,
+    filter: j => !j.quote_needed && ['active','contacted'].includes(j.status) && !j.scheduled_at,
     targetStatus: 'active'
   },
   {
     key: 'awaiting_completion',
     title: 'Jobs Awaiting Completion',
-    filter: j => j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled'),
+    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')),
     targetStatus: 'booked',
     requiresDate: true
   },
   {
     key: 'awaiting_invoice',
     title: 'Jobs Awaiting Invoice',
-    filter: j => j.status === 'completed' && !j.invoiced,
+    filter: j => !j.quote_needed && j.status === 'completed' && !j.invoiced,
     targetStatus: 'completed',
     setInvoiced: false
   },
   {
     key: 'completed_invoiced',
     title: 'Completed & Invoiced',
-    filter: j => j.status === 'completed' && j.invoiced,
+    filter: j => !j.quote_needed && j.status === 'completed' && j.invoiced,
     targetStatus: 'completed',
     setInvoiced: true
   },
   {
     key: 'revisit',
     title: 'Revisit Needed',
-    filter: j => j.status === 'revisit',
+    filter: j => !j.quote_needed && j.status === 'revisit',
     targetStatus: 'revisit'
   }
 ];
@@ -842,6 +867,8 @@ function render(){
       let badgeHtml;
       if(col.key === 'completed_invoiced'){
         // Once it's done and invoiced, a plain green "done" marker is more useful than an age number
+        badgeHtml = `<div class="day-badge green" style="font-size:0.95rem;">✓</div>`;
+      } else if(col.key === 'quote_needed' && j.quoted){
         badgeHtml = `<div class="day-badge green" style="font-size:0.95rem;">✓</div>`;
       } else if(col.key === 'awaiting_completion' && j.scheduled_at){
         badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>`;
@@ -991,8 +1018,13 @@ async function onDrop(e, colKey){
     return;
   }
 
-  const updates = { status: col.targetStatus };
-  if(col.setInvoiced !== undefined) updates.invoiced = col.setInvoiced;
+  let updates;
+  if(col.isQuoteColumn){
+    updates = { quote_needed: true, quoted: false };
+  } else {
+    updates = { status: col.targetStatus, quote_needed: false, quoted: false };
+    if(col.setInvoiced !== undefined) updates.invoiced = col.setInvoiced;
+  }
 
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', job.id);
   if(error){ alert('Failed to move job: ' + error.message); draggedJobId = null; return; }
@@ -1011,8 +1043,13 @@ function openDetail(id){
   // Show only the action button relevant to the column this job is actually in right now
   const inAwaitingCompletion = COLUMNS.find(c => c.key === 'awaiting_completion').filter(j);
   const inAwaitingInvoice = COLUMNS.find(c => c.key === 'awaiting_invoice').filter(j);
+  const inQuoteNeeded = j.quote_needed && !j.quoted;
   document.getElementById('ns-mark-completed-box').style.display = inAwaitingCompletion ? 'flex' : 'none';
   document.getElementById('ns-mark-invoiced-box').style.display = inAwaitingInvoice ? 'flex' : 'none';
+  document.getElementById('ns-mark-quoted-box').style.display = inQuoteNeeded ? 'flex' : 'none';
+
+  document.getElementById('d-quote-needed').checked = !!j.quote_needed;
+  document.getElementById('d-category-input').value = j.category || '';
 
   document.getElementById('d-ref').textContent = j.ref;
   document.getElementById('d-title').textContent = j.title || 'Untitled Job';
@@ -1120,6 +1157,23 @@ async function markInvoiced(){
   render();
 }
 
+async function markQuoted(){
+  if(!currentDetailId) return;
+
+  const { error } = await supabaseClient
+    .from('jobs')
+    .update({ quoted: true })
+    .eq('id', currentDetailId);
+
+  if(error){ alert('Failed to update: ' + error.message); return; }
+
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j){ j.quoted = true; }
+
+  closeDetail();
+  render();
+}
+
 async function saveDetail(){
   if(!currentDetailId) return;
 
@@ -1147,12 +1201,20 @@ async function saveDetail(){
     tech: document.getElementById('d-tech-input').value.trim() || null,
     tech_phone: document.getElementById('d-tech-phone-input').value.trim() || null,
     assigned_to: document.getElementById('d-assigned-input').value.trim() || null,
+    category: document.getElementById('d-category-input').value.trim() || null,
     budget: budgetVal !== '' ? parseFloat(budgetVal) : 200,
     cost_to_us: costVal !== '' ? parseFloat(costVal) : null,
     invoice_amount: invoiceAmtVal !== '' ? parseFloat(invoiceAmtVal) : null,
     invoiced: document.getElementById('d-invoiced').checked,
     invoice_number: document.getElementById('d-invoice-number').value.trim() || null
   };
+
+  const quoteNeededChecked = document.getElementById('d-quote-needed').checked;
+  const existingJob = JOBS.find(x => x.id === currentDetailId);
+  const wasAlreadyQuoteNeeded = existingJob ? existingJob.quote_needed : false;
+  updates.quote_needed = quoteNeededChecked;
+  // Keep existing "quoted" state only if it was already in this column before; otherwise reset it
+  updates.quoted = (quoteNeededChecked && wasAlreadyQuoteNeeded) ? (existingJob.quoted || false) : false;
 
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', currentDetailId);
   if(error){ alert('Failed to save: ' + error.message); return; }
@@ -1306,6 +1368,14 @@ init();
             <option value="emergency">Emergency</option>
           </select>
         </div>
+      </div>
+      <div class="detail-field">
+        <label>Category (optional)</label>
+        <input class="field-input" id="nj-category" placeholder="e.g. Plumbing, Electrical...">
+      </div>
+      <div class="detail-field checkbox-row">
+        <input type="checkbox" id="nj-quote-needed">
+        <label style="margin:0;text-transform:none;font-size:0.9rem;color:var(--text);">Quote needed only (job just wants a quotation, not booked yet)</label>
       </div>
     </div>
     <div class="save-row">
