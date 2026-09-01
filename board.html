@@ -276,7 +276,8 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
         <div class="field-row">
           <div class="detail-field">
             <label>Technician Name</label>
-            <input class="field-input" id="d-tech-input" placeholder="Technician name">
+            <input class="field-input" id="d-tech-input" list="tech-names-list" placeholder="Start typing a technician name...">
+            <datalist id="tech-names-list"></datalist>
           </div>
           <div class="detail-field">
             <label>Technician Phone</label>
@@ -321,6 +322,9 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
         <div class="comment-form">
           <input class="field-input" id="c-author" placeholder="Your name">
           <textarea class="field-input" id="c-message" placeholder="Write a message..." rows="3"></textarea>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="file" id="c-attachment" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="font-size:0.85rem;">
+          </div>
           <button class="btn btn-primary" style="align-self:flex-start;" onclick="addComment()">Post Comment</button>
         </div>
         <div class="comment-list" id="comment-list"></div>
@@ -448,6 +452,8 @@ async function fetchTechniciansList(){
     .order('name');
   if(error){ console.error('Error fetching technicians:', error); return; }
   technicians = data || [];
+  const dl = document.getElementById('tech-names-list');
+  if(dl) dl.innerHTML = technicians.map(t => `<option value="${escHtml(t.name)}">`).join('');
 }
 
 function openTechPanel(){
@@ -635,6 +641,7 @@ async function init(){
   document.getElementById('board').style.display = 'flex';
   document.getElementById('range-note').textContent = 'Loading...';
   fetchTeamMembers();
+  fetchTechniciansList();
 
   await fetchAllJobs();
 }
@@ -1119,11 +1126,15 @@ async function loadComments(jobId){
 
   list.innerHTML = data.map(c => {
     const time = new Date(c.created_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    const attachmentHtml = c.file_url
+      ? `<div style="margin-top:8px;"><a href="${escHtml(c.file_url)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;font-size:0.85rem;">📎 ${escHtml(c.file_name || 'View attachment')}</a></div>`
+      : '';
     return `
       <div class="comment-item">
         <div class="comment-author">${escHtml(c.author)}</div>
         <div class="comment-time">${time}</div>
         <div class="comment-text">${escHtml(c.message)}</div>
+        ${attachmentHtml}
       </div>
     `;
   }).join('');
@@ -1132,11 +1143,45 @@ async function loadComments(jobId){
 async function addComment(){
   const author = document.getElementById('c-author').value.trim();
   const message = document.getElementById('c-message').value.trim();
+  const fileInput = document.getElementById('c-attachment');
+  const file = fileInput.files[0];
+
   if(!author || !message){ alert('Please enter your name and a message.'); return; }
   if(!currentDetailId) return;
 
+  let attachmentNote = '';
+  let uploadedFileUrl = null;
+  let uploadedFileName = null;
+  if(file){
+    const allowedExt = ['jpg','jpeg','png','pdf','doc','docx'];
+    const ext = file.name.split('.').pop().toLowerCase();
+    if(!allowedExt.includes(ext)){
+      alert('Only JPEG, PNG, PDF, or DOC/DOCX files can be attached.');
+      return;
+    }
+
+    const fileName = `${Date.now()}_${file.name}`;
+    const filePath = `${currentDetailId}/${fileName}`;
+
+    const { error: uploadError } = await supabaseClient.storage.from('job-files').upload(filePath, file);
+    if(uploadError){ alert('File upload failed: ' + uploadError.message); return; }
+
+    const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
+    uploadedFileUrl = urlData.publicUrl;
+    uploadedFileName = file.name;
+
+    const { error: fileDbError } = await supabaseClient.from('job_files').insert([{
+      job_id: currentDetailId, file_name: file.name, file_url: uploadedFileUrl, mime_type: file.type || null
+    }]);
+    if(fileDbError){ console.error('Failed to save file record:', fileDbError.message); }
+
+    attachmentNote = ` [Attached: ${file.name}]`;
+  }
+
+  const fullMessage = message + attachmentNote;
+
   const { error } = await supabaseClient.from('board_comments').insert([{
-    job_id: currentDetailId, author, message
+    job_id: currentDetailId, author, message: fullMessage, file_url: uploadedFileUrl, file_name: uploadedFileName
   }]);
   if(error){ alert('Failed to post comment: ' + error.message); return; }
 
@@ -1145,11 +1190,12 @@ async function addComment(){
   const noteDate = now.toISOString().split('T')[0];
   const noteTime = now.toTimeString().split(' ')[0].slice(0,5);
   const { error: noteError } = await supabaseClient.from('notes').insert([{
-    job_id: currentDetailId, note_date: noteDate, note_time: noteTime, text: message, author: author
+    job_id: currentDetailId, note_date: noteDate, note_time: noteTime, text: fullMessage, author: author
   }]);
   if(noteError){ console.error('Failed to sync comment to main tracker notes:', noteError.message); }
 
   document.getElementById('c-message').value = '';
+  fileInput.value = '';
   loadComments(currentDetailId);
 }
 
