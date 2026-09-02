@@ -163,6 +163,29 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
 /* Comments */
 .comment-form { display:flex; flex-direction:column; gap:10px; margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid var(--border); }
+.preview-strip { display:flex; gap:8px; flex-wrap:wrap; }
+.preview-item {
+  position:relative; width:64px; height:64px; border-radius:8px; overflow:hidden;
+  border:1px solid var(--border); background:var(--s3);
+  display:flex; align-items:center; justify-content:center;
+}
+.preview-item img { width:100%; height:100%; object-fit:cover; }
+.preview-item .file-icon { font-size:1.6rem; }
+.preview-item .file-label { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:white; font-size:0.6rem; padding:2px; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.preview-remove {
+  position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%;
+  background:rgba(0,0,0,0.7); color:white; border:none; cursor:pointer; font-size:0.75rem;
+  display:flex; align-items:center; justify-content:center; line-height:1;
+}
+.attachment-grid { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.attachment-thumb {
+  width:64px; height:64px; border-radius:8px; overflow:hidden; border:1px solid var(--border);
+  background:var(--s3); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  text-decoration:none; position:relative;
+}
+.attachment-thumb img { width:100%; height:100%; object-fit:cover; }
+.attachment-thumb .file-icon { font-size:1.6rem; }
+.attachment-thumb .file-label { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:white; font-size:0.6rem; padding:2px; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .comment-list { display:flex; flex-direction:column; gap:14px; }
 .comment-item { background:#f8f9fb; border-radius:8px; padding:12px 14px; }
 .comment-author { font-weight:700; font-size:0.85rem; margin-bottom:2px; }
@@ -345,8 +368,9 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           </div>
           <textarea class="field-input" id="c-message" placeholder="Write a message..." rows="3"></textarea>
           <div style="display:flex;align-items:center;gap:10px;">
-            <input type="file" id="c-attachment" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="font-size:0.85rem;">
+            <input type="file" id="c-attachment" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" multiple onchange="onFilesSelected(event)" style="font-size:0.85rem;">
           </div>
+          <div class="preview-strip" id="c-preview-strip"></div>
           <button class="btn btn-primary" style="align-self:flex-start;" onclick="addComment()">Post Comment</button>
         </div>
         <div class="comment-list" id="comment-list"></div>
@@ -1238,6 +1262,63 @@ async function autoAddTechnicianIfNew(techName, techPhone){
 }
 
 /* ===== COMMENTS ===== */
+let pendingFiles = [];
+const ALLOWED_EXT = ['jpg','jpeg','png','pdf','doc','docx'];
+const IMAGE_EXT = ['jpg','jpeg','png'];
+
+function getExt(filename){ return (filename.split('.').pop() || '').toLowerCase(); }
+function isImageFile(filename){ return IMAGE_EXT.includes(getExt(filename)); }
+
+function onFilesSelected(event){
+  const newFiles = Array.from(event.target.files || []);
+  for(const f of newFiles){
+    if(!ALLOWED_EXT.includes(getExt(f.name))){
+      alert(`"${f.name}" is not an allowed file type. Only JPEG, PNG, PDF, or DOC/DOCX can be attached.`);
+      continue;
+    }
+    pendingFiles.push(f);
+  }
+  event.target.value = ''; // reset so selecting the same file again still fires change
+  renderPreviewStrip();
+}
+
+function renderPreviewStrip(){
+  const strip = document.getElementById('c-preview-strip');
+  strip.innerHTML = pendingFiles.map((f, idx) => {
+    if(isImageFile(f.name)){
+      const url = URL.createObjectURL(f);
+      return `<div class="preview-item"><img src="${url}"><button class="preview-remove" onclick="removePendingFile(${idx})">&times;</button></div>`;
+    }
+    return `<div class="preview-item"><span class="file-icon">📄</span><div class="file-label">${escHtml(f.name)}</div><button class="preview-remove" onclick="removePendingFile(${idx})">&times;</button></div>`;
+  }).join('');
+}
+
+function removePendingFile(idx){
+  pendingFiles.splice(idx, 1);
+  renderPreviewStrip();
+}
+
+function openLightbox(url){
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox-download').href = url;
+  document.getElementById('lightbox-overlay').style.display = 'flex';
+}
+function closeLightbox(event){
+  if(event) event.stopPropagation();
+  document.getElementById('lightbox-overlay').style.display = 'none';
+}
+
+function renderAttachmentGrid(attachments){
+  if(!attachments || !attachments.length) return '';
+  const items = attachments.map(a => {
+    if(isImageFile(a.file_name)){
+      return `<a class="attachment-thumb" href="javascript:void(0)" onclick="openLightbox('${escHtml(a.file_url)}')"><img src="${escHtml(a.file_url)}"></a>`;
+    }
+    return `<a class="attachment-thumb" href="${escHtml(a.file_url)}" target="_blank" rel="noopener" title="${escHtml(a.file_name)}"><span class="file-icon">📄</span><div class="file-label">${escHtml(a.file_name)}</div></a>`;
+  }).join('');
+  return `<div class="attachment-grid">${items}</div>`;
+}
+
 async function loadComments(jobId){
   const { data, error } = await supabaseClient
     .from('board_comments')
@@ -1255,17 +1336,31 @@ async function loadComments(jobId){
     return;
   }
 
+  const commentIds = data.map(c => c.id);
+  const { data: attachData } = await supabaseClient
+    .from('comment_attachments')
+    .select('*')
+    .in('comment_id', commentIds);
+
+  const attachByComment = {};
+  (attachData || []).forEach(a => {
+    if(!attachByComment[a.comment_id]) attachByComment[a.comment_id] = [];
+    attachByComment[a.comment_id].push(a);
+  });
+
   list.innerHTML = data.map(c => {
     const time = new Date(c.created_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
-    const attachmentHtml = c.file_url
-      ? `<div style="margin-top:8px;"><a href="${escHtml(c.file_url)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;font-size:0.85rem;">📎 ${escHtml(c.file_name || 'View attachment')}</a></div>`
-      : '';
+    let attachments = attachByComment[c.id] || [];
+    // Backward-compat: older comments stored a single file directly on the row
+    if(c.file_url && !attachments.length){
+      attachments = [{ file_url: c.file_url, file_name: c.file_name }];
+    }
     return `
       <div class="comment-item">
         <div class="comment-author">${escHtml(c.author)}</div>
         <div class="comment-time">${time}</div>
         <div class="comment-text">${escHtml(c.message)}</div>
-        ${attachmentHtml}
+        ${renderAttachmentGrid(attachments)}
       </div>
     `;
   }).join('');
@@ -1274,47 +1369,41 @@ async function loadComments(jobId){
 async function addComment(){
   const author = document.getElementById('c-author').value.trim();
   const message = document.getElementById('c-message').value.trim();
-  const fileInput = document.getElementById('c-attachment');
-  const file = fileInput.files[0];
 
   if(!author || !message){ alert('Please enter your name and a message.'); return; }
   if(!currentDetailId) return;
 
-  let attachmentNote = '';
-  let uploadedFileUrl = null;
-  let uploadedFileName = null;
-  if(file){
-    const allowedExt = ['jpg','jpeg','png','pdf','doc','docx'];
-    const ext = file.name.split('.').pop().toLowerCase();
-    if(!allowedExt.includes(ext)){
-      alert('Only JPEG, PNG, PDF, or DOC/DOCX files can be attached.');
-      return;
-    }
-
+  const uploaded = [];
+  for(const file of pendingFiles){
     const fileName = `${Date.now()}_${file.name}`;
     const filePath = `${currentDetailId}/${fileName}`;
 
     const { error: uploadError } = await supabaseClient.storage.from('job-files').upload(filePath, file);
-    if(uploadError){ alert('File upload failed: ' + uploadError.message); return; }
+    if(uploadError){ alert(`Failed to upload "${file.name}": ` + uploadError.message); return; }
 
     const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
-    uploadedFileUrl = urlData.publicUrl;
-    uploadedFileName = file.name;
 
     const { error: fileDbError } = await supabaseClient.from('job_files').insert([{
-      job_id: currentDetailId, file_name: file.name, file_url: uploadedFileUrl, mime_type: file.type || null
+      job_id: currentDetailId, file_name: file.name, file_url: urlData.publicUrl, mime_type: file.type || null
     }]);
     if(fileDbError){ console.error('Failed to save file record:', fileDbError.message); }
 
-    attachmentNote = ` [Attached: ${file.name}]`;
+    uploaded.push({ file_url: urlData.publicUrl, file_name: file.name, mime_type: file.type || null });
   }
 
+  const attachmentNote = uploaded.length ? ` [${uploaded.length} attachment${uploaded.length===1?'':'s'}: ${uploaded.map(u=>u.file_name).join(', ')}]` : '';
   const fullMessage = message + attachmentNote;
 
-  const { error } = await supabaseClient.from('board_comments').insert([{
-    job_id: currentDetailId, author, message: fullMessage, file_url: uploadedFileUrl, file_name: uploadedFileName
-  }]);
+  const { data: newComment, error } = await supabaseClient.from('board_comments').insert([{
+    job_id: currentDetailId, author, message: fullMessage
+  }]).select().single();
   if(error){ alert('Failed to post comment: ' + error.message); return; }
+
+  if(uploaded.length){
+    const attachRows = uploaded.map(u => ({ comment_id: newComment.id, file_url: u.file_url, file_name: u.file_name, mime_type: u.mime_type }));
+    const { error: attachError } = await supabaseClient.from('comment_attachments').insert(attachRows);
+    if(attachError){ console.error('Failed to save comment attachments:', attachError.message); }
+  }
 
   // Also mirror this comment into the main tracker's notes, so it shows up there too
   const now = new Date();
@@ -1326,12 +1415,23 @@ async function addComment(){
   if(noteError){ console.error('Failed to sync comment to main tracker notes:', noteError.message); }
 
   document.getElementById('c-message').value = '';
-  fileInput.value = '';
+  pendingFiles = [];
+  renderPreviewStrip();
   loadComments(currentDetailId);
 }
 
 init();
 </script>
+<div class="overlay" id="lightbox-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:30px;" onclick="closeLightbox(event)">
+  <div style="max-width:90vw;max-height:90vh;display:flex;flex-direction:column;align-items:center;gap:14px;" onclick="event.stopPropagation()">
+    <img id="lightbox-img" style="max-width:100%;max-height:75vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.4);">
+    <div style="display:flex;gap:10px;">
+      <a id="lightbox-download" class="btn btn-primary" download style="text-decoration:none;">⬇ Download</a>
+      <button class="btn" onclick="closeLightbox(event)">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="newjob-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:100;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;">
   <div class="detail-modal" style="background:var(--card);border-radius:12px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
     <div class="detail-hdr" style="display:flex;justify-content:space-between;align-items:center;">
