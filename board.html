@@ -291,6 +291,10 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <div style="font-size:0.85rem;color:var(--muted);">Quote needed - have you sent it yet?</div>
           <button class="btn" style="background:#7c3aed;color:white;border:none;white-space:nowrap;" onclick="markQuoted()">✓ Mark as Quoted</button>
         </div>
+        <div id="ns-quote-approved-box" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:14px 16px;margin-bottom:20px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div style="font-size:0.85rem;color:var(--muted);">Has the client approved this quote?</div>
+          <button class="btn" style="background:#059669;color:white;border:none;white-space:nowrap;" onclick="markQuoteApproved()">✓ Quote Approved - Make it a Job</button>
+        </div>
         <div class="detail-field">
           <label>Category</label>
           <input class="field-input" id="d-category-input" placeholder="e.g. Plumbing, Electrical...">
@@ -1073,6 +1077,7 @@ function openDetail(id){
   document.getElementById('ns-mark-completed-box').style.display = inAwaitingCompletion ? 'flex' : 'none';
   document.getElementById('ns-mark-invoiced-box').style.display = inAwaitingInvoice ? 'flex' : 'none';
   document.getElementById('ns-mark-quoted-box').style.display = inQuoteNeeded ? 'flex' : 'none';
+  document.getElementById('ns-quote-approved-box').style.display = j.quote_needed ? 'flex' : 'none';
 
   document.getElementById('d-category-input').value = j.category || '';
 
@@ -1194,6 +1199,27 @@ async function markQuoted(){
 
   const j = JOBS.find(x => x.id === currentDetailId);
   if(j){ j.quoted = true; }
+
+  closeDetail();
+  render();
+}
+
+async function markQuoteApproved(){
+  if(!currentDetailId) return;
+
+  // Approved quote becomes a real job: take it out of Quotation Needed and
+  // place it cleanly into Jobs Awaiting a Start Date.
+  const updates = { quote_needed: false, quoted: false, status: 'active', scheduled_at: null };
+
+  const { error } = await supabaseClient
+    .from('jobs')
+    .update(updates)
+    .eq('id', currentDetailId);
+
+  if(error){ alert('Failed to update: ' + error.message); return; }
+
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j) Object.assign(j, updates);
 
   closeDetail();
   render();
