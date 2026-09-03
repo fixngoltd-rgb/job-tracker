@@ -202,6 +202,31 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .comment-text { font-size:0.88rem; line-height:1.5; white-space:pre-wrap; }
 .no-comments { color:var(--muted2); font-size:0.88rem; text-align:center; padding:20px 0; }
 
+.jf-thumb {
+  position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden;
+  border:1px solid var(--border); cursor:pointer; background:var(--s3);
+  display:flex; align-items:center; justify-content:center;
+}
+.jf-thumb img { width:100%; height:100%; object-fit:cover; }
+.jf-thumb .jf-icon { font-size:1.8rem; }
+.jf-thumb .jf-name {
+  position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:white;
+  font-size:0.65rem; padding:3px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.lightbox-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:500;
+  align-items:center; justify-content:center; padding:30px;
+}
+.lightbox-overlay.open { display:flex; }
+.lightbox-content { max-width:90vw; max-height:80vh; display:flex; flex-direction:column; align-items:center; gap:14px; }
+.lightbox-content img, .lightbox-content video { max-width:90vw; max-height:70vh; border-radius:8px; }
+.lightbox-content iframe { width:80vw; height:70vh; border:none; border-radius:8px; background:white; }
+.lightbox-actions { display:flex; gap:12px; }
+.lightbox-close {
+  position:fixed; top:20px; right:24px; background:none; border:none; color:white;
+  font-size:2rem; cursor:pointer; z-index:501;
+}
+
 /* Sidebar layout */
 .detail-body-wrap { display:flex; }
 .detail-main { flex:1; min-width:0; }
@@ -285,6 +310,15 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <div class="detail-field"><label>Tenant Phone</label><input class="field-input" id="d-tenant-phone-input" placeholder="+44..."></div>
         </div>
         <div class="detail-field"><label>Description</label><textarea class="field-input" id="d-desc-input" rows="4" placeholder="What's the issue?"></textarea></div>
+
+        <div class="detail-field">
+          <label>Files &amp; Images</label>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <input type="file" id="d-file-input" accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm" style="font-size:0.85rem;flex:1;">
+            <button class="btn btn-primary" id="d-file-upload-btn" onclick="uploadJobFile()" style="white-space:nowrap;">+ Upload</button>
+          </div>
+          <div id="job-files-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;"></div>
+        </div>
       </div>
 
       <div class="tab-panel" id="panel-nextsteps">
@@ -1179,6 +1213,7 @@ function openDetail(id){
   onStatusChange();
   switchTab('details');
   loadComments(id);
+  loadJobFiles(id);
 
   document.getElementById('board').style.display = 'none';
   document.getElementById('detail-view').style.display = 'block';
@@ -1386,14 +1421,42 @@ function removePendingFile(idx){
   renderPreviewStrip();
 }
 
-function openLightbox(url){
-  document.getElementById('lightbox-img').src = url;
+function openLightbox(url, fileName, mimeType){
+  const img = document.getElementById('lightbox-img');
+  const video = document.getElementById('lightbox-video');
+  const pdf = document.getElementById('lightbox-pdf');
+
+  img.style.display = 'none';
+  video.style.display = 'none';
+  video.pause();
+  video.src = '';
+  pdf.style.display = 'none';
+  pdf.src = '';
+
+  // No mimeType given means an existing call site (comment attachments, images only) - behave exactly as before
+  if(!mimeType || mimeType.startsWith('image/')){
+    img.src = url;
+    img.style.display = 'block';
+  } else if(mimeType.startsWith('video/')){
+    video.src = url;
+    video.style.display = 'block';
+  } else if(mimeType === 'application/pdf'){
+    pdf.src = url;
+    pdf.style.display = 'block';
+  } else {
+    img.src = url;
+    img.style.display = 'block';
+  }
+
   document.getElementById('lightbox-download').href = url;
+  if(fileName) document.getElementById('lightbox-download').setAttribute('download', fileName);
   document.getElementById('lightbox-overlay').style.display = 'flex';
 }
 function closeLightbox(event){
   if(event) event.stopPropagation();
   document.getElementById('lightbox-overlay').style.display = 'none';
+  const video = document.getElementById('lightbox-video');
+  video.pause();
 }
 
 function renderAttachmentGrid(attachments){
@@ -1405,6 +1468,80 @@ function renderAttachmentGrid(attachments){
     return `<a class="attachment-thumb" href="${escHtml(a.file_url)}" target="_blank" rel="noopener" title="${escHtml(a.file_name)}"><span class="file-icon">📄</span><div class="file-label">${escHtml(a.file_name)}</div></a>`;
   }).join('');
   return `<div class="attachment-grid">${items}</div>`;
+}
+
+/* ===== JOB FILES (Details tab - separate from comment attachments) ===== */
+async function loadJobFiles(jobId){
+  const { data, error } = await supabaseClient
+    .from('job_files')
+    .select('*')
+    .eq('job_id', jobId)
+    .order('created_at', { ascending: false });
+
+  const grid = document.getElementById('job-files-grid');
+  if(error){ grid.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;">Failed to load files.</div>'; return; }
+  if(!data || !data.length){ grid.innerHTML = '<div style="color:var(--muted2);font-size:0.85rem;">No files uploaded yet.</div>'; return; }
+
+  grid.innerHTML = data.map(f => {
+    const mime = f.mime_type || '';
+    let inner;
+    if(mime.startsWith('image/')){
+      inner = `<img src="${escHtml(f.file_url)}" alt="${escHtml(f.file_name)}">`;
+    } else if(mime.startsWith('video/')){
+      inner = `<span class="jf-icon">🎬</span>`;
+    } else if(mime === 'application/pdf'){
+      inner = `<span class="jf-icon">📄</span>`;
+    } else {
+      inner = `<span class="jf-icon">📎</span>`;
+    }
+    return `
+      <div class="jf-thumb" onclick="openLightbox('${escHtml(f.file_url)}','${escHtml(f.file_name)}','${escHtml(mime)}')">
+        ${inner}
+        <div class="jf-name">${escHtml(f.file_name)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function uploadJobFile(){
+  if(!currentDetailId) return;
+  const fileInput = document.getElementById('d-file-input');
+  const file = fileInput.files[0];
+  if(!file){ alert('Please choose a file first.'); return; }
+
+  const allowedExt = ['jpg','jpeg','png','pdf','mp4','mov','webm'];
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(!allowedExt.includes(ext)){
+    alert('Only JPEG, PNG, PDF, or short videos (MP4/MOV/WEBM) can be uploaded here.');
+    return;
+  }
+
+  const btn = document.getElementById('d-file-upload-btn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Uploading...';
+
+  const fileName = `${Date.now()}_${file.name}`;
+  const filePath = `${currentDetailId}/${fileName}`;
+
+  const { error: uploadError } = await supabaseClient.storage.from('job-files').upload(filePath, file);
+  if(uploadError){
+    alert('Upload failed: ' + uploadError.message);
+    btn.disabled = false; btn.textContent = originalText;
+    return;
+  }
+
+  const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
+
+  const { error: dbError } = await supabaseClient.from('job_files').insert([{
+    job_id: currentDetailId, file_name: file.name, file_url: urlData.publicUrl, mime_type: file.type || null
+  }]);
+  if(dbError){ alert('Failed to save file record: ' + dbError.message); }
+
+  fileInput.value = '';
+  btn.disabled = false;
+  btn.textContent = originalText;
+  loadJobFiles(currentDetailId);
 }
 
 async function loadComments(jobId){
@@ -1523,7 +1660,9 @@ init();
 </script>
 <div class="overlay" id="lightbox-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:30px;" onclick="closeLightbox(event)">
   <div style="max-width:90vw;max-height:90vh;display:flex;flex-direction:column;align-items:center;gap:14px;" onclick="event.stopPropagation()">
-    <img id="lightbox-img" style="max-width:100%;max-height:75vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.4);">
+    <img id="lightbox-img" style="max-width:100%;max-height:75vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.4);display:none;">
+    <video id="lightbox-video" controls style="max-width:100%;max-height:75vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.4);display:none;"></video>
+    <iframe id="lightbox-pdf" style="width:80vw;height:75vh;border:none;border-radius:8px;background:white;display:none;"></iframe>
     <div style="display:flex;gap:10px;">
       <a id="lightbox-download" class="btn btn-primary" download style="text-decoration:none;">⬇ Download</a>
       <button class="btn" onclick="closeLightbox(event)">Close</button>
