@@ -159,6 +159,13 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .save-row { padding:18px 26px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; }
 .btn { padding:9px 16px; border-radius:7px; font-weight:700; font-size:0.85rem; cursor:pointer; border:1px solid var(--border); background:var(--card); font-family:'Inter',sans-serif; }
 .btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+.btn:disabled { opacity:0.7; cursor:not-allowed; }
+.btn-spinner {
+  display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,0.4);
+  border-top-color:#fff; border-radius:50%; animation:btn-spin 0.7s linear infinite;
+  vertical-align:middle; margin-right:6px;
+}
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 .btn-secondary { background:#eef0f3; border-color:#eef0f3; }
 
 /* Comments */
@@ -375,7 +382,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
             <input type="file" id="c-attachment" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" multiple onchange="onFilesSelected(event)" style="font-size:0.85rem;">
           </div>
           <div class="preview-strip" id="c-preview-strip"></div>
-          <button class="btn btn-primary" style="align-self:flex-start;" onclick="addComment()">Post Comment</button>
+          <button class="btn btn-primary" id="c-post-btn" style="align-self:flex-start;" onclick="addComment()">Post Comment</button>
         </div>
         <div class="comment-list" id="comment-list"></div>
       </div>
@@ -1399,13 +1406,23 @@ async function addComment(){
   if(!author || !message){ alert('Please enter your name and a message.'); return; }
   if(!currentDetailId) return;
 
+  const btn = document.getElementById('c-post-btn');
+  const originalBtnText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Posting...';
+
+  function resetButton(){
+    btn.disabled = false;
+    btn.textContent = originalBtnText;
+  }
+
   const uploaded = [];
   for(const file of pendingFiles){
     const fileName = `${Date.now()}_${file.name}`;
     const filePath = `${currentDetailId}/${fileName}`;
 
     const { error: uploadError } = await supabaseClient.storage.from('job-files').upload(filePath, file);
-    if(uploadError){ alert(`Failed to upload "${file.name}": ` + uploadError.message); return; }
+    if(uploadError){ alert(`Failed to upload "${file.name}": ` + uploadError.message); resetButton(); return; }
 
     const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
 
@@ -1423,7 +1440,7 @@ async function addComment(){
   const { data: newComment, error } = await supabaseClient.from('board_comments').insert([{
     job_id: currentDetailId, author, message: fullMessage
   }]).select().single();
-  if(error){ alert('Failed to post comment: ' + error.message); return; }
+  if(error){ alert('Failed to post comment: ' + error.message); resetButton(); return; }
 
   if(uploaded.length){
     const attachRows = uploaded.map(u => ({ comment_id: newComment.id, file_url: u.file_url, file_name: u.file_name, mime_type: u.mime_type }));
@@ -1444,6 +1461,7 @@ async function addComment(){
   pendingFiles = [];
   renderPreviewStrip();
   loadComments(currentDetailId);
+  resetButton();
 }
 
 init();
