@@ -57,6 +57,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .resize-handle {
   width:10px; align-self:stretch; cursor:col-resize; flex:0 0 auto;
   display:flex; align-items:center; justify-content:center;
+  touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
 }
 .resize-handle::after {
   content:''; width:3px; height:36px; background:var(--border); border-radius:2px;
@@ -68,6 +69,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   height:10px; width:100%; cursor:row-resize; flex:0 0 auto;
   display:flex; align-items:center; justify-content:center;
   border-top:1px solid var(--border); border-radius:0 0 10px 10px;
+  touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
 }
 .resize-handle-h::after {
   content:''; height:3px; width:36px; background:var(--border); border-radius:2px;
@@ -941,7 +943,7 @@ function render(){
           ${rows || '<div class="empty-col">No jobs here</div>'}
         </div>
         <div class="resize-handle-h" data-col-key="${col.key}"
-             onmousedown="startResizeHeight(event,'${col.key}')" title="Drag to resize height"></div>
+             onmousedown="startResizeHeight(event,'${col.key}')" ontouchstart="startResizeHeightTouch(event,'${col.key}')" title="Drag to resize height"></div>
       </div>
     `;
 
@@ -950,7 +952,7 @@ function render(){
       <div class="column-wrap">
         ${columnHtml}
         <div class="resize-handle" data-col-key="${col.key}"
-             onmousedown="startResize(event,'${col.key}')" title="Drag to resize"></div>
+             onmousedown="startResize(event,'${col.key}')" ontouchstart="startResizeTouch(event,'${col.key}')" title="Drag to resize"></div>
       </div>
     `;
   }).join('');
@@ -989,6 +991,32 @@ function onResizeEnd(){
   document.removeEventListener('mouseup', onResizeEnd);
 }
 
+function startResizeTouch(e, colKey){
+  e.preventDefault();
+  resizingCol = colKey;
+  resizeStartX = e.touches[0].clientX;
+  resizeStartWidth = COLUMN_WIDTHS[colKey] || 300;
+  e.target.classList.add('resizing');
+  document.addEventListener('touchmove', onResizeTouchMove, { passive: false });
+  document.addEventListener('touchend', onResizeTouchEnd);
+}
+
+function onResizeTouchMove(e){
+  if(!resizingCol) return;
+  e.preventDefault();
+  const delta = e.touches[0].clientX - resizeStartX;
+  const newWidth = Math.max(220, resizeStartWidth + delta);
+  COLUMN_WIDTHS[resizingCol] = newWidth;
+  const colEl = document.querySelector('.column[data-col-key="' + resizingCol + '"]');
+  if(colEl) colEl.style.width = newWidth + 'px';
+}
+
+function onResizeTouchEnd(){
+  onResizeEnd();
+  document.removeEventListener('touchmove', onResizeTouchMove);
+  document.removeEventListener('touchend', onResizeTouchEnd);
+}
+
 let resizingColH = null;
 let resizeStartY = 0;
 let resizeStartHeight = 0;
@@ -1020,6 +1048,33 @@ function onResizeHeightEnd(){
   resizingColH = null;
   document.removeEventListener('mousemove', onResizeHeightMove);
   document.removeEventListener('mouseup', onResizeHeightEnd);
+}
+
+function startResizeHeightTouch(e, colKey){
+  e.preventDefault();
+  resizingColH = colKey;
+  resizeStartY = e.touches[0].clientY;
+  const colEl = document.querySelector('.column[data-col-key="' + colKey + '"]');
+  resizeStartHeight = COLUMN_HEIGHTS[colKey] || (colEl ? colEl.offsetHeight : 500);
+  e.target.classList.add('resizing');
+  document.addEventListener('touchmove', onResizeHeightTouchMove, { passive: false });
+  document.addEventListener('touchend', onResizeHeightTouchEnd);
+}
+
+function onResizeHeightTouchMove(e){
+  if(!resizingColH) return;
+  e.preventDefault();
+  const delta = e.touches[0].clientY - resizeStartY;
+  const newHeight = Math.max(160, resizeStartHeight + delta);
+  COLUMN_HEIGHTS[resizingColH] = newHeight;
+  const colEl = document.querySelector('.column[data-col-key="' + resizingColH + '"]');
+  if(colEl){ colEl.style.height = newHeight + 'px'; colEl.style.maxHeight = newHeight + 'px'; }
+}
+
+function onResizeHeightTouchEnd(){
+  onResizeHeightEnd();
+  document.removeEventListener('touchmove', onResizeHeightTouchMove);
+  document.removeEventListener('touchend', onResizeHeightTouchEnd);
 }
 
 /* ===== DRAG AND DROP ===== */
