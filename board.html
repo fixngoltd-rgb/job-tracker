@@ -195,6 +195,12 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .attachment-thumb img { width:100%; height:100%; object-fit:cover; }
 .attachment-thumb .file-icon { font-size:1.6rem; }
 .attachment-thumb .file-label { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:white; font-size:0.6rem; padding:2px; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.attach-delete {
+  position:absolute; top:3px; right:3px; z-index:2; width:16px; height:16px;
+  border-radius:50%; background:rgba(0,0,0,0.6); color:white; border:none;
+  font-size:0.75rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.attach-delete:hover { background:rgba(220,38,38,0.9); }
 .comment-list { display:flex; flex-direction:column; gap:14px; }
 .comment-item { background:#f8f9fb; border-radius:8px; padding:12px 14px; }
 .comment-author { font-weight:700; font-size:0.85rem; margin-bottom:2px; }
@@ -209,6 +215,12 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 }
 .jf-thumb img { width:100%; height:100%; object-fit:cover; }
 .jf-thumb .jf-icon { font-size:1.8rem; }
+.jf-delete {
+  position:absolute; top:3px; right:3px; z-index:2; width:18px; height:18px;
+  border-radius:50%; background:rgba(0,0,0,0.6); color:white; border:none;
+  font-size:0.85rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.jf-delete:hover { background:rgba(220,38,38,0.9); }
 .jf-thumb .jf-name {
   position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:white;
   font-size:0.65rem; padding:3px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -714,7 +726,10 @@ async function fetchTeamMembers(){
 
   const filterSel = document.getElementById('team-filter');
   if(filterSel){
-    const current = filterSel.value;
+    let current = filterSel.value;
+    if(!current){
+      try { current = localStorage.getItem('boardTeamFilter') || ''; } catch(e){}
+    }
     filterSel.innerHTML = '<option value="">All Team Members</option>' +
       (data || []).map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`).join('');
     filterSel.value = current;
@@ -926,6 +941,10 @@ function getVisibleJobs(){
 }
 
 function onSearchOrFilterChange(){
+  const teamFilterEl = document.getElementById('team-filter');
+  if(teamFilterEl){
+    try { localStorage.setItem('boardTeamFilter', teamFilterEl.value); } catch(e){}
+  }
   render();
 }
 
@@ -1498,15 +1517,36 @@ async function forceDownload(url, filename, btnEl){
   }
 }
 
-function renderAttachmentGrid(attachments){
+function renderAttachmentGrid(attachments, commentId){
   if(!attachments || !attachments.length) return '';
   const items = attachments.map(a => {
+    // Real comment_attachments rows have their own id; backward-compat ones (stored directly
+    // on the comment row) don't, so we delete via commentId instead in that case.
+    const deleteCall = a.id
+      ? `deleteCommentAttachment('${a.id}', null)`
+      : `deleteCommentAttachment(null, '${commentId}')`;
+    const deleteBtn = `<button class="attach-delete" onclick="event.preventDefault();event.stopPropagation();${deleteCall}" title="Delete">&times;</button>`;
+
     if(isImageFile(a.file_name)){
-      return `<a class="attachment-thumb" href="javascript:void(0)" onclick="openLightbox('${escHtml(a.file_url)}')"><img src="${escHtml(a.file_url)}"></a>`;
+      return `<span class="attachment-thumb" style="position:relative;display:inline-block;"><a href="javascript:void(0)" onclick="openLightbox('${escHtml(a.file_url)}')"><img src="${escHtml(a.file_url)}"></a>${deleteBtn}</span>`;
     }
-    return `<a class="attachment-thumb" href="javascript:void(0)" onclick="forceDownload('${escHtml(a.file_url)}','${escHtml(a.file_name)}')" title="${escHtml(a.file_name)}"><span class="file-icon">📄</span><div class="file-label">${escHtml(a.file_name)}</div></a>`;
+    return `<span class="attachment-thumb" style="position:relative;display:inline-block;"><a href="javascript:void(0)" onclick="forceDownload('${escHtml(a.file_url)}','${escHtml(a.file_name)}')" title="${escHtml(a.file_name)}"><span class="file-icon">📄</span><div class="file-label">${escHtml(a.file_name)}</div></a>${deleteBtn}</span>`;
   }).join('');
   return `<div class="attachment-grid">${items}</div>`;
+}
+
+async function deleteCommentAttachment(attachmentId, commentId){
+  if(!confirm('Delete this attachment?')) return;
+
+  let error;
+  if(attachmentId){
+    ({ error } = await supabaseClient.from('comment_attachments').delete().eq('id', attachmentId));
+  } else if(commentId){
+    ({ error } = await supabaseClient.from('board_comments').update({ file_url: null, file_name: null }).eq('id', commentId));
+  }
+
+  if(error){ alert('Failed to delete: ' + error.message); return; }
+  loadComments(currentDetailId);
 }
 
 /* ===== JOB FILES (Details tab - separate from comment attachments) ===== */
@@ -1515,7 +1555,7 @@ async function loadJobFiles(jobId){
     .from('job_files')
     .select('*')
     .eq('job_id', jobId)
-    .order('created_at', { ascending: false });
+    .order('uploaded_at', { ascending: false });
 
   const grid = document.getElementById('job-files-grid');
   if(error){ grid.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;">Failed to load files.</div>'; return; }
@@ -1535,11 +1575,19 @@ async function loadJobFiles(jobId){
     }
     return `
       <div class="jf-thumb" onclick="openLightbox('${escHtml(f.file_url)}','${escHtml(f.file_name)}','${escHtml(mime)}')">
+        <button class="jf-delete" onclick="event.stopPropagation();deleteJobFile('${f.id}')" title="Delete">&times;</button>
         ${inner}
         <div class="jf-name">${escHtml(f.file_name)}</div>
       </div>
     `;
   }).join('');
+}
+
+async function deleteJobFile(fileId){
+  if(!confirm('Delete this file?')) return;
+  const { error } = await supabaseClient.from('job_files').delete().eq('id', fileId);
+  if(error){ alert('Failed to delete: ' + error.message); return; }
+  loadJobFiles(currentDetailId);
 }
 
 async function uploadJobFile(){
@@ -1624,7 +1672,7 @@ async function loadComments(jobId){
         <div class="comment-author">${escHtml(c.author)}</div>
         <div class="comment-time">${time}</div>
         <div class="comment-text">${escHtml(c.message)}</div>
-        ${renderAttachmentGrid(attachments)}
+        ${renderAttachmentGrid(attachments, c.id)}
       </div>
     `;
   }).join('');
