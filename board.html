@@ -445,6 +445,10 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
       <div class="detail-sidebar">
         <span class="sb-source-tag" id="sb-source"></span>
         <div class="sb-field">
+          <label>Date Received</label>
+          <div class="val" id="sb-date-received"></div>
+        </div>
+        <div class="sb-field">
           <label>Status</label>
           <div class="val"><span class="sb-status-pill" id="sb-status-pill"></span></div>
         </div>
@@ -1217,6 +1221,7 @@ function openDetail(id){
   // Sidebar
   document.getElementById('sb-source').textContent = 'Live Tracker';
   document.getElementById('sb-source').className = 'sb-source-tag sb-source-tracker';
+  document.getElementById('sb-date-received').textContent = j.created ? new Date(j.created).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
   const pill = document.getElementById('sb-status-pill');
   pill.textContent = j.status;
   pill.className = 'sb-status-pill sb-status-' + j.status;
