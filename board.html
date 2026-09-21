@@ -317,6 +317,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
       <div class="tab-panel active" id="panel-details">
         <div class="detail-field"><label>Title</label><input class="field-input" id="d-title-input" placeholder="Short job title"></div>
         <div class="detail-field"><label>Address</label><input class="field-input" id="d-address-input" placeholder="Full property address"></div>
+        <div class="detail-field"><label>Ticket ID (Accommodation.co.uk reference)</label><input class="field-input" id="d-ticket-id-input" placeholder="e.g. 48607759720 - leave blank if none"></div>
         <div class="field-row">
           <div class="detail-field"><label>Tenant Name</label><input class="field-input" id="d-tenant-input" placeholder="Tenant name"></div>
           <div class="detail-field"><label>Tenant Phone</label><input class="field-input" id="d-tenant-phone-input" placeholder="+44..."></div>
@@ -449,6 +450,10 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <div class="val" id="sb-date-received"></div>
         </div>
         <div class="sb-field">
+          <label>Ticket ID</label>
+          <div class="val" id="sb-ticket-id"></div>
+        </div>
+        <div class="sb-field">
           <label>Status</label>
           <div class="val"><span class="sb-status-pill" id="sb-status-pill"></span></div>
         </div>
@@ -510,6 +515,7 @@ let draggedJobId = null;
 function openNewJobModal(){
   document.getElementById('nj-title').value = '';
   document.getElementById('nj-address').value = '';
+  document.getElementById('nj-ticket-id').value = '';
   document.getElementById('nj-tenant').value = '';
   document.getElementById('nj-tenant-phone').value = '';
   document.getElementById('nj-description').value = '';
@@ -536,6 +542,7 @@ async function createJob(){
   const newJob = {
     title,
     address,
+    external_job_id: document.getElementById('nj-ticket-id').value.trim() || null,
     tenant: document.getElementById('nj-tenant').value.trim() || 'Not provided',
     tenant_phone: document.getElementById('nj-tenant-phone').value.trim() || null,
     description: document.getElementById('nj-description').value.trim() || null,
@@ -793,6 +800,7 @@ async function fetchAllJobs(){
     invoiced: !!j.invoiced,
     invoice_number: j.invoice_number,
     quote_needed: !!j.quote_needed,
+    external_job_id: j.external_job_id,
     quoted: !!j.quoted,
     category: j.category,
     created: j.created,
@@ -1204,6 +1212,7 @@ function openDetail(id){
   document.getElementById('d-title').textContent = j.title || 'Untitled Job';
   document.getElementById('d-title-input').value = j.title || '';
   document.getElementById('d-address-input').value = j.address || '';
+  document.getElementById('d-ticket-id-input').value = j.external_job_id || '';
   document.getElementById('d-tenant-input').value = j.tenant || '';
   document.getElementById('d-tenant-phone-input').value = j.tenant_phone || '';
   document.getElementById('d-desc-input').value = j.description || '';
@@ -1222,6 +1231,7 @@ function openDetail(id){
   document.getElementById('sb-source').textContent = 'Live Tracker';
   document.getElementById('sb-source').className = 'sb-source-tag sb-source-tracker';
   document.getElementById('sb-date-received').textContent = j.created ? new Date(j.created).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+  document.getElementById('sb-ticket-id').textContent = j.external_job_id || 'None';
   const pill = document.getElementById('sb-status-pill');
   pill.textContent = j.status;
   pill.className = 'sb-status-pill sb-status-' + j.status;
@@ -1365,6 +1375,7 @@ async function saveDetail(){
   const updates = {
     title: document.getElementById('d-title-input').value.trim() || 'Untitled Job',
     address: document.getElementById('d-address-input').value.trim(),
+    external_job_id: document.getElementById('d-ticket-id-input').value.trim() || null,
     tenant: document.getElementById('d-tenant-input').value.trim() || null,
     tenant_phone: document.getElementById('d-tenant-phone-input').value.trim() || null,
     description: document.getElementById('d-desc-input').value.trim() || null,
@@ -1771,6 +1782,7 @@ init();
     <div style="padding:22px 26px;">
       <div class="detail-field"><label>Title</label><input class="field-input" id="nj-title" placeholder="Short job title"></div>
       <div class="detail-field"><label>Address</label><input class="field-input" id="nj-address" placeholder="Full property address"></div>
+      <div class="detail-field"><label>Ticket ID (optional)</label><input class="field-input" id="nj-ticket-id" placeholder="e.g. 48607759720 - leave blank if none"></div>
       <div class="field-row">
         <div class="detail-field"><label>Tenant</label><input class="field-input" id="nj-tenant" placeholder="Tenant name"></div>
         <div class="detail-field"><label>Tenant Phone</label><input class="field-input" id="nj-tenant-phone" placeholder="+44..."></div>
