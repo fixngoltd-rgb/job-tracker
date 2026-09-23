@@ -347,6 +347,10 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <div style="font-size:0.85rem;color:var(--muted);">Quote needed - have you sent it yet?</div>
           <button class="btn" style="background:#7c3aed;color:white;border:none;white-space:nowrap;" onclick="markQuoted()">✓ Mark as Quoted</button>
         </div>
+        <div id="ns-unmark-quoted-box" style="display:none;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-bottom:20px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div style="font-size:0.85rem;color:var(--muted);">This is marked as quoted. Marked by mistake?</div>
+          <button class="btn" style="background:#d97706;color:white;border:none;white-space:nowrap;" onclick="unmarkQuoted()">↺ Mark as Not Quoted</button>
+        </div>
         <div id="ns-quote-approved-box" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:14px 16px;margin-bottom:20px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
           <div style="font-size:0.85rem;color:var(--muted);">Has the client approved this quote?</div>
           <button class="btn" style="background:#059669;color:white;border:none;white-space:nowrap;" onclick="markQuoteApproved()">✓ Quote Approved - Make it a Job</button>
@@ -1201,9 +1205,11 @@ function openDetail(id){
   const inAwaitingCompletion = COLUMNS.find(c => c.key === 'awaiting_completion').filter(j);
   const inAwaitingInvoice = COLUMNS.find(c => c.key === 'awaiting_invoice').filter(j);
   const inQuoteNeeded = j.quote_needed && !j.quoted;
+  const isQuotedAlready = j.quote_needed && j.quoted;
   document.getElementById('ns-mark-completed-box').style.display = inAwaitingCompletion ? 'flex' : 'none';
   document.getElementById('ns-mark-invoiced-box').style.display = inAwaitingInvoice ? 'flex' : 'none';
   document.getElementById('ns-mark-quoted-box').style.display = inQuoteNeeded ? 'flex' : 'none';
+  document.getElementById('ns-unmark-quoted-box').style.display = isQuotedAlready ? 'flex' : 'none';
   document.getElementById('ns-quote-approved-box').style.display = j.quote_needed ? 'flex' : 'none';
 
   document.getElementById('d-category-input').value = j.category || '';
@@ -1330,6 +1336,23 @@ async function markQuoted(){
 
   const j = JOBS.find(x => x.id === currentDetailId);
   if(j){ j.quoted = true; }
+
+  closeDetail();
+  render();
+}
+
+async function unmarkQuoted(){
+  if(!currentDetailId) return;
+
+  const { error } = await supabaseClient
+    .from('jobs')
+    .update({ quoted: false })
+    .eq('id', currentDetailId);
+
+  if(error){ alert('Failed to update: ' + error.message); return; }
+
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j){ j.quoted = false; }
 
   closeDetail();
   render();
@@ -1685,13 +1708,23 @@ async function loadComments(jobId){
     }
     return `
       <div class="comment-item">
-        <div class="comment-author">${escHtml(c.author)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div class="comment-author">${escHtml(c.author)}</div>
+          <button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:0.9rem;padding:0 2px;" title="Delete comment">&times;</button>
+        </div>
         <div class="comment-time">${time}</div>
         <div class="comment-text">${escHtml(c.message)}</div>
         ${renderAttachmentGrid(attachments, c.id)}
       </div>
     `;
   }).join('');
+}
+
+async function deleteComment(commentId){
+  if(!confirm('Delete this comment?')) return;
+  const { error } = await supabaseClient.from('board_comments').delete().eq('id', commentId);
+  if(error){ alert('Failed to delete: ' + error.message); return; }
+  loadComments(currentDetailId);
 }
 
 async function addComment(){
