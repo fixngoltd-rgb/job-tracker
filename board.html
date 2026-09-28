@@ -272,15 +272,18 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 <body>
 
 <div id="topbar">
-  <a class="back" href="index.html">&larr; Main Tracker</a>
+  <a class="back" href="index.html" id="main-tracker-link">&larr; Main Tracker</a>
   <div class="logo" onclick="closeDetail()" style="cursor:pointer;" title="Back to Board">FIX AND GO<span> BOARD</span></div>
   <input id="board-search" type="text" placeholder="Search ref, address, tenant, tech, issue..." style="flex:1;min-width:200px;max-width:340px;padding:8px 12px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" oninput="onSearchOrFilterChange()">
   <select id="team-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
     <option value="">All Team Members</option>
   </select>
-  <button onclick="openTechPanel()" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Technicians</button>
-  <button onclick="openTeamPanel()" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👥 Team</button>
-  <button onclick="openNewJobModal()" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
+  <button onclick="openTechPanel()" id="tech-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Technicians</button>
+  <button onclick="openTeamPanel()" id="team-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👥 Team</button>
+  <button onclick="openUsersPanel()" id="users-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👤 Users</button>
+  <button onclick="openNewJobModal()" id="new-job-btn" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
+  <span id="current-user-chip" style="color:#cbd5e1;font-size:0.82rem;font-weight:600;white-space:nowrap;"></span>
+  <button onclick="logOut()" style="background:none;color:#cbd5e1;border:1px solid #4b5563;padding:7px 12px;border-radius:7px;font-weight:600;font-size:0.8rem;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sign Out</button>
   <div class="range-note" id="range-note"></div>
 </div>
 
@@ -441,7 +444,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
       </div>
 
       <div class="save-row">
-        <button class="btn" style="background:#fee2e2;color:#991b1b;border-color:#fecaca;margin-right:auto;" onclick="deleteJob()">Delete Job</button>
+        <button class="btn" id="delete-job-btn" style="background:#fee2e2;color:#991b1b;border-color:#fecaca;margin-right:auto;" onclick="deleteJob()">Delete Job</button>
         <button class="btn" onclick="closeDetail()">Cancel</button>
         <button class="btn btn-primary" onclick="saveDetail()">Save Changes</button>
       </div>
@@ -608,10 +611,11 @@ function renderTechList(){
       ${t.phone ? `<div style="font-size:0.85rem;color:var(--muted);">📞 <a href="tel:${escHtml(t.phone)}" style="color:var(--accent);">${escHtml(t.phone)}</a></div>` : ''}
       ${t.areas ? `<div style="font-size:0.85rem;color:var(--muted);">📍 ${escHtml(t.areas)}</div>` : ''}
       ${t.notes ? `<div style="font-size:0.8rem;color:var(--muted2);font-style:italic;margin-top:4px;">${escHtml(t.notes)}</div>` : ''}
+      ${CURRENT_USER && CURRENT_USER.role === 'admin' ? `
       <div style="display:flex;gap:8px;margin-top:10px;">
         <button class="btn" style="flex:1;font-size:0.78rem;padding:6px;" onclick="openEditTechModal('${t.id}')">Edit</button>
         <button class="btn" style="flex:1;font-size:0.78rem;padding:6px;background:#fee2e2;color:#991b1b;border-color:#fecaca;" onclick="deleteTechnician('${t.id}')">Delete</button>
-      </div>
+      </div>` : ''}
     </div>
   `).join('');
 }
@@ -726,6 +730,125 @@ async function deleteTeamMember(id){
   renderTeamGrid();
 }
 
+/* ===== USERS (admin-only) ===== */
+let usersList = [];
+
+function openUsersPanel(){
+  fetchUsersList().then(renderUsersGrid);
+  document.getElementById('users-panel-overlay').style.display = 'flex';
+}
+function closeUsersPanel(){
+  document.getElementById('users-panel-overlay').style.display = 'none';
+}
+
+async function callAdminUsers(payload){
+  const { data, error } = await supabaseClient.functions.invoke('admin-users', { body: payload });
+  if(error){
+    let msg = error.message || 'Request failed';
+    try {
+      const ctx = error.context;
+      if(ctx && typeof ctx.json === 'function'){
+        const body = await ctx.json();
+        if(body && body.error) msg = body.error;
+      }
+    } catch(e){}
+    throw new Error(msg);
+  }
+  if(data && data.error) throw new Error(data.error);
+  return data;
+}
+
+async function fetchUsersList(){
+  try {
+    const data = await callAdminUsers({ action: 'list' });
+    usersList = data.profiles || [];
+  } catch(e){
+    alert('Failed to load users: ' + e.message);
+    usersList = [];
+  }
+}
+
+function renderUsersGrid(){
+  const grid = document.getElementById('users-grid');
+  if(!usersList.length){
+    grid.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);">No users found.</div>`;
+    return;
+  }
+  grid.innerHTML = usersList.map(u => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-weight:700;">${escHtml(u.name)} ${u.role==='admin' ? '<span style="font-size:0.7rem;background:#e0e7ff;color:#3730a3;padding:2px 6px;border-radius:8px;font-weight:700;">ADMIN</span>' : ''}</div>
+          <div style="font-size:0.82rem;color:var(--muted);">${escHtml(u.email)}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <label style="font-size:0.78rem;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" ${u.active ? 'checked' : ''} onchange="toggleUserActive('${u.id}', this.checked)"> Active
+          </label>
+          <select class="status-select" style="width:auto;padding:5px 8px;font-size:0.78rem;" onchange="setUserRole('${u.id}', this.value)" ${u.id === CURRENT_USER.id ? 'disabled title="You cannot change your own role"' : ''}>
+            <option value="employee" ${u.role==='employee'?'selected':''}>Employee</option>
+            <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+          </select>
+          <button class="btn" style="font-size:0.78rem;padding:5px 10px;" onclick="promptResetPassword('${u.id}','${escHtml(u.name)}')">Reset Password</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;font-size:0.8rem;color:var(--muted);">
+        <label style="display:flex;align-items:center;gap:5px;">
+          <input type="checkbox" ${u.permissions && u.permissions.can_delete_jobs ? 'checked' : ''} onchange="setUserPermission('${u.id}','can_delete_jobs',this.checked)"> Can delete jobs
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;">
+          <input type="checkbox" ${u.permissions && u.permissions.can_reassign_jobs ? 'checked' : ''} onchange="setUserPermission('${u.id}','can_reassign_jobs',this.checked)"> Can reassign jobs
+        </label>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleUserActive(id, active){
+  try { await callAdminUsers({ action: 'set_active', id, active }); }
+  catch(e){ alert('Failed: ' + e.message); }
+  await fetchUsersList(); renderUsersGrid();
+}
+
+async function setUserRole(id, role){
+  try { await callAdminUsers({ action: 'set_role', id, role }); }
+  catch(e){ alert('Failed: ' + e.message); }
+  await fetchUsersList(); renderUsersGrid();
+}
+
+async function setUserPermission(id, key, value){
+  const u = usersList.find(x => x.id === id);
+  const permissions = Object.assign({}, u ? u.permissions : {}, { [key]: value });
+  try { await callAdminUsers({ action: 'set_permissions', id, permissions }); }
+  catch(e){ alert('Failed: ' + e.message); }
+  await fetchUsersList(); renderUsersGrid();
+}
+
+async function promptResetPassword(id, name){
+  const pw = prompt('New password for ' + name + ' (min 8 characters):');
+  if(!pw) return;
+  try {
+    await callAdminUsers({ action: 'reset_password', id, password: pw });
+    alert('Password updated for ' + name + '.');
+  } catch(e){ alert('Failed: ' + e.message); }
+}
+
+async function createUser(){
+  const name = document.getElementById('nu-name').value.trim();
+  const email = document.getElementById('nu-email').value.trim();
+  const password = document.getElementById('nu-password').value;
+  const role = document.getElementById('nu-role').value;
+  if(!name || !email || !password){ alert('Name, email and password are required.'); return; }
+  try {
+    await callAdminUsers({ action: 'create', name, email, password, role });
+    document.getElementById('nu-name').value = '';
+    document.getElementById('nu-email').value = '';
+    document.getElementById('nu-password').value = '';
+    document.getElementById('nu-role').value = 'employee';
+    await fetchUsersList(); renderUsersGrid();
+  } catch(e){ alert('Failed to create user: ' + e.message); }
+}
+
 let teamMembersList = [];
 
 async function fetchTeamMembers(){
@@ -759,12 +882,115 @@ async function fetchTeamMembers(){
   }
 }
 
+/* ===== ROLES / PERMISSIONS ===== */
+let CURRENT_USER = null; // { id, email, name, role, permissions, active }
+
+function can(permKey){
+  if(!CURRENT_USER) return false;
+  if(CURRENT_USER.role === 'admin') return true;
+  return !!(CURRENT_USER.permissions && CURRENT_USER.permissions[permKey]);
+}
+
+async function logOut(){
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
+async function loadCurrentUserProfile(userId){
+  const { data, error } = await supabaseClient
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+  if(error || !data || !data.active) return null;
+  return data;
+}
+
+function applyRoleUI(){
+  const isAdmin = CURRENT_USER.role === 'admin';
+
+  const chip = document.getElementById('current-user-chip');
+  if(chip) chip.textContent = CURRENT_USER.name + (isAdmin ? ' (Admin)' : '');
+
+  if(!isAdmin){
+    // Employees only ever see the board - the old tracker, team management and
+    // user management are admin surfaces and must not even be reachable.
+    const mainTrackerLink = document.getElementById('main-tracker-link');
+    if(mainTrackerLink) mainTrackerLink.remove();
+    const teamBtn = document.getElementById('team-btn');
+    if(teamBtn) teamBtn.remove();
+    const usersBtn = document.getElementById('users-btn');
+    if(usersBtn) usersBtn.remove();
+    const newJobBtn = document.getElementById('new-job-btn');
+    if(newJobBtn) newJobBtn.remove();
+
+    // Employees only ever see their own jobs, so the "which team member" filter
+    // has nothing to filter between.
+    const teamFilter = document.getElementById('team-filter');
+    if(teamFilter) teamFilter.style.display = 'none';
+
+    // Core job fields, money fields: visible so they understand margin thresholds,
+    // but not editable unless the admin has granted an extra permission for it.
+    ['d-title-input','d-address-input','d-ticket-id-input','d-category-input',
+     'd-budget','d-cost','d-invoice-amount','d-invoice-number'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el){ el.readOnly = true; el.style.background = '#f1f5f9'; el.style.cursor = 'not-allowed'; }
+    });
+
+    // Comment author is the logged-in employee, not a free-text field.
+    const authorInput = document.getElementById('c-author');
+    if(authorInput){
+      authorInput.value = CURRENT_USER.name;
+      authorInput.readOnly = true;
+      authorInput.style.background = '#f1f5f9';
+    }
+  }
+
+  // Delete Job: must not exist in the DOM at all without the permission, not just be disabled.
+  if(!can('can_delete_jobs')){
+    const delBtn = document.getElementById('delete-job-btn');
+    if(delBtn) delBtn.remove();
+  }
+
+  // Assign / reassign: admin-only unless specifically granted.
+  if(!can('can_reassign_jobs')){
+    const assignSel = document.getElementById('d-assigned-input');
+    if(assignSel){
+      assignSel.disabled = true;
+      assignSel.style.background = '#f1f5f9';
+      assignSel.style.cursor = 'not-allowed';
+    }
+  }
+
+  // Adding/editing/removing technicians stays an admin task; employees can still
+  // view the list, see contact details, and pick a technician on a job.
+  if(!isAdmin){
+    const addTechBtn = document.getElementById('add-tech-btn');
+    if(addTechBtn) addTechBtn.remove();
+  }
+}
+
 async function init(){
   const { data: { session } } = await supabaseClient.auth.getSession();
   if(!session){
     document.getElementById('locked-view').style.display = 'block';
     return;
   }
+
+  const profile = await loadCurrentUserProfile(session.user.id);
+  if(!profile){
+    document.getElementById('locked-view').innerHTML = `
+      <div class="locked-notice">
+        <h2>Account not set up</h2>
+        <p style="color:var(--muted);margin:10px 0 16px;">Your login isn't linked to a Fix &amp; Go account yet, or it's been deactivated. Contact your admin.</p>
+        <a href="javascript:void(0)" onclick="logOut()">Sign out</a>
+      </div>`;
+    document.getElementById('locked-view').style.display = 'block';
+    return;
+  }
+  CURRENT_USER = profile;
+  applyRoleUI();
+
   document.getElementById('board').style.display = 'flex';
   document.getElementById('range-note').textContent = 'Loading...';
   fetchTeamMembers();
@@ -946,6 +1172,9 @@ function getVisibleJobs(){
   const teamF = document.getElementById('team-filter')?.value || '';
 
   return JOBS.filter(j => {
+    if(CURRENT_USER && CURRENT_USER.role !== 'admin'){
+      if((j.assigned_to || '').trim().toLowerCase() !== CURRENT_USER.name.trim().toLowerCase()) return false;
+    }
     if(teamF && j.assigned_to !== teamF) return false;
     if(q){
       const haystack = [j.ref, j.address, j.tenant, j.tech, j.assigned_to, j.title, j.description]
@@ -1199,6 +1428,11 @@ async function onDrop(e, colKey){
 function openDetail(id){
   const j = JOBS.find(x => x.id === id);
   if(!j) return;
+  if(CURRENT_USER && CURRENT_USER.role !== 'admin' &&
+     (j.assigned_to || '').trim().toLowerCase() !== CURRENT_USER.name.trim().toLowerCase()){
+    alert('This job is not assigned to you.');
+    return;
+  }
   currentDetailId = id;
 
   // Show only the action button relevant to the column this job is actually in right now
@@ -1280,6 +1514,7 @@ function switchTab(tab){
 
 async function deleteJob(){
   if(!currentDetailId) return;
+  if(!can('can_delete_jobs')){ alert('You do not have permission to delete jobs.'); return; }
   if(!confirm('Delete this job? It will be archived, not permanently erased, and will disappear from the board.')) return;
 
   const { error } = await supabaseClient.from('jobs').update({ archived_at: new Date().toISOString() }).eq('id', currentDetailId);
@@ -1706,11 +1941,12 @@ async function loadComments(jobId){
     if(c.file_url && !attachments.length){
       attachments = [{ file_url: c.file_url, file_name: c.file_name }];
     }
+    const canDeleteThisComment = CURRENT_USER && (CURRENT_USER.role === 'admin' || c.author_user_id === CURRENT_USER.id);
     return `
       <div class="comment-item">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
           <div class="comment-author">${escHtml(c.author)}</div>
-          <button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:0.9rem;padding:0 2px;" title="Delete comment">&times;</button>
+          ${canDeleteThisComment ? `<button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:0.9rem;padding:0 2px;" title="Delete comment">&times;</button>` : ''}
         </div>
         <div class="comment-time">${time}</div>
         <div class="comment-text">${escHtml(c.message)}</div>
@@ -1766,7 +2002,8 @@ async function addComment(){
   const fullMessage = message + attachmentNote;
 
   const { data: newComment, error } = await supabaseClient.from('board_comments').insert([{
-    job_id: currentDetailId, author, message: fullMessage
+    job_id: currentDetailId, author, message: fullMessage,
+    author_user_id: CURRENT_USER ? CURRENT_USER.id : null
   }]).select().single();
   if(error){ alert('Failed to post comment: ' + error.message); resetButton(); return; }
 
@@ -1863,7 +2100,7 @@ init();
     <div style="padding:20px 26px;">
       <div style="display:flex;gap:12px;margin-bottom:16px;">
         <input class="field-input" id="tech-search" placeholder="Search name, area, specialty..." oninput="renderTechList()" style="flex:1;">
-        <button class="btn btn-primary" onclick="openAddTechModal()">+ Add Technician</button>
+        <button class="btn btn-primary" id="add-tech-btn" onclick="openAddTechModal()">+ Add Technician</button>
       </div>
       <div id="tech-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;max-height:60vh;overflow-y:auto;"></div>
     </div>
@@ -1904,6 +2141,36 @@ init();
       <div style="display:flex;gap:12px;">
         <input class="field-input" id="new-team-name" placeholder="New team member name">
         <button class="btn btn-primary" onclick="addTeamMember()" style="white-space:nowrap;">+ Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="users-panel-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:100;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;">
+  <div class="detail-modal" style="background:var(--card);border-radius:12px;max-width:640px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <div class="detail-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+      <h2>👤 Users</h2>
+      <button onclick="closeUsersPanel()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);">&times;</button>
+    </div>
+    <div style="padding:20px 26px;">
+      <div id="users-grid" style="max-height:45vh;overflow-y:auto;margin-bottom:18px;"></div>
+      <div style="border-top:1px solid var(--border);padding-top:16px;">
+        <div style="font-weight:700;font-size:0.9rem;margin-bottom:10px;">+ New User</div>
+        <div class="field-row">
+          <div class="detail-field"><label>Name</label><input class="field-input" id="nu-name" placeholder="e.g. Sarah"></div>
+          <div class="detail-field"><label>Email</label><input class="field-input" id="nu-email" placeholder="sarah@fixngoltd.co.uk"></div>
+        </div>
+        <div class="field-row">
+          <div class="detail-field"><label>Temporary Password</label><input class="field-input" id="nu-password" placeholder="min 8 characters"></div>
+          <div class="detail-field">
+            <label>Role</label>
+            <select class="status-select" id="nu-role">
+              <option value="employee">Employee</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="createUser()">Create User</button>
       </div>
     </div>
   </div>

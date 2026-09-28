@@ -594,6 +594,18 @@ async function init(){
     document.getElementById('locked-view').style.display = 'block';
     return;
   }
+
+  const { data: profile } = await supabaseClient
+    .from('profiles')
+    .select('role, active')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  if(!profile || !profile.active || profile.role !== 'admin'){
+    window.location.href = 'board.html';
+    return;
+  }
+
   document.getElementById('history-view').style.display = 'block';
   await fetchJobs();
 }

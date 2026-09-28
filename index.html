@@ -866,6 +866,22 @@ function getJob(id){ return jobs.find(j=>j.id===id); }
 async function checkAuth(){
   const { data: { session } } = await supabaseClient.auth.getSession();
   if(session){
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('role, active')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if(!profile || !profile.active){
+      document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:sans-serif;"><h2>Account not set up</h2><p style="color:#6b7280;margin-top:10px;">Your login isn\'t linked to a Fix &amp; Go account yet, or it\'s been deactivated. Contact your admin.</p></div>';
+      return;
+    }
+    if(profile.role !== 'admin'){
+      // The old tracker is an admin-only surface - employees only ever use the board.
+      window.location.href = 'board.html';
+      return;
+    }
+
     document.getElementById('login-screen').style.display = 'none';
     fetchJobs();
     fetchTechnicians();

@@ -614,6 +614,18 @@ async function init(){
     document.body.innerHTML = '<div style="padding:60px;text-align:center;font-weight:700;">Please sign in via the main tracker first, then come back to this page.</div>';
     return;
   }
+
+  const { data: profile } = await supabaseClient
+    .from('profiles')
+    .select('role, active')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  if(!profile || !profile.active || profile.role !== 'admin'){
+    window.location.href = 'board.html';
+    return;
+  }
+
   await Promise.all([fetchTeamMembers(), fetchJobs()]);
   renderTeamGrid();
 
