@@ -1425,6 +1425,14 @@ async function onDrop(e, colKey){
     return;
   }
 
+  // Marking a job invoiced is admin-only - the server already reverts this
+  // for anyone else, but the drag shouldn't be offered as if it worked.
+  if(col.setInvoiced === true && !(CURRENT_USER && CURRENT_USER.role === 'admin')){
+    alert('Only an admin can mark a job as invoiced.');
+    draggedJobId = null;
+    return;
+  }
+
   let updates;
   if(col.isQuoteColumn){
     updates = { quote_needed: true, quoted: false };
