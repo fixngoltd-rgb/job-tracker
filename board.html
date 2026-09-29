@@ -394,7 +394,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           </div>
         </div>
 
-        <div class="detail-field">
+        <div class="detail-field" id="d-assigned-wrap">
           <label>Assigned To (Team)</label>
           <select class="status-select" id="d-assigned-input" style="width:100%;">
             <option value="">Unassigned</option>
@@ -952,13 +952,18 @@ function applyRoleUI(){
     if(delBtn) delBtn.remove();
   }
 
-  // Assign / reassign: admin-only unless specifically granted.
+  // Assign / reassign: admin-only unless specifically granted. The control
+  // is removed from the DOM entirely, not just disabled - a disabled/readonly
+  // attribute can be stripped in devtools, but there's no element left to
+  // re-enable here, and the server independently reverts any change to
+  // assigned_to anyway (see the jobs_before_write trigger).
   if(!can('can_reassign_jobs')){
-    const assignSel = document.getElementById('d-assigned-input');
-    if(assignSel){
-      assignSel.disabled = true;
-      assignSel.style.background = '#f1f5f9';
-      assignSel.style.cursor = 'not-allowed';
+    const assignWrap = document.getElementById('d-assigned-wrap');
+    if(assignWrap){
+      assignWrap.innerHTML = `
+        <label>Assigned To (Team)</label>
+        <div class="val" id="d-assigned-readonly" style="padding:9px 0;font-weight:600;"></div>
+      `;
     }
   }
 
@@ -1460,7 +1465,13 @@ function openDetail(id){
   document.getElementById('d-scheduled').value = j.scheduled_at ? j.scheduled_at.split('T')[0] : '';
   document.getElementById('d-tech-input').value = j.tech || '';
   document.getElementById('d-tech-phone-input').value = j.tech_phone || '';
-  document.getElementById('d-assigned-input').value = j.assigned_to || '';
+  const assignSelForDetail = document.getElementById('d-assigned-input');
+  if(assignSelForDetail){
+    assignSelForDetail.value = j.assigned_to || '';
+  } else {
+    const assignReadonly = document.getElementById('d-assigned-readonly');
+    if(assignReadonly) assignReadonly.textContent = j.assigned_to || 'Unassigned';
+  }
   document.getElementById('d-budget').value = j.budget != null ? j.budget : 200;
   document.getElementById('d-cost').value = j.cost_to_us != null ? j.cost_to_us : '';
   document.getElementById('d-invoice-amount').value = j.invoice_amount != null ? j.invoice_amount : '';
@@ -1641,7 +1652,6 @@ async function saveDetail(){
     scheduled_at: scheduledVal || null,
     tech: document.getElementById('d-tech-input').value.trim() || null,
     tech_phone: document.getElementById('d-tech-phone-input').value.trim() || null,
-    assigned_to: document.getElementById('d-assigned-input').value.trim() || null,
     category: document.getElementById('d-category-input').value.trim() || null,
     budget: budgetVal !== '' ? parseFloat(budgetVal) : 200,
     cost_to_us: costVal !== '' ? parseFloat(costVal) : null,
@@ -1649,6 +1659,11 @@ async function saveDetail(){
     invoiced: document.getElementById('d-invoiced').checked,
     invoice_number: document.getElementById('d-invoice-number').value.trim() || null
   };
+
+  const assignSelForSave = document.getElementById('d-assigned-input');
+  if(assignSelForSave){
+    updates.assigned_to = assignSelForSave.value.trim() || null;
+  }
 
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', currentDetailId);
   if(error){ alert('Failed to save: ' + error.message); return; }
