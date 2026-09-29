@@ -411,7 +411,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
             <label>Cost to Us (£)</label>
             <input class="field-input" type="number" step="0.01" id="d-cost" placeholder="What it's costing us">
           </div>
-          <div class="detail-field">
+          <div class="detail-field" id="d-invoice-amount-wrap">
             <label>Invoice Amount (£)</label>
             <input class="field-input" type="number" step="0.01" id="d-invoice-amount" placeholder="What we're invoicing">
           </div>
@@ -419,7 +419,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
         <input type="checkbox" id="d-invoiced" style="display:none;">
 
-        <div class="field-row">
+        <div class="field-row" id="d-invoice-number-row">
           <div class="detail-field">
             <label>Invoice Number</label>
             <input class="field-input" id="d-invoice-number" placeholder="e.g. INV-1024">
@@ -429,7 +429,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
       <div class="tab-panel" id="panel-comments">
         <div class="comment-form">
-          <div class="ac-wrap">
+          <div class="ac-wrap" id="c-author-wrap">
             <input class="field-input" id="c-author" placeholder="Your name" autocomplete="off">
             <div class="ac-suggestions" id="c-author-suggestions"></div>
           </div>
@@ -492,7 +492,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <label>Cost to Us</label>
           <div class="val" id="sb-cost"></div>
         </div>
-        <div class="sb-field">
+        <div class="sb-field" id="sb-invoiced-row">
           <label>Invoiced</label>
           <div class="val" id="sb-invoiced"></div>
         </div>
@@ -929,20 +929,32 @@ function applyRoleUI(){
     const teamFilter = document.getElementById('team-filter');
     if(teamFilter) teamFilter.style.display = 'none';
 
-    // Core job fields, money fields: visible so they understand margin thresholds,
-    // but not editable unless the admin has granted an extra permission for it.
-    ['d-title-input','d-address-input','d-ticket-id-input','d-category-input',
-     'd-budget','d-cost','d-invoice-amount','d-invoice-number'].forEach(id => {
+    // Core job identity fields and cost-to-us stay visible but locked.
+    // Budget and category are the two things whoever's doing the job can
+    // actually adjust, so those stay editable for them.
+    ['d-title-input','d-address-input','d-ticket-id-input','d-cost'].forEach(id => {
       const el = document.getElementById(id);
       if(el){ el.readOnly = true; el.style.background = '#f1f5f9'; el.style.cursor = 'not-allowed'; }
     });
 
-    // Comment author is the logged-in employee, not a free-text field.
-    const authorInput = document.getElementById('c-author');
-    if(authorInput){
-      authorInput.value = CURRENT_USER.name;
-      authorInput.readOnly = true;
-      authorInput.style.background = '#f1f5f9';
+    // Invoicing (amount, number, invoiced flag) is admin-only information -
+    // employees don't need to see what we're billing the client, so these
+    // are removed from the DOM entirely rather than just locked.
+    const invAmountWrap = document.getElementById('d-invoice-amount-wrap');
+    if(invAmountWrap) invAmountWrap.remove();
+    const invNumberRow = document.getElementById('d-invoice-number-row');
+    if(invNumberRow) invNumberRow.remove();
+    const invoicedBox = document.getElementById('ns-mark-invoiced-box');
+    if(invoicedBox) invoicedBox.remove();
+    const sbInvoicedRow = document.getElementById('sb-invoiced-row');
+    if(sbInvoicedRow) sbInvoicedRow.remove();
+
+    // Comment author is the logged-in employee, not a free-text field -
+    // and it should read as a plain locked label, not a text input with an
+    // autocomplete dropdown that only ever offers one name.
+    const authorWrap = document.getElementById('c-author-wrap');
+    if(authorWrap){
+      authorWrap.outerHTML = `<div style="padding:9px 0;font-weight:600;">${escHtml(CURRENT_USER.name)}</div>`;
     }
   }
 
@@ -1446,7 +1458,8 @@ function openDetail(id){
   const inQuoteNeeded = j.quote_needed && !j.quoted;
   const isQuotedAlready = j.quote_needed && j.quoted;
   document.getElementById('ns-mark-completed-box').style.display = inAwaitingCompletion ? 'flex' : 'none';
-  document.getElementById('ns-mark-invoiced-box').style.display = inAwaitingInvoice ? 'flex' : 'none';
+  const invoicedBoxEl = document.getElementById('ns-mark-invoiced-box');
+  if(invoicedBoxEl) invoicedBoxEl.style.display = inAwaitingInvoice ? 'flex' : 'none';
   document.getElementById('ns-mark-quoted-box').style.display = inQuoteNeeded ? 'flex' : 'none';
   document.getElementById('ns-unmark-quoted-box').style.display = isQuotedAlready ? 'flex' : 'none';
   document.getElementById('ns-quote-approved-box').style.display = j.quote_needed ? 'flex' : 'none';
@@ -1474,9 +1487,11 @@ function openDetail(id){
   }
   document.getElementById('d-budget').value = j.budget != null ? j.budget : 200;
   document.getElementById('d-cost').value = j.cost_to_us != null ? j.cost_to_us : '';
-  document.getElementById('d-invoice-amount').value = j.invoice_amount != null ? j.invoice_amount : '';
+  const invAmountEl = document.getElementById('d-invoice-amount');
+  if(invAmountEl) invAmountEl.value = j.invoice_amount != null ? j.invoice_amount : '';
   document.getElementById('d-invoiced').checked = !!j.invoiced;
-  document.getElementById('d-invoice-number').value = j.invoice_number || '';
+  const invNumberEl = document.getElementById('d-invoice-number');
+  if(invNumberEl) invNumberEl.value = j.invoice_number || '';
 
   // Sidebar
   document.getElementById('sb-source').textContent = 'Live Tracker';
@@ -1493,7 +1508,8 @@ function openDetail(id){
   document.getElementById('sb-appointment').textContent = j.scheduled_at ? formatShortDate(j.scheduled_at) : 'Not set';
   document.getElementById('sb-budget').textContent = j.budget != null ? '£' + Number(j.budget).toFixed(2) : '—';
   document.getElementById('sb-cost').textContent = j.cost_to_us != null ? '£' + Number(j.cost_to_us).toFixed(2) : 'Not set';
-  document.getElementById('sb-invoiced').textContent = j.invoiced ? 'Yes' : 'No';
+  const sbInvoicedEl = document.getElementById('sb-invoiced');
+  if(sbInvoicedEl) sbInvoicedEl.textContent = j.invoiced ? 'Yes' : 'No';
 
   onStatusChange();
   switchTab('details');
@@ -1639,7 +1655,10 @@ async function saveDetail(){
 
   const budgetVal = document.getElementById('d-budget').value;
   const costVal = document.getElementById('d-cost').value;
-  const invoiceAmtVal = document.getElementById('d-invoice-amount').value;
+  const invoiceAmountEl = document.getElementById('d-invoice-amount');
+  const invoiceAmtVal = invoiceAmountEl ? invoiceAmountEl.value : '';
+  const invoiceNumberEl = document.getElementById('d-invoice-number');
+  const invoicedEl = document.getElementById('d-invoiced');
 
   const updates = {
     title: document.getElementById('d-title-input').value.trim() || 'Untitled Job',
@@ -1656,8 +1675,8 @@ async function saveDetail(){
     budget: budgetVal !== '' ? parseFloat(budgetVal) : 200,
     cost_to_us: costVal !== '' ? parseFloat(costVal) : null,
     invoice_amount: invoiceAmtVal !== '' ? parseFloat(invoiceAmtVal) : null,
-    invoiced: document.getElementById('d-invoiced').checked,
-    invoice_number: document.getElementById('d-invoice-number').value.trim() || null
+    invoiced: invoicedEl ? invoicedEl.checked : undefined,
+    invoice_number: invoiceNumberEl ? (invoiceNumberEl.value.trim() || null) : undefined
   };
 
   const assignSelForSave = document.getElementById('d-assigned-input');
@@ -1979,7 +1998,8 @@ async function deleteComment(commentId){
 }
 
 async function addComment(){
-  const author = document.getElementById('c-author').value.trim();
+  const authorEl = document.getElementById('c-author');
+  const author = authorEl ? authorEl.value.trim() : (CURRENT_USER ? CURRENT_USER.name : '');
   const message = document.getElementById('c-message').value.trim();
 
   if(!author || !message){ alert('Please enter your name and a message.'); return; }
