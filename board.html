@@ -1071,6 +1071,22 @@ async function fetchAllJobs(){
   render();
 }
 
+function todayDateStr(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+// Due today, or overdue (scheduled for a day that has already passed and
+// never got actioned) - both cases need to be front-and-centre on the board.
+function isDueTodayOrOverdue(scheduledAt){
+  if(!scheduledAt) return false;
+  const datePart = scheduledAt.split('T')[0];
+  return datePart <= todayDateStr();
+}
+
 function daysSince(dateStr){
   if(!dateStr) return 0;
   const then = new Date(dateStr);
@@ -1144,6 +1160,17 @@ setupAutocomplete('c-author', 'c-author-suggestions', () => teamMembersList.map(
 
 const COLUMNS = [
   {
+    key: 'appointments_today',
+    title: 'Appointments Today',
+    // A job lands here the moment its appointment date is today, and stays
+    // here (even past the day itself) if it's overdue and still not done -
+    // it only leaves once it's completed or cancelled. Never shows a job
+    // that's booked for a future date; that one stays in the next column.
+    filter: j => !j.quote_needed && j.scheduled_at && isDueTodayOrOverdue(j.scheduled_at) && j.status !== 'completed' && j.status !== 'cancelled',
+    targetStatus: 'booked',
+    requiresDate: true
+  },
+  {
     key: 'awaiting_start',
     title: 'Jobs Awaiting a Start Date',
     filter: j => !j.quote_needed && ['active','contacted'].includes(j.status) && !j.scheduled_at,
@@ -1152,7 +1179,9 @@ const COLUMNS = [
   {
     key: 'awaiting_completion',
     title: 'Jobs Awaiting Completion',
-    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')),
+    // Same "booked / has a date" jobs as before, minus anything that's due
+    // today or overdue - those move into Appointments Today instead, never both.
+    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')) && !isDueTodayOrOverdue(j.scheduled_at),
     targetStatus: 'booked',
     requiresDate: true
   },
@@ -1224,8 +1253,14 @@ function render(){
         badgeHtml = `<div class="day-badge green" style="font-size:0.95rem;">✓</div>`;
       } else if(col.key === 'quote_needed' && j.quoted){
         badgeHtml = `<div class="day-badge green" style="font-size:0.95rem;">✓</div>`;
-      } else if(col.key === 'awaiting_completion' && j.scheduled_at){
-        badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>`;
+      } else if((col.key === 'awaiting_completion' || col.key === 'appointments_today') && j.scheduled_at){
+        // In Appointments Today, make an overdue job (date before today) stand
+        // out in red rather than the neutral date pill, since it needs attention.
+        if(col.key === 'appointments_today' && j.scheduled_at.split('T')[0] < todayDateStr()){
+          badgeHtml = `<div class="day-badge red">${formatShortDate(j.scheduled_at)}</div>`;
+        } else {
+          badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>`;
+        }
       } else {
         const days = daysSince(j.created_at || j.created);
         badgeHtml = `<div class="day-badge ${badgeColor(days)}">${days}</div>`;
@@ -1461,7 +1496,8 @@ function openDetail(id){
   currentDetailId = id;
 
   // Show only the action button relevant to the column this job is actually in right now
-  const inAwaitingCompletion = COLUMNS.find(c => c.key === 'awaiting_completion').filter(j);
+  const inAwaitingCompletion = COLUMNS.find(c => c.key === 'awaiting_completion').filter(j) ||
+    COLUMNS.find(c => c.key === 'appointments_today').filter(j);
   const inAwaitingInvoice = COLUMNS.find(c => c.key === 'awaiting_invoice').filter(j);
   const inQuoteNeeded = j.quote_needed && !j.quoted;
   const isQuotedAlready = j.quote_needed && j.quoted;
