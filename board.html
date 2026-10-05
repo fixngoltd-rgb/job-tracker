@@ -249,6 +249,18 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .sb-field { margin-bottom:18px; }
 .sb-field label { display:block; font-size:0.7rem; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
 .sb-field .val { font-size:0.87rem; font-weight:600; color:var(--text); line-height:1.4; }
+.link-item { display:flex; align-items:center; gap:6px; padding:7px 9px; margin-bottom:6px; border:1px solid var(--border); border-radius:8px; background:var(--card); cursor:pointer; }
+.link-item:hover { border-color:var(--accent); background:#f1f5f9; }
+.link-item .link-main { flex:1; min-width:0; }
+.link-item .link-ref { font-size:0.72rem; font-weight:700; color:var(--muted2); }
+.link-item .link-title { font-size:0.82rem; font-weight:600; color:var(--text); line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.link-item .link-rel { font-size:0.66rem; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; }
+.link-item .link-x { background:none; border:none; color:var(--muted2); font-size:1rem; cursor:pointer; padding:0 4px; }
+.link-item .link-x:hover { color:var(--red, #dc2626); }
+.link-none { font-size:0.8rem; color:var(--muted2); font-weight:500; margin-bottom:8px; }
+.link-add { display:flex; gap:6px; margin-top:6px; }
+.link-add input { flex:1; min-width:0; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:0.8rem; font-family:inherit; }
+.link-add button { padding:6px 10px; border:none; border-radius:6px; background:var(--accent); color:white; font-weight:700; font-size:0.78rem; cursor:pointer; }
 .sb-status-pill {
   display:inline-block; padding:4px 10px; border-radius:12px; font-size:0.75rem; font-weight:700;
 }
@@ -495,6 +507,14 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
         <div class="sb-field" id="sb-invoiced-row">
           <label>Invoiced</label>
           <div class="val" id="sb-invoiced"></div>
+        </div>
+        <div class="sb-field" id="sb-linked-row">
+          <label>Linked Jobs</label>
+          <div id="sb-linked-list"></div>
+          <div class="link-add">
+            <input type="text" id="link-job-input" placeholder="Link to job (e.g. JOB-206)" onkeydown="if(event.key==='Enter') linkJobFromInput()">
+            <button onclick="linkJobFromInput()">Link</button>
+          </div>
         </div>
       </div>
       </div>
@@ -1048,6 +1068,7 @@ async function fetchAllJobs(){
     invoice_number: j.invoice_number,
     quote_needed: !!j.quote_needed,
     external_job_id: j.external_job_id,
+    parent_job_id: j.parent_job_id,
     quoted: !!j.quoted,
     category: j.category,
     created: j.created,
@@ -1559,10 +1580,98 @@ function openDetail(id){
   switchTab('details');
   loadComments(id);
   loadJobFiles(id);
+  renderLinkedJobs(j);
 
   document.getElementById('board').style.display = 'none';
   document.getElementById('detail-view').style.display = 'block';
   window.scrollTo(0,0);
+}
+
+/* ===== LINKED JOBS ===== */
+// A job is linked to another when one is the parent of the other (parent_job_id,
+// e.g. a follow-up/further-works job), when they share a parent (siblings), or when
+// they carry the same external ticket ID. Every linked job is a click away.
+function canSeeJob(x){
+  if(!CURRENT_USER || CURRENT_USER.role === 'admin') return true;
+  return (x.assigned_to || '').trim().toLowerCase() === CURRENT_USER.name.trim().toLowerCase();
+}
+
+function renderLinkedJobs(j){
+  const listEl = document.getElementById('sb-linked-list');
+  if(!listEl) return;
+  const isAdmin = CURRENT_USER && CURRENT_USER.role === 'admin';
+  const addRow = document.querySelector('#sb-linked-row .link-add');
+  if(addRow) addRow.style.display = isAdmin ? 'flex' : 'none';
+
+  const seen = new Set([j.id]);
+  const links = [];
+  const add = (job, rel, unlinkFrom) => {
+    if(!job || seen.has(job.id) || !canSeeJob(job)) return;
+    seen.add(job.id);
+    links.push({ job, rel, unlinkFrom });
+  };
+
+  const parent = j.parent_job_id ? JOBS.find(x => x.id === j.parent_job_id) : null;
+  add(parent, 'Parent', j.id);
+  JOBS.filter(x => x.parent_job_id === j.id).forEach(c => add(c, 'Follow-up', c.id));
+  if(j.parent_job_id) JOBS.filter(x => x.parent_job_id === j.parent_job_id).forEach(s => add(s, 'Related', null));
+  if(j.external_job_id){
+    JOBS.filter(x => x.external_job_id && x.external_job_id === j.external_job_id).forEach(s => add(s, 'Same ticket', null));
+  }
+
+  if(!links.length){
+    listEl.innerHTML = '<div class="link-none">No linked jobs</div>';
+    return;
+  }
+  listEl.innerHTML = links.map(l => `
+    <div class="link-item" onclick="openDetail('${l.job.id}')">
+      <div class="link-main">
+        <div class="link-rel">${escHtml(l.rel)}</div>
+        <div class="link-ref">${escHtml(l.job.ref)} &middot; ${escHtml(l.job.status)}</div>
+        <div class="link-title">${escHtml(l.job.title || 'Untitled Job')}</div>
+      </div>
+      ${(isAdmin && l.unlinkFrom) ? `<button class="link-x" title="Unlink" onclick="event.stopPropagation();unlinkJob('${l.unlinkFrom}')">&times;</button>` : ''}
+    </div>`).join('');
+}
+
+async function linkJobFromInput(){
+  const input = document.getElementById('link-job-input');
+  const raw = (input.value || '').trim().toUpperCase();
+  if(!raw) return;
+  const ref = /^\d+$/.test(raw) ? 'JOB-' + raw : raw;
+  const j = JOBS.find(x => x.id === currentDetailId);
+  const target = JOBS.find(x => (x.ref || '').toUpperCase() === ref);
+  if(!j) return;
+  if(!target){ alert('No job found with reference ' + ref); return; }
+  if(target.id === j.id){ alert('A job cannot be linked to itself.'); return; }
+
+  // Refuse loops: the target must not already descend from this job.
+  let cursor = target, guard = 0;
+  while(cursor && cursor.parent_job_id && guard++ < 50){
+    if(cursor.parent_job_id === j.id){ alert(target.ref + ' is already a follow-up of this job.'); return; }
+    cursor = JOBS.find(x => x.id === cursor.parent_job_id);
+  }
+  if(j.parent_job_id && j.parent_job_id !== target.id){
+    const cur = JOBS.find(x => x.id === j.parent_job_id);
+    if(!confirm('This job is already linked to ' + (cur ? cur.ref : 'another job') + '. Replace that link with ' + target.ref + '?')) return;
+  }
+
+  const { error } = await supabaseClient.from('jobs').update({ parent_job_id: target.id }).eq('id', j.id);
+  if(error){ alert('Failed to link: ' + error.message); return; }
+  j.parent_job_id = target.id;
+  input.value = '';
+  renderLinkedJobs(j);
+}
+
+async function unlinkJob(childId){
+  const child = JOBS.find(x => x.id === childId);
+  if(!child) return;
+  if(!confirm('Remove the link on ' + child.ref + '?')) return;
+  const { error } = await supabaseClient.from('jobs').update({ parent_job_id: null }).eq('id', childId);
+  if(error){ alert('Failed to unlink: ' + error.message); return; }
+  child.parent_job_id = null;
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j) renderLinkedJobs(j);
 }
 
 function closeDetail(){
