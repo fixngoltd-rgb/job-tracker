@@ -50,7 +50,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   color:#15803d; background:#f0fdf4; border-top:1px solid #bbf7d0; border-bottom:1px solid #bbf7d0;
   padding:5px 12px; margin:6px 0;
 }
-.today-wrap { flex:0 0 100%; box-sizing:border-box; display:flex; flex-direction:column; }
+.today-wrap { flex:0 0 100%; box-sizing:border-box; display:flex; flex-direction:column; --ch:36px; }
 .today-strip {
   box-sizing:border-box;
   background:#fff7ed; border:1px solid #fed7aa; border-left:4px solid #f97316;
@@ -58,19 +58,27 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   display:flex; align-items:flex-start; gap:12px;
 }
 .today-strip.empty { background:var(--card); border-color:var(--border); border-left-color:#cbd5e1; padding:7px 12px; align-items:center; border-radius:8px; }
-.today-head { display:flex; align-items:center; gap:7px; font-weight:800; font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:#9a3412; white-space:nowrap; flex:0 0 auto; height:34px; }
-.today-strip.empty .today-head { color:var(--muted); font-weight:600; height:auto; }
+.today-head { display:flex; align-items:center; gap:7px; font-weight:800; font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:#9a3412; white-space:nowrap; flex:0 0 auto; min-height:var(--ch); }
+.today-strip.empty .today-head { color:var(--muted); font-weight:600; min-height:0; }
 .today-head .column-count { background:#f97316; color:white; }
-.today-chips { display:flex; flex-wrap:wrap; gap:8px; flex:1; align-content:flex-start; overflow-y:auto; overflow-x:hidden; }
+.today-chips { display:flex; flex-wrap:wrap; gap:8px; flex:1; align-content:flex-start; }
 .today-chip {
-  flex:0 0 auto; height:34px; box-sizing:border-box; background:white; border:1px solid #fdba74; border-radius:8px; padding:0 12px;
-  cursor:grab; display:flex; align-items:center; gap:8px; font-size:0.88rem; white-space:nowrap; max-width:420px;
+  flex:0 0 auto; min-height:var(--ch); box-sizing:border-box; background:white; border:1px solid #fdba74;
+  border-radius:calc(var(--ch) * 0.25); padding:calc(var(--ch) * 0.1) calc(var(--ch) * 0.35);
+  cursor:grab; display:flex; align-items:center; gap:calc(var(--ch) * 0.22);
+  font-size:calc(var(--ch) * 0.4); line-height:1.25; max-width:calc(var(--ch) * 14);
 }
 .today-chip:hover { border-color:#f97316; box-shadow:0 1px 6px rgba(249,115,22,0.25); }
 .today-chip.dragging { opacity:.45; }
-.today-chip .tc-ref { font-weight:700; color:#9a3412; }
-.today-chip .tc-title { font-weight:600; color:#1f2937; overflow:hidden; text-overflow:ellipsis; }
-.today-chip .tc-addr { color:#6b7280; overflow:hidden; text-overflow:ellipsis; max-width:170px; }
+.today-chip .tc-ref { font-weight:700; color:#9a3412; white-space:nowrap; }
+.today-chip .tc-title { font-weight:600; color:#1f2937; }
+.today-chip .tc-addr { color:#6b7280; }
+.today-wrap.big .today-chip { flex-direction:column; align-items:flex-start; gap:2px; }
+.today-chip .tc-main { display:flex; gap:calc(var(--ch) * 0.22); align-items:baseline; min-width:0; }
+.today-wrap:not(.big) .today-chip { white-space:nowrap; }
+.today-wrap:not(.big) .tc-title, .today-wrap:not(.big) .tc-addr { overflow:hidden; text-overflow:ellipsis; }
+.today-wrap:not(.big) .tc-addr { max-width:calc(var(--ch) * 5); }
+.today-wrap:not(.big) .tc-title { max-width:calc(var(--ch) * 7); }
 .today-resize {
   height:14px; cursor:row-resize; touch-action:none; box-sizing:border-box;
   background:#fed7aa; border:1px solid #fed7aa; border-top:0; border-radius:0 0 8px 8px;
@@ -1310,27 +1318,34 @@ function onSearchOrFilterChange(){
 
 
 
-let TODAY_ROWS = 0; // 0 = automatic (fit the pills, up to 3 rows) until you drag the handle
-try { TODAY_ROWS = Math.max(0, Math.min(12, parseInt(localStorage.getItem('boardTodayRows') || '0', 10) || 0)); } catch(e){}
-const TODAY_ROW_STEP = 42; // chip height 34px + 8px gap
+const TODAY_CH_MIN = 36, TODAY_CH_MAX = 150;
+let TODAY_CH = TODAY_CH_MIN;
+try { TODAY_CH = Math.max(TODAY_CH_MIN, Math.min(TODAY_CH_MAX, parseInt(localStorage.getItem('boardTodayChipH') || String(TODAY_CH_MIN), 10) || TODAY_CH_MIN)); } catch(e){}
 
+function applyTodaySize(wrap){
+  if(!wrap) return;
+  wrap.style.setProperty('--ch', TODAY_CH + 'px');
+  wrap.classList.toggle('big', TODAY_CH >= 70);
+}
+
+// Dragging the bar scales the whole strip: pills get taller and their text bigger (and show in full when large)
 function startTodayResize(e){
   e.preventDefault();
-  const chips = document.getElementById('today-chips');
-  if(!chips) return;
+  const wrap = document.getElementById('today-wrap');
+  if(!wrap) return;
   const handle = e.currentTarget;
   handle.setPointerCapture(e.pointerId);
   const startY = e.clientY;
-  const startRows = TODAY_ROWS || Math.max(1, Math.round((chips.getBoundingClientRect().height + 8) / TODAY_ROW_STEP));
+  const startCh = TODAY_CH;
   const move = ev => {
-    TODAY_ROWS = Math.max(1, Math.min(12, startRows + Math.round((ev.clientY - startY) / TODAY_ROW_STEP)));
-    chips.style.maxHeight = ''; chips.style.height = (TODAY_ROWS * TODAY_ROW_STEP - 8) + 'px';
+    TODAY_CH = Math.max(TODAY_CH_MIN, Math.min(TODAY_CH_MAX, Math.round(startCh + (ev.clientY - startY) * 0.8)));
+    applyTodaySize(wrap);
   };
   const up = () => {
     handle.removeEventListener('pointermove', move);
     handle.removeEventListener('pointerup', up);
     handle.removeEventListener('pointercancel', up);
-    try { localStorage.setItem('boardTodayRows', String(TODAY_ROWS)); } catch(err){}
+    try { localStorage.setItem('boardTodayChipH', String(TODAY_CH)); } catch(err){}
   };
   handle.addEventListener('pointermove', move);
   handle.addEventListener('pointerup', up);
@@ -1345,10 +1360,9 @@ function renderTodayStrip(visibleJobs){
   }
   const chips = todays.map(j => `
       <div class="today-chip" draggable="true" data-job-id="${j.id}" ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)" onclick="openDetail('${j.id}')" title="Drag to Awaiting Invoice when done">
-        <span class="tc-ref">${escHtml(j.ref)}</span><span class="tc-title">${escHtml(j.title || 'Untitled')}</span><span class="tc-addr">${escHtml(j.address || '')}</span>
+        <span class="tc-main"><span class="tc-ref">${escHtml(j.ref)}</span><span class="tc-title">${escHtml(j.title || 'Untitled')}</span></span><span class="tc-addr">${escHtml(j.address || '')}</span>
       </div>`).join('');
-  const chipsStyle = TODAY_ROWS ? `height:${TODAY_ROWS * TODAY_ROW_STEP - 8}px` : `max-height:${3 * TODAY_ROW_STEP - 8}px`;
-  return `<div class="today-wrap"><div class="today-strip"><div class="today-head"><span>Today</span><span class="column-count">${todays.length}</span></div><div class="today-chips" id="today-chips" style="${chipsStyle}">${chips}</div></div><div class="today-resize" onpointerdown="startTodayResize(event)" title="Drag down for more rows, up for fewer"></div></div>`;
+  return `<div class="today-wrap" id="today-wrap" style="--ch:${TODAY_CH}px" data-ch="${TODAY_CH}"><div class="today-strip"><div class="today-head"><span>Today</span><span class="column-count">${todays.length}</span></div><div class="today-chips" id="today-chips">${chips}</div></div><div class="today-resize" onpointerdown="startTodayResize(event)" title="Drag down to make this bigger, up to make it smaller"></div></div>`;
 }
 
 async function rebookJob(id){
@@ -1459,6 +1473,7 @@ function render(){
       </div>
     `;
   }).join('');
+  applyTodaySize(document.getElementById('today-wrap'));
 }
 
 /* ===== RESIZABLE COLUMNS ===== */
