@@ -51,25 +51,32 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   padding:5px 12px; margin:6px 0;
 }
 .today-strip {
-  flex:0 0 100%; box-sizing:border-box;
+  flex:0 0 100%; box-sizing:border-box; position:relative;
   background:#fff7ed; border:1px solid #fed7aa; border-left:4px solid #f97316;
-  border-radius:8px; padding:5px 10px;
-  display:flex; align-items:center; gap:10px; min-height:34px;
+  border-radius:8px; padding:8px 12px 12px;
+  display:flex; align-items:flex-start; gap:12px;
+  height:64px; min-height:44px; overflow:hidden;
 }
-.today-strip.empty { background:var(--card); border-color:var(--border); border-left-color:#cbd5e1; }
-.today-head { display:flex; align-items:center; gap:7px; font-weight:800; font-size:0.72rem; text-transform:uppercase; letter-spacing:.04em; color:#9a3412; white-space:nowrap; flex:0 0 auto; }
-.today-strip.empty .today-head { color:var(--muted); font-weight:600; }
+.today-strip.empty { background:var(--card); border-color:var(--border); border-left-color:#cbd5e1; height:auto; min-height:0; padding:7px 12px; align-items:center; }
+.today-head { display:flex; align-items:center; gap:7px; font-weight:800; font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:#9a3412; white-space:nowrap; flex:0 0 auto; padding-top:5px; }
+.today-strip.empty .today-head { color:var(--muted); font-weight:600; padding-top:0; }
 .today-head .column-count { background:#f97316; color:white; }
-.today-chips { display:flex; gap:6px; overflow-x:auto; flex:1; padding:1px 0; }
+.today-chips { display:flex; flex-wrap:wrap; gap:8px; flex:1; align-content:flex-start; height:100%; overflow-y:auto; }
 .today-chip {
-  flex:0 0 auto; background:white; border:1px solid #fdba74; border-radius:6px; padding:3px 9px;
-  cursor:grab; display:flex; align-items:center; gap:6px; font-size:0.78rem; white-space:nowrap; max-width:380px;
+  flex:0 0 auto; background:white; border:1px solid #fdba74; border-radius:8px; padding:6px 12px;
+  cursor:grab; display:flex; align-items:center; gap:8px; font-size:0.88rem; white-space:nowrap; max-width:420px;
 }
 .today-chip:hover { border-color:#f97316; box-shadow:0 1px 6px rgba(249,115,22,0.25); }
 .today-chip.dragging { opacity:.45; }
 .today-chip .tc-ref { font-weight:700; color:#9a3412; }
 .today-chip .tc-title { font-weight:600; color:#1f2937; overflow:hidden; text-overflow:ellipsis; }
-.today-chip .tc-addr { color:#6b7280; overflow:hidden; text-overflow:ellipsis; max-width:150px; }
+.today-chip .tc-addr { color:#6b7280; overflow:hidden; text-overflow:ellipsis; max-width:170px; }
+.today-resize {
+  position:absolute; left:0; right:0; bottom:0; height:10px; cursor:row-resize; touch-action:none;
+  display:flex; align-items:center; justify-content:center;
+}
+.today-resize::after { content:''; width:44px; height:3px; border-radius:2px; background:#fdba74; }
+.today-resize:hover::after { background:#f97316; }
 .missed-divider {
   font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
   color:#b91c1c; background:#fef2f2; border-top:1px solid #fecaca; border-bottom:1px solid #fecaca;
@@ -1302,6 +1309,32 @@ function onSearchOrFilterChange(){
 
 
 
+let TODAY_STRIP_H = 0;
+try { TODAY_STRIP_H = parseInt(localStorage.getItem('boardTodayStripHeight') || '0', 10) || 0; } catch(e){}
+
+function startTodayResize(e){
+  e.preventDefault();
+  const strip = document.getElementById('today-strip');
+  if(!strip) return;
+  const handle = e.currentTarget;
+  handle.setPointerCapture(e.pointerId);
+  const startY = e.clientY;
+  const startH = strip.getBoundingClientRect().height;
+  const move = ev => {
+    TODAY_STRIP_H = Math.max(44, Math.min(600, Math.round(startH + ev.clientY - startY)));
+    strip.style.height = TODAY_STRIP_H + 'px';
+  };
+  const up = () => {
+    handle.removeEventListener('pointermove', move);
+    handle.removeEventListener('pointerup', up);
+    handle.removeEventListener('pointercancel', up);
+    try { localStorage.setItem('boardTodayStripHeight', String(TODAY_STRIP_H)); } catch(err){}
+  };
+  handle.addEventListener('pointermove', move);
+  handle.addEventListener('pointerup', up);
+  handle.addEventListener('pointercancel', up);
+}
+
 function renderTodayStrip(visibleJobs){
   const col = COLUMNS.find(c => c.key === 'appointments_today');
   const todays = visibleJobs.filter(col.filter).sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
@@ -1312,7 +1345,8 @@ function renderTodayStrip(visibleJobs){
       <div class="today-chip" draggable="true" data-job-id="${j.id}" ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)" onclick="openDetail('${j.id}')" title="Drag to Awaiting Invoice when done">
         <span class="tc-ref">${escHtml(j.ref)}</span><span class="tc-title">${escHtml(j.title || 'Untitled')}</span><span class="tc-addr">${escHtml(j.address || '')}</span>
       </div>`).join('');
-  return `<div class="today-strip"><div class="today-head"><span>Today</span><span class="column-count">${todays.length}</span></div><div class="today-chips">${chips}</div></div>`;
+  const hStyle = TODAY_STRIP_H ? ` style="height:${TODAY_STRIP_H}px"` : '';
+  return `<div class="today-strip" id="today-strip"${hStyle}><div class="today-head"><span>Today</span><span class="column-count">${todays.length}</span></div><div class="today-chips">${chips}</div><div class="today-resize" onpointerdown="startTodayResize(event)" title="Drag to make this bigger or smaller"></div></div>`;
 }
 
 async function rebookJob(id){
