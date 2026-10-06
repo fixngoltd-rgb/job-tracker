@@ -50,32 +50,40 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   color:#15803d; background:#f0fdf4; border-top:1px solid #bbf7d0; border-bottom:1px solid #bbf7d0;
   padding:5px 12px; margin:6px 0;
 }
-.today-hint { font-weight:500; text-transform:none; letter-spacing:0; font-size:0.75rem; color:#9a3412; opacity:.8; margin-left:auto; }
-.today-strip.missed { background:#fef2f2; border-color:#fecaca; border-left-color:#dc2626; margin-top:-6px; }
-.today-strip.missed .today-head, .today-strip.missed .today-hint { color:#991b1b; }
-.today-strip.missed .column-count { background:#dc2626; }
-.today-chip[draggable="true"] { cursor:grab; }
-.today-chip.dragging { opacity:.45; }
-.rebook-box { display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
-.rebook-box input { font-size:0.78rem; padding:3px 5px; border:1px solid #fca5a5; border-radius:5px; }
-.rebook-box button { background:#dc2626; color:white; border:0; border-radius:5px; padding:4px 9px; font-size:0.75rem; font-weight:700; cursor:pointer; }
 .today-strip {
   flex:0 0 100%; box-sizing:border-box;
-  background:#fff7ed; border:1px solid #fed7aa; border-left:5px solid #f97316;
-  border-radius:10px; padding:10px 14px;
+  background:#fff7ed; border:1px solid #fed7aa; border-left:4px solid #f97316;
+  border-radius:8px; padding:5px 10px;
+  display:flex; align-items:center; gap:10px; min-height:34px;
 }
-.today-strip.empty { background:var(--card); border-color:var(--border); border-left-color:#cbd5e1; padding:8px 14px; }
-.today-head { display:flex; align-items:center; gap:10px; font-weight:800; font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:#9a3412; }
+.today-strip.empty { background:var(--card); border-color:var(--border); border-left-color:#cbd5e1; }
+.today-head { display:flex; align-items:center; gap:7px; font-weight:800; font-size:0.72rem; text-transform:uppercase; letter-spacing:.04em; color:#9a3412; white-space:nowrap; flex:0 0 auto; }
 .today-strip.empty .today-head { color:var(--muted); font-weight:600; }
 .today-head .column-count { background:#f97316; color:white; }
-.today-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.today-chips { display:flex; gap:6px; overflow-x:auto; flex:1; padding:1px 0; }
 .today-chip {
-  background:white; border:1px solid #fdba74; border-radius:8px; padding:7px 10px;
-  cursor:pointer; display:flex; align-items:center; gap:10px; min-width:220px; max-width:340px;
+  flex:0 0 auto; background:white; border:1px solid #fdba74; border-radius:6px; padding:3px 9px;
+  cursor:grab; display:flex; align-items:center; gap:6px; font-size:0.78rem; white-space:nowrap; max-width:380px;
 }
-.today-chip:hover { border-color:#f97316; box-shadow:0 2px 8px rgba(249,115,22,0.2); }
-.today-chip.overdue { border-color:#fca5a5; background:#fef2f2; }
-.today-chip .row-main { flex:1; min-width:0; }
+.today-chip:hover { border-color:#f97316; box-shadow:0 1px 6px rgba(249,115,22,0.25); }
+.today-chip.dragging { opacity:.45; }
+.today-chip .tc-ref { font-weight:700; color:#9a3412; }
+.today-chip .tc-title { font-weight:600; color:#1f2937; overflow:hidden; text-overflow:ellipsis; }
+.today-chip .tc-addr { color:#6b7280; overflow:hidden; text-overflow:ellipsis; max-width:150px; }
+.missed-divider {
+  font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+  color:#b91c1c; background:#fef2f2; border-top:1px solid #fecaca; border-bottom:1px solid #fecaca;
+  padding:5px 12px; margin:6px 0;
+}
+.upcoming-divider {
+  font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--muted); background:#f8fafc; border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+  padding:5px 12px; margin:10px 0 6px;
+}
+.row.missed { border-left:3px solid #dc2626; }
+.rebook-mini { display:flex; gap:5px; align-items:center; margin-top:5px; }
+.rebook-mini input { font-size:0.72rem; padding:2px 4px; border:1px solid #fca5a5; border-radius:4px; }
+.rebook-mini button { background:#dc2626; color:white; border:0; border-radius:4px; padding:3px 8px; font-size:0.7rem; font-weight:700; cursor:pointer; }
 .column {
   background:var(--card); border:1px solid var(--border); border-radius:10px;
   min-width:260px; flex:0 0 auto;
@@ -1219,7 +1227,7 @@ const COLUMNS = [
     // here (even past the day itself) if it's overdue and still not done -
     // it only leaves once it's completed or cancelled. Never shows a job
     // that's booked for a future date; that one stays in the next column.
-    filter: j => !j.quote_needed && j.scheduled_at && isDueTodayOrOverdue(j.scheduled_at) && j.status !== 'completed' && j.status !== 'cancelled',
+    filter: j => !j.quote_needed && j.scheduled_at && j.scheduled_at.split('T')[0] === todayDateStr() && j.status !== 'completed' && j.status !== 'cancelled',
     targetStatus: 'booked',
     requiresDate: true
   },
@@ -1234,7 +1242,7 @@ const COLUMNS = [
     title: 'Jobs Awaiting Completion',
     // Same "booked / has a date" jobs as before, minus anything that's due
     // today or overdue - those move into Appointments Today instead, never both.
-    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')) && !isDueTodayOrOverdue(j.scheduled_at),
+    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')) && !(j.scheduled_at && j.scheduled_at.split('T')[0] === todayDateStr()),
     targetStatus: 'booked',
     requiresDate: true
   },
@@ -1296,43 +1304,15 @@ function onSearchOrFilterChange(){
 
 function renderTodayStrip(visibleJobs){
   const col = COLUMNS.find(c => c.key === 'appointments_today');
-  const all = visibleJobs.filter(col.filter);
-  const today = todayDateStr();
-  const byDate = (a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || '');
-  const todays = all.filter(j => j.scheduled_at.split('T')[0] === today).sort(byDate);
-  const missed = all.filter(j => j.scheduled_at.split('T')[0] < today).sort(byDate);
-
-  const dragAttrs = j => `draggable="true" data-job-id="${j.id}" ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)"`;
-  const info = j => `
-        <div class="row-main">
-          <div class="row-id">${escHtml(j.ref)}${j.tech ? ' &middot; ' + escHtml(j.tech) : ''}</div>
-          <div class="row-title">${escHtml(j.title || 'Untitled')}</div>
-          <div class="row-address">${escHtml(j.address || '')}</div>
-        </div>`;
-
-  let html;
+  const todays = visibleJobs.filter(col.filter).sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
   if(!todays.length){
-    html = `<div class="today-strip empty"><div class="today-head"><span>Appointments Today</span><span style="font-weight:500;text-transform:none;letter-spacing:0;">No appointments today</span></div></div>`;
-  } else {
-    const chips = todays.map(j => `
-      <div class="today-chip" ${dragAttrs(j)} onclick="openDetail('${j.id}')">${info(j)}
-        <div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>
-      </div>`).join('');
-    html = `<div class="today-strip"><div class="today-head"><span>Appointments Today</span><span class="column-count">${todays.length}</span><span class="today-hint">Drag a job to Awaiting Invoice when it is done</span></div><div class="today-chips">${chips}</div></div>`;
+    return `<div class="today-strip empty"><div class="today-head"><span>Appointments Today</span><span style="font-weight:500;text-transform:none;letter-spacing:0;">none</span></div></div>`;
   }
-
-  if(missed.length){
-    const chips = missed.map(j => `
-      <div class="today-chip overdue" ${dragAttrs(j)} onclick="openDetail('${j.id}')">${info(j)}
-        <div class="rebook-box" onclick="event.stopPropagation()">
-          <div class="day-badge red">${formatShortDate(j.scheduled_at)}</div>
-          <input type="date" id="rebook-${j.id}" min="${today}" onclick="event.stopPropagation()">
-          <button onclick="event.stopPropagation(); rebookJob('${j.id}')">Rebook</button>
-        </div>
+  const chips = todays.map(j => `
+      <div class="today-chip" draggable="true" data-job-id="${j.id}" ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)" onclick="openDetail('${j.id}')" title="Drag to Awaiting Invoice when done">
+        <span class="tc-ref">${escHtml(j.ref)}</span><span class="tc-title">${escHtml(j.title || 'Untitled')}</span><span class="tc-addr">${escHtml(j.address || '')}</span>
       </div>`).join('');
-    html += `<div class="today-strip missed"><div class="today-head"><span>Missed - needs a new date</span><span class="column-count">${missed.length}</span><span class="today-hint">Pick the new date and Rebook, or drag it to Awaiting Invoice if it was actually done</span></div><div class="today-chips">${chips}</div></div>`;
-  }
-  return html;
+  return `<div class="today-strip"><div class="today-head"><span>Today</span><span class="column-count">${todays.length}</span></div><div class="today-chips">${chips}</div></div>`;
 }
 
 async function rebookJob(id){
@@ -1364,6 +1344,15 @@ function render(){
       });
     }
     let quotedDividerDone = false;
+    const todayStr = todayDateStr();
+    const isMissed = j => col.key === 'awaiting_completion' && j.scheduled_at && j.scheduled_at.split('T')[0] < todayStr;
+    if(col.key === 'awaiting_completion'){
+      // Missed appointments (date already passed, not done) go first, oldest date at the top
+      const missedJobs = jobs.filter(isMissed).sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+      const restJobs = jobs.filter(j => !isMissed(j));
+      jobs.splice(0, jobs.length, ...missedJobs, ...restJobs);
+    }
+    let missedDividerDone = false, upcomingDividerDone = false;
     const rows = jobs.map(j => {
       let badgeHtml;
       if(col.key === 'completed_invoiced'){
@@ -1374,7 +1363,7 @@ function render(){
       } else if((col.key === 'awaiting_completion' || col.key === 'appointments_today') && j.scheduled_at){
         // In Appointments Today, make an overdue job (date before today) stand
         // out in red rather than the neutral date pill, since it needs attention.
-        if(col.key === 'appointments_today' && j.scheduled_at.split('T')[0] < todayDateStr()){
+        if(isMissed(j)){
           badgeHtml = `<div class="day-badge red">${formatShortDate(j.scheduled_at)}</div>`;
         } else {
           badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>`;
@@ -1384,18 +1373,23 @@ function render(){
         badgeHtml = `<div class="day-badge ${badgeColor(days)}">${days}</div>`;
       }
       let dividerHtml = '';
+      if(col.key === 'awaiting_completion'){
+        if(isMissed(j) && !missedDividerDone){ missedDividerDone = true; dividerHtml = `<div class="missed-divider">Missed - needs a new date</div>`; }
+        else if(!isMissed(j) && missedDividerDone && !upcomingDividerDone){ upcomingDividerDone = true; dividerHtml = `<div class="upcoming-divider">Booked</div>`; }
+      }
       if(col.isQuoteColumn && j.quoted && !quotedDividerDone){
         quotedDividerDone = true;
         dividerHtml = `<div class="quoted-divider">Quoted - waiting on approval</div>`;
       }
       return dividerHtml + `
-        <div class="row" draggable="true" data-job-id="${j.id}"
+        <div class="row${isMissed(j) ? ' missed' : ''}" draggable="true" data-job-id="${j.id}"
              ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)"
              onclick="openDetail('${j.id}')">
           <div class="row-main">
             <div class="row-id">${escHtml(j.ref)}</div>
             <div class="row-title">${escHtml(j.title || 'Untitled')}</div>
             <div class="row-address">${escHtml(j.address || '')}</div>
+            ${isMissed(j) ? `<div class="rebook-mini" onclick="event.stopPropagation()"><input type="date" id="rebook-${j.id}" min="${todayStr}"><button onclick="event.stopPropagation(); rebookJob('${j.id}')">Rebook</button></div>` : ''}
           </div>
           ${badgeHtml}
         </div>
