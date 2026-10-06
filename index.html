@@ -876,17 +876,9 @@ async function checkAuth(){
       document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:sans-serif;"><h2>Account not set up</h2><p style="color:#6b7280;margin-top:10px;">Your login isn\'t linked to a Fix &amp; Go account yet, or it\'s been deactivated. Contact your admin.</p></div>';
       return;
     }
-    if(profile.role !== 'admin'){
-      // The old tracker is an admin-only surface - employees only ever use the board.
-      window.location.href = 'board.html';
-      return;
-    }
-
-    document.getElementById('login-screen').style.display = 'none';
-    fetchJobs();
-    fetchTechnicians();
-    fetchTeamMembers();
-    setTimeout(checkTopbarFit, 300);
+    // The old tracker is retired - everyone goes to the board. This page is now just the sign-in screen.
+    window.location.href = 'board.html';
+    return;
   } else {
     document.getElementById('login-screen').style.display = 'flex';
   }
@@ -910,11 +902,7 @@ async function doLogin(){
     errBox.textContent = error.message;
     return;
   }
-  document.getElementById('login-screen').style.display = 'none';
-  fetchJobs();
-  fetchTechnicians();
-  fetchTeamMembers();
-  setTimeout(checkTopbarFit, 300);
+  window.location.href = 'board.html';
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{

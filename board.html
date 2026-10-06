@@ -45,6 +45,23 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   display:flex; flex-wrap:wrap; gap:16px; padding:20px;
   align-items:flex-start;
 }
+.today-strip {
+  flex:0 0 100%; box-sizing:border-box;
+  background:#fff7ed; border:1px solid #fed7aa; border-left:5px solid #f97316;
+  border-radius:10px; padding:10px 14px;
+}
+.today-strip.empty { background:var(--card); border-color:var(--border); border-left-color:#cbd5e1; padding:8px 14px; }
+.today-head { display:flex; align-items:center; gap:10px; font-weight:800; font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:#9a3412; }
+.today-strip.empty .today-head { color:var(--muted); font-weight:600; }
+.today-head .column-count { background:#f97316; color:white; }
+.today-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.today-chip {
+  background:white; border:1px solid #fdba74; border-radius:8px; padding:7px 10px;
+  cursor:pointer; display:flex; align-items:center; gap:10px; min-width:220px; max-width:340px;
+}
+.today-chip:hover { border-color:#f97316; box-shadow:0 2px 8px rgba(249,115,22,0.2); }
+.today-chip.overdue { border-color:#fca5a5; background:#fef2f2; }
+.today-chip .row-main { flex:1; min-width:0; }
 .column {
   background:var(--card); border:1px solid var(--border); border-radius:10px;
   min-width:260px; flex:0 0 auto;
@@ -284,12 +301,12 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 <body>
 
 <div id="topbar">
-  <a class="back" href="index.html" id="main-tracker-link">&larr; Main Tracker</a>
   <div class="logo" onclick="closeDetail()" style="cursor:pointer;" title="Back to Board">FIX AND GO<span> BOARD</span></div>
   <input id="board-search" type="text" placeholder="Search ref, address, tenant, tech, issue..." style="flex:1;min-width:200px;max-width:340px;padding:8px 12px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" oninput="onSearchOrFilterChange()">
   <select id="team-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
     <option value="">All Team Members</option>
   </select>
+  <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb; Update</button>
   <button onclick="openTechPanel()" id="tech-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Technicians</button>
   <button onclick="openTeamPanel()" id="team-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👥 Team</button>
   <button onclick="openUsersPanel()" id="users-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👤 Users</button>
@@ -304,7 +321,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   <div class="locked-notice">
     <h2>Please sign in first</h2>
     <p style="color:var(--muted);margin:10px 0 16px;">This page uses the same login as your main tracker.</p>
-    <a href="index.html">Go to Tracker</a>
+    <a href="index.html">Go to Sign In</a>
   </div>
 </div>
 
@@ -1034,6 +1051,7 @@ async function init(){
   fetchTechniciansList();
 
   await fetchAllJobs();
+  openJobFromHash();
 }
 
 async function fetchAllJobs(){
@@ -1262,10 +1280,32 @@ function onSearchOrFilterChange(){
 
 
 
+function renderTodayStrip(visibleJobs){
+  const col = COLUMNS.find(c => c.key === 'appointments_today');
+  const jobs = visibleJobs.filter(col.filter);
+  if(!jobs.length){
+    return `<div class="today-strip empty"><div class="today-head"><span>Appointments Today</span><span style="font-weight:500;text-transform:none;letter-spacing:0;">No appointments today</span></div></div>`;
+  }
+  jobs.sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
+  const chips = jobs.map(j => {
+    const overdue = j.scheduled_at.split('T')[0] < todayDateStr();
+    return `
+      <div class="today-chip${overdue ? ' overdue' : ''}" onclick="openDetail('${j.id}')">
+        <div class="row-main">
+          <div class="row-id">${escHtml(j.ref)}${j.tech ? ' &middot; ' + escHtml(j.tech) : ''}</div>
+          <div class="row-title">${escHtml(j.title || 'Untitled')}</div>
+          <div class="row-address">${escHtml(j.address || '')}</div>
+        </div>
+        <div class="day-badge ${overdue ? 'red' : 'date'}">${formatShortDate(j.scheduled_at)}</div>
+      </div>`;
+  }).join('');
+  return `<div class="today-strip"><div class="today-head"><span>Appointments Today</span><span class="column-count">${jobs.length}</span></div><div class="today-chips">${chips}</div></div>`;
+}
+
 function render(){
   const board = document.getElementById('board');
   const visibleJobs = getVisibleJobs();
-  board.innerHTML = COLUMNS.map((col, idx) => {
+  board.innerHTML = renderTodayStrip(visibleJobs) + COLUMNS.filter(c => c.key !== 'appointments_today').map((col, idx) => {
     const jobs = visibleJobs.filter(col.filter);
     const rows = jobs.map(j => {
       let badgeHtml;
@@ -1516,6 +1556,22 @@ function openDetail(id){
   }
   currentDetailId = id;
 
+  // Each open job gets its own address (board.html#JOB-123) so a refresh stays on it
+  if(location.hash !== '#' + j.ref){
+    if(location.hash){
+      history.replaceState(null, '', '#' + j.ref);   // switching job: one history entry per viewing session
+    } else {
+      history.pushState(null, '', '#' + j.ref);
+      hashPushedByUs = true;
+    }
+  }
+
+  // Never carry a half-typed or previously posted comment over into another job
+  const cMsgEl = document.getElementById('c-message');
+  if(cMsgEl) cMsgEl.value = '';
+  pendingFiles = [];
+  renderPreviewStrip();
+
   // Show only the action button relevant to the column this job is actually in right now
   const inAwaitingCompletion = COLUMNS.find(c => c.key === 'awaiting_completion').filter(j) ||
     COLUMNS.find(c => c.key === 'appointments_today').filter(j);
@@ -1674,10 +1730,63 @@ async function unlinkJob(childId){
   if(j) renderLinkedJobs(j);
 }
 
+let hashPushedByUs = false;
+
 function closeDetail(){
   document.getElementById('detail-view').style.display = 'none';
   document.getElementById('board').style.display = 'flex';
   currentDetailId = null;
+  const cMsgEl = document.getElementById('c-message');
+  if(cMsgEl) cMsgEl.value = '';
+  pendingFiles = [];
+  renderPreviewStrip();
+  if(location.hash){
+    if(hashPushedByUs){ hashPushedByUs = false; history.back(); }
+    else { history.replaceState(null, '', location.pathname + location.search); }
+  }
+}
+
+// Browser back/forward and manual hash edits open or close the job accordingly
+function openJobFromHash(){
+  const ref = decodeURIComponent((location.hash || '').replace(/^#/, ''));
+  if(!ref){
+    if(currentDetailId){
+      document.getElementById('detail-view').style.display = 'none';
+      document.getElementById('board').style.display = 'flex';
+      currentDetailId = null;
+    }
+    return;
+  }
+  const j = JOBS.find(x => x.ref === ref);
+  if(j && j.id !== currentDetailId) openDetail(j.id);
+}
+window.addEventListener('popstate', () => { if(JOBS.length) openJobFromHash(); });
+window.addEventListener('hashchange', () => { if(JOBS.length) openJobFromHash(); });
+
+// Re-fetch jobs and comments in place: no page reload, keeps the open job, scroll positions and anything being typed
+async function refreshData(){
+  const btn = document.getElementById('refresh-btn');
+  if(!btn || btn.disabled) return;
+  btn.disabled = true;
+  const label = btn.innerHTML;
+  btn.innerHTML = '<span class="btn-spinner"></span> Updating...';
+  const scrollX = window.scrollX, scrollY = window.scrollY;
+  const colScroll = {};
+  document.querySelectorAll('.column-body').forEach(el => { colScroll[el.dataset.colKey] = el.scrollTop; });
+  try {
+    await fetchAllJobs();
+    document.querySelectorAll('.column-body').forEach(el => { if(colScroll[el.dataset.colKey]) el.scrollTop = colScroll[el.dataset.colKey]; });
+    window.scrollTo(scrollX, scrollY);
+    if(currentDetailId){
+      loadComments(currentDetailId);
+      loadJobFiles(currentDetailId);
+    }
+    const t = new Date().toTimeString().slice(0,5);
+    document.getElementById('range-note').textContent = JOBS.length + ' jobs total - updated ' + t;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = label;
+  }
 }
 
 function onStatusChange(){

@@ -554,7 +554,7 @@ textarea.field{resize:vertical;min-height:90px;font-family:'Barlow',sans-serif;}
 <body>
 
 <div id="topbar">
-  <a href="index.html" class="topbar-back" style="display:flex;">&larr; Tracker</a>
+  <a href="board.html" class="topbar-back" style="display:flex;">&larr; Board</a>
   <div class="logo">FIX AND GO<span> TEAM</span></div>
   <div class="topbar-right"></div>
 </div>
@@ -707,7 +707,7 @@ async function showPersonJobs(name){
     const tenantNames = (j.tenant || 'No Tenant');
     const sDate = j.scheduled_at ? ('Scheduled: ' + fmtDateTime(j.scheduled_at)) : 'Unscheduled';
     return `
-    <div class="job-card" onclick="window.location.href='index.html?job=${encodeURIComponent(j.ref)}'" style="cursor:pointer;" title="Open full job details">
+    <div class="job-card" onclick="window.location.href='board.html#${encodeURIComponent(j.ref)}'" style="cursor:pointer;" title="Open full job details">
       <div class="jc-top">
         <span class="jc-ref">${j.ref}</span>
         <span class="p-dot" style="background:${priorityColor(j.priority)}"></span>
