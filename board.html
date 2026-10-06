@@ -45,6 +45,11 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   display:flex; flex-wrap:wrap; gap:16px; padding:20px;
   align-items:flex-start;
 }
+.quoted-divider {
+  font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+  color:#15803d; background:#f0fdf4; border-top:1px solid #bbf7d0; border-bottom:1px solid #bbf7d0;
+  padding:5px 12px; margin:6px 0;
+}
 .today-strip {
   flex:0 0 100%; box-sizing:border-box;
   background:#fff7ed; border:1px solid #fed7aa; border-left:5px solid #f97316;
@@ -1307,6 +1312,17 @@ function render(){
   const visibleJobs = getVisibleJobs();
   board.innerHTML = renderTodayStrip(visibleJobs) + COLUMNS.filter(c => c.key !== 'appointments_today').map((col, idx) => {
     const jobs = visibleJobs.filter(col.filter);
+    // Quotation column only: still-to-quote jobs on top, already-quoted ones below,
+    // and within each group the oldest job first (longest waiting at the very top)
+    if(col.isQuoteColumn){
+      const refN = r => { const m = (r || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : 0; };
+      jobs.sort((a, b) => {
+        if(!!a.quoted !== !!b.quoted) return a.quoted ? 1 : -1;
+        const d = (a.created || '').localeCompare(b.created || '');
+        return d !== 0 ? d : refN(a.ref) - refN(b.ref);
+      });
+    }
+    let quotedDividerDone = false;
     const rows = jobs.map(j => {
       let badgeHtml;
       if(col.key === 'completed_invoiced'){
@@ -1326,7 +1342,12 @@ function render(){
         const days = daysSince(j.created_at || j.created);
         badgeHtml = `<div class="day-badge ${badgeColor(days)}">${days}</div>`;
       }
-      return `
+      let dividerHtml = '';
+      if(col.isQuoteColumn && j.quoted && !quotedDividerDone){
+        quotedDividerDone = true;
+        dividerHtml = `<div class="quoted-divider">Quoted - waiting on approval</div>`;
+      }
+      return dividerHtml + `
         <div class="row" draggable="true" data-job-id="${j.id}"
              ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)"
              onclick="openDetail('${j.id}')">
