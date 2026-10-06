@@ -50,6 +50,15 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   color:#15803d; background:#f0fdf4; border-top:1px solid #bbf7d0; border-bottom:1px solid #bbf7d0;
   padding:5px 12px; margin:6px 0;
 }
+.today-hint { font-weight:500; text-transform:none; letter-spacing:0; font-size:0.75rem; color:#9a3412; opacity:.8; margin-left:auto; }
+.today-strip.missed { background:#fef2f2; border-color:#fecaca; border-left-color:#dc2626; margin-top:-6px; }
+.today-strip.missed .today-head, .today-strip.missed .today-hint { color:#991b1b; }
+.today-strip.missed .column-count { background:#dc2626; }
+.today-chip[draggable="true"] { cursor:grab; }
+.today-chip.dragging { opacity:.45; }
+.rebook-box { display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.rebook-box input { font-size:0.78rem; padding:3px 5px; border:1px solid #fca5a5; border-radius:5px; }
+.rebook-box button { background:#dc2626; color:white; border:0; border-radius:5px; padding:4px 9px; font-size:0.75rem; font-weight:700; cursor:pointer; }
 .today-strip {
   flex:0 0 100%; box-sizing:border-box;
   background:#fff7ed; border:1px solid #fed7aa; border-left:5px solid #f97316;
@@ -1287,24 +1296,56 @@ function onSearchOrFilterChange(){
 
 function renderTodayStrip(visibleJobs){
   const col = COLUMNS.find(c => c.key === 'appointments_today');
-  const jobs = visibleJobs.filter(col.filter);
-  if(!jobs.length){
-    return `<div class="today-strip empty"><div class="today-head"><span>Appointments Today</span><span style="font-weight:500;text-transform:none;letter-spacing:0;">No appointments today</span></div></div>`;
-  }
-  jobs.sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
-  const chips = jobs.map(j => {
-    const overdue = j.scheduled_at.split('T')[0] < todayDateStr();
-    return `
-      <div class="today-chip${overdue ? ' overdue' : ''}" onclick="openDetail('${j.id}')">
+  const all = visibleJobs.filter(col.filter);
+  const today = todayDateStr();
+  const byDate = (a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || '');
+  const todays = all.filter(j => j.scheduled_at.split('T')[0] === today).sort(byDate);
+  const missed = all.filter(j => j.scheduled_at.split('T')[0] < today).sort(byDate);
+
+  const dragAttrs = j => `draggable="true" data-job-id="${j.id}" ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)"`;
+  const info = j => `
         <div class="row-main">
           <div class="row-id">${escHtml(j.ref)}${j.tech ? ' &middot; ' + escHtml(j.tech) : ''}</div>
           <div class="row-title">${escHtml(j.title || 'Untitled')}</div>
           <div class="row-address">${escHtml(j.address || '')}</div>
+        </div>`;
+
+  let html;
+  if(!todays.length){
+    html = `<div class="today-strip empty"><div class="today-head"><span>Appointments Today</span><span style="font-weight:500;text-transform:none;letter-spacing:0;">No appointments today</span></div></div>`;
+  } else {
+    const chips = todays.map(j => `
+      <div class="today-chip" ${dragAttrs(j)} onclick="openDetail('${j.id}')">${info(j)}
+        <div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>
+      </div>`).join('');
+    html = `<div class="today-strip"><div class="today-head"><span>Appointments Today</span><span class="column-count">${todays.length}</span><span class="today-hint">Drag a job to Awaiting Invoice when it is done</span></div><div class="today-chips">${chips}</div></div>`;
+  }
+
+  if(missed.length){
+    const chips = missed.map(j => `
+      <div class="today-chip overdue" ${dragAttrs(j)} onclick="openDetail('${j.id}')">${info(j)}
+        <div class="rebook-box" onclick="event.stopPropagation()">
+          <div class="day-badge red">${formatShortDate(j.scheduled_at)}</div>
+          <input type="date" id="rebook-${j.id}" min="${today}" onclick="event.stopPropagation()">
+          <button onclick="event.stopPropagation(); rebookJob('${j.id}')">Rebook</button>
         </div>
-        <div class="day-badge ${overdue ? 'red' : 'date'}">${formatShortDate(j.scheduled_at)}</div>
-      </div>`;
-  }).join('');
-  return `<div class="today-strip"><div class="today-head"><span>Appointments Today</span><span class="column-count">${jobs.length}</span></div><div class="today-chips">${chips}</div></div>`;
+      </div>`).join('');
+    html += `<div class="today-strip missed"><div class="today-head"><span>Missed - needs a new date</span><span class="column-count">${missed.length}</span><span class="today-hint">Pick the new date and Rebook, or drag it to Awaiting Invoice if it was actually done</span></div><div class="today-chips">${chips}</div></div>`;
+  }
+  return html;
+}
+
+async function rebookJob(id){
+  const input = document.getElementById('rebook-' + id);
+  const val = input ? input.value : '';
+  if(!val){ alert('Pick the new appointment date first.'); return; }
+  const job = JOBS.find(j => j.id === id);
+  if(!job) return;
+  const { error } = await supabaseClient.from('jobs').update({ scheduled_at: val, status: 'booked' }).eq('id', id);
+  if(error){ alert('Failed to rebook: ' + error.message); return; }
+  job.scheduled_at = val;
+  job.status = 'booked';
+  render();
 }
 
 function render(){
