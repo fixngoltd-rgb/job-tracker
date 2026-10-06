@@ -45,6 +45,9 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   display:flex; flex-wrap:wrap; gap:16px; padding:20px;
   align-items:flex-start;
 }
+.quoted-age { margin-top:4px; font-size:0.68rem; font-weight:600; color:#6b7280; }
+.quoted-age.qa-follow { color:#92400e; }
+.quoted-age.qa-chase { color:#b91c1c; }
 .chase-tag { display:inline-block; margin-top:5px; font-size:0.68rem; font-weight:700; color:#92400e; background:#fef3c7; border:1px solid #fde68a; border-radius:4px; padding:2px 6px; }
 .quoted-divider {
   font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
@@ -1093,6 +1096,22 @@ async function init(){
   openJobFromHash();
 }
 
+// When each quoted job was quoted: the date of its latest quotation comment (read only, no schema needed)
+let QUOTE_DATES = {};
+async function fetchQuoteDates(){
+  try {
+    const { data, error } = await supabaseClient.from('board_comments')
+      .select('job_id,created_at')
+      .or('message.ilike.QUOTATION%,message.ilike.%total cost%')
+      .order('created_at', { ascending: false })
+      .limit(2000);
+    if(error || !data) return;
+    const m = {};
+    data.forEach(r => { if(!m[r.job_id]) m[r.job_id] = r.created_at; });
+    QUOTE_DATES = m;
+  } catch(e){}
+}
+
 async function fetchAllJobs(){
   const { data, error } = await supabaseClient
     .from('jobs')
@@ -1146,6 +1165,7 @@ async function fetchAllJobs(){
   });
 
   document.getElementById('range-note').textContent = JOBS.length + ' jobs total';
+  await fetchQuoteDates();
   render();
 }
 
@@ -1353,6 +1373,14 @@ function startTodayResize(e){
   handle.addEventListener('pointercancel', up);
 }
 
+function quotedAgeTag(dateStr){
+  const d = daysSince(dateStr);
+  let cls = 'qa-ok', txt = d === 0 ? 'quoted today' : 'quoted ' + d + 'd ago';
+  if(d >= 14){ cls = 'qa-chase'; txt += ' - chase?'; }
+  else if(d >= 7){ cls = 'qa-follow'; txt += ' - follow up?'; }
+  return `<div class="quoted-age ${cls}">${txt}</div>`;
+}
+
 function renderTodayStrip(visibleJobs){
   const col = COLUMNS.find(c => c.key === 'appointments_today');
   const todays = visibleJobs.filter(col.filter).sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
@@ -1440,6 +1468,7 @@ function render(){
             <div class="row-id">${escHtml(j.ref)}</div>
             <div class="row-title">${escHtml(j.title || 'Untitled')}</div>
             <div class="row-address">${escHtml(j.address || '')}</div>
+            ${(col.isQuoteColumn && j.quoted && QUOTE_DATES[j.id]) ? quotedAgeTag(QUOTE_DATES[j.id]) : ''}
             ${(col.key === 'awaiting_start' && daysSince(j.created_at || j.created) >= 2) ? `<div class="chase-tag">${daysSince(j.created_at || j.created)}d with no date - update the agent?</div>` : ''}
             ${isMissed(j) ? `<div class="rebook-mini" onclick="event.stopPropagation()"><input type="date" id="rebook-${j.id}" min="${todayStr}"><button onclick="event.stopPropagation(); rebookJob('${j.id}')">Rebook</button></div>` : ''}
           </div>
