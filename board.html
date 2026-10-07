@@ -512,7 +512,6 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
       <div class="tabs">
         <button class="tab-btn active" data-tab="details" onclick="switchTab('details')">Details</button>
         <button class="tab-btn" data-tab="nextsteps" onclick="switchTab('nextsteps')">Next Steps</button>
-        <button class="tab-btn" id="wr-tab-btn" data-tab="workreport" onclick="switchTab('workreport')" style="display:none;">Work Report</button>
         <button class="tab-btn" data-tab="comments" onclick="switchTab('comments')">Comments</button>
       </div>
 
@@ -533,18 +532,6 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
             <button class="btn btn-primary" id="d-file-upload-btn" onclick="uploadJobFile()" style="white-space:nowrap;">+ Upload</button>
           </div>
           <div id="job-files-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;"></div>
-        </div>
-      </div>
-
-      <div class="tab-panel" id="panel-workreport">
-        <div class="detail-field">
-          <label>Work Report text (this is what the PDF uses)</label>
-          <textarea class="field-input" id="wr-tab-text" rows="16" placeholder="Nothing filed yet. Ask Claude to write it, or type it here.&#10;&#10;WORK REPORT - TITLE&#10;&#10;Issues Reported&#10;Problem one.&#10;&#10;Work Carried Out&#10;What was done.&#10;&#10;Outcome&#10;Result." onblur="saveWrTab()" style="font-size:0.88rem;line-height:1.45;"></textarea>
-          <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
-            <button class="btn btn-primary" onclick="saveWrTab()">Save</button>
-            <button class="btn" onclick="saveWrTab().then(openWorkReport)" style="background:#2563eb;color:#fff;border:none;">&#128196; Make Work Report PDF</button>
-            <span id="wr-tab-status" style="font-size:0.8rem;color:var(--muted2);"></span>
-          </div>
         </div>
       </div>
 
@@ -2032,8 +2019,6 @@ function openDetail(id){
   loadJobFiles(id);
   renderLinkedJobs(j);
   loadEmailLink(j);
-  loadWrTab(id);
-  const wrTabBtn = document.getElementById('wr-tab-btn'); if(wrTabBtn) wrTabBtn.style.display = (CURRENT_USER && CURRENT_USER.role === 'admin') ? '' : 'none';
   const wrBtn = document.getElementById('wr-open-btn'); if(wrBtn) wrBtn.style.display = (CURRENT_USER && CURRENT_USER.role === 'admin') ? '' : 'none';
 
   document.getElementById('board').style.display = 'none';
@@ -2896,23 +2881,6 @@ async function addComment(){
 
 /* ===== WORK REPORT PDF (admin) ===== */
 let WR_LAST_SAVED = '';
-async function loadWrTab(id){
-  const ta = document.getElementById('wr-tab-text'); if(!ta) return;
-  ta.value = ''; WR_LAST_SAVED = '';
-  if(!(CURRENT_USER && CURRENT_USER.role === 'admin')) return;
-  const { data } = await supabaseClient.from('job_work_reports').select('body').eq('job_id', id).maybeSingle();
-  if(currentDetailId !== id) return;
-  if(data && data.body){ ta.value = data.body; WR_LAST_SAVED = data.body; }
-  document.getElementById('wr-tab-status').textContent = '';
-}
-async function saveWrTab(){
-  const ta = document.getElementById('wr-tab-text'); if(!ta || !currentDetailId) return;
-  const v = ta.value; const st = document.getElementById('wr-tab-status');
-  if(v === WR_LAST_SAVED) return;
-  const { error } = await supabaseClient.from('job_work_reports').upsert({ job_id: currentDetailId, body: v, updated_at: new Date().toISOString(), updated_by: CURRENT_USER ? CURRENT_USER.name : null });
-  if(error){ st.style.color = 'var(--red)'; st.textContent = 'Save failed: ' + error.message; return; }
-  WR_LAST_SAVED = v; st.style.color = 'var(--green)'; st.textContent = 'Saved.';
-}
 let WR_PHOTOS = [];   // [{url, name, selected}]
 async function openWorkReport(){
   if(!currentDetailId || !(CURRENT_USER && CURRENT_USER.role === 'admin')) return;
@@ -2945,7 +2913,7 @@ async function saveWorkReportText(){
   const v = document.getElementById('wr-text').value;
   if(v === WR_LAST_SAVED || !v.trim()) return;
   const { error } = await supabaseClient.from('job_work_reports').upsert({ job_id: currentDetailId, body: v, updated_at: new Date().toISOString(), updated_by: CURRENT_USER ? CURRENT_USER.name : null });
-  if(!error){ WR_LAST_SAVED = v; const tt = document.getElementById('wr-tab-text'); if(tt) tt.value = v; const st = document.getElementById('wr-status'); st.style.color = 'var(--muted)'; st.textContent = 'Report text saved.'; }
+  if(!error){ WR_LAST_SAVED = v; const st = document.getElementById('wr-status'); st.style.color = 'var(--muted)'; st.textContent = 'Report text saved.'; }
 }
 async function closeWorkReport(){ await saveWorkReportText(); document.getElementById('wr-overlay').style.display = 'none'; }
 function renderWrPhotos(){
