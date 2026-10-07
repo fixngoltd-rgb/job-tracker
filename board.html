@@ -370,6 +370,21 @@ html[data-theme="dark"] .ad-section h3 .ad-count { background:#2a323c; }
 html[data-theme="dark"] .ad-age.warn { color:#fbbf24; }
 html[data-theme="dark"] .ad-age.bad { color:#f87171; }
 
+/* ===== SIDE MENU ===== */
+#side-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:90; }
+#side-overlay.open { display:block; }
+#side-menu { position:fixed; top:0; left:0; bottom:0; width:260px; max-width:82vw; background:#1f2937; color:#e5e7eb; z-index:100;
+  transform:translateX(-100%); transition:transform .2s ease; display:flex; flex-direction:column; padding:14px 12px; gap:6px; }
+#side-menu.open { transform:translateX(0); box-shadow:4px 0 20px rgba(0,0,0,0.3); }
+.sm-head { display:flex; align-items:center; justify-content:space-between; padding:2px 4px 8px; }
+.sm-title { font-weight:800; font-size:1.05rem; }
+.sm-close { background:none; border:none; color:#cbd5e1; font-size:1.6rem; cursor:pointer; line-height:1; }
+.sm-user { padding:0 4px 10px; border-bottom:1px solid #374151; margin-bottom:6px; font-size:0.85rem; font-weight:600; color:#cbd5e1; }
+.sm-item { background:none; border:none; color:#e5e7eb; text-align:left; padding:11px 12px; border-radius:8px; font-family:'Inter',sans-serif; font-weight:600; font-size:0.92rem; cursor:pointer; }
+.sm-item:hover { background:#374151; }
+.sm-spacer { flex:1; }
+.sm-signout { border:1px solid #4b5563; text-align:center; color:#cbd5e1; }
+
 /* ===== DARK MODE ===== */
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -433,22 +448,29 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
 <body>
 
 <div id="topbar">
+  <button onclick="toggleSideMenu()" id="menu-btn" title="Menu" aria-label="Open menu" style="background:#374151;color:white;border:1px solid #4b5563;padding:8px 12px;border-radius:7px;font-weight:700;font-size:1.05rem;cursor:pointer;line-height:1;">&#9776;</button>
   <div class="logo" onclick="closeDetail()" style="cursor:pointer;" title="Back to Board">FIX AND GO<span> BOARD</span></div>
   <input id="board-search" type="text" placeholder="Search ref, address, tenant, tech, issue..." style="flex:1;min-width:200px;max-width:340px;padding:8px 12px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" oninput="onSearchOrFilterChange()">
   <select id="team-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
     <option value="">All Team Members</option>
   </select>
-  <button onclick="openActionDesk()" id="desk-btn" title="Everything that needs chasing or a nudge" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x1F4CB; Action Desk</button>
-  <button onclick="toggleTheme()" id="theme-btn" title="Switch between light and dark mode" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 12px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x1F319;</button>
-  <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb; Update</button>
-  <button onclick="openTechPanel()" id="tech-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Technicians</button>
-  <button onclick="openTeamPanel()" id="team-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👥 Team</button>
-  <button onclick="openUsersPanel()" id="users-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👤 Users</button>
+  <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 12px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb;</button>
   <button onclick="openNewJobModal()" id="new-job-btn" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
-  <span id="current-user-chip" style="color:#cbd5e1;font-size:0.82rem;font-weight:600;white-space:nowrap;"></span>
-  <button onclick="logOut()" style="background:none;color:#cbd5e1;border:1px solid #4b5563;padding:7px 12px;border-radius:7px;font-weight:600;font-size:0.8rem;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sign Out</button>
   <div class="range-note" id="range-note"></div>
 </div>
+
+<div id="side-overlay" onclick="toggleSideMenu(false)"></div>
+<nav id="side-menu" aria-label="Menu">
+  <div class="sm-head"><span class="sm-title">Menu</span><button class="sm-close" onclick="toggleSideMenu(false)" aria-label="Close menu">&times;</button></div>
+  <div class="sm-user"><span id="current-user-chip"></span></div>
+  <button onclick="toggleSideMenu(false);openActionDesk()" id="desk-btn" class="sm-item">&#x1F4CB; Action Desk</button>
+  <button onclick="toggleSideMenu(false);openTechPanel()" id="tech-btn" class="sm-item">&#x1F527; Technicians</button>
+  <button onclick="toggleSideMenu(false);openTeamPanel()" id="team-btn" class="sm-item">&#x1F465; Team</button>
+  <button onclick="toggleSideMenu(false);openUsersPanel()" id="users-btn" class="sm-item">&#x1F464; Users</button>
+  <div class="sm-spacer"></div>
+  <button onclick="toggleTheme()" id="theme-btn" class="sm-item" title="Switch between light and dark mode">&#x1F319; Dark mode</button>
+  <button onclick="logOut()" class="sm-item sm-signout">Sign Out</button>
+</nav>
 
 <div id="locked-view" style="display:none;">
 
@@ -723,8 +745,15 @@ function closeNewJobModal(){
 /* ===== THEME ===== */
 function applyThemeButton(){
   const b = document.getElementById('theme-btn');
-  if(b) b.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+  if(b) b.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '\u2600\uFE0F Light mode' : '\uD83C\uDF19 Dark mode';
 }
+function toggleSideMenu(force){
+  const open = (typeof force === 'boolean') ? force : !document.getElementById('side-menu').classList.contains('open');
+  document.getElementById('side-menu').classList.toggle('open', open);
+  document.getElementById('side-overlay').classList.toggle('open', open);
+}
+document.addEventListener('keydown', e => { if(e.key === 'Escape') toggleSideMenu(false); });
+
 function toggleTheme(){
   const dark = document.documentElement.getAttribute('data-theme') !== 'dark';
   if(dark) document.documentElement.setAttribute('data-theme','dark'); else document.documentElement.removeAttribute('data-theme');
