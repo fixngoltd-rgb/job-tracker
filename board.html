@@ -1355,8 +1355,17 @@ const COLUMNS = [
   {
     key: 'quote_needed',
     title: 'Quotation Needed',
-    filter: j => j.quote_needed === true,
+    filter: j => j.quote_needed === true && j.status !== 'cancelled',
     isQuoteColumn: true
+  },
+  {
+    key: 'cancelled',
+    title: 'Cancelled',
+    // Jobs or quotes that were started and then cancelled. Keeps the quote flags
+    // as they were, so a cancelled quote is still recognisable as one.
+    filter: j => j.status === 'cancelled',
+    targetStatus: 'cancelled',
+    keepFlags: true
   }
 ];
 
@@ -1722,6 +1731,9 @@ async function onDrop(e, colKey){
   let updates;
   if(col.isQuoteColumn){
     updates = { quote_needed: true, quoted: false };
+    if(job.status === 'cancelled') updates.status = 'active';
+  } else if(col.keepFlags){
+    updates = { status: col.targetStatus };
   } else {
     updates = { status: col.targetStatus, quote_needed: false, quoted: false };
     if(col.setInvoiced !== undefined) updates.invoiced = col.setInvoiced;
@@ -1766,14 +1778,14 @@ function openDetail(id){
   const inAwaitingCompletion = COLUMNS.find(c => c.key === 'awaiting_completion').filter(j) ||
     COLUMNS.find(c => c.key === 'appointments_today').filter(j);
   const inAwaitingInvoice = COLUMNS.find(c => c.key === 'awaiting_invoice').filter(j);
-  const inQuoteNeeded = j.quote_needed && !j.quoted;
-  const isQuotedAlready = j.quote_needed && j.quoted;
+  const inQuoteNeeded = j.quote_needed && !j.quoted && j.status !== 'cancelled';
+  const isQuotedAlready = j.quote_needed && j.quoted && j.status !== 'cancelled';
   document.getElementById('ns-mark-completed-box').style.display = inAwaitingCompletion ? 'flex' : 'none';
   const invoicedBoxEl = document.getElementById('ns-mark-invoiced-box');
   if(invoicedBoxEl) invoicedBoxEl.style.display = inAwaitingInvoice ? 'flex' : 'none';
   document.getElementById('ns-mark-quoted-box').style.display = inQuoteNeeded ? 'flex' : 'none';
   document.getElementById('ns-unmark-quoted-box').style.display = isQuotedAlready ? 'flex' : 'none';
-  document.getElementById('ns-quote-approved-box').style.display = j.quote_needed ? 'flex' : 'none';
+  document.getElementById('ns-quote-approved-box').style.display = (j.quote_needed && j.status !== 'cancelled') ? 'flex' : 'none';
 
   document.getElementById('d-category-input').value = j.category || '';
 
