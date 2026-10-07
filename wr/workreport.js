@@ -13,8 +13,8 @@
   const TEXT_TOP = 1150, TEXT_BOTTOM = 2310;
   const MAX_SZ = 44, MIN_SZ_A = 32, MIN_SZ_B = 26, MIN_SZ_C = 22;
   const LH = 1.375, INDENT = 1.72;
-  const BASE = (document.currentScript && document.currentScript.src)
-    ? document.currentScript.src.replace(/[^\/]*$/, '') : 'wr/';
+  const BASE = window.WR_BASE || ((document.currentScript && document.currentScript.src)
+    ? document.currentScript.src.replace(/[^\/]*$/, '') : 'wr/');
 
   let assetsP = null;
   function loadAssets(){
