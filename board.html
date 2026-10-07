@@ -2430,18 +2430,55 @@ async function loadComments(jobId){
       attachments = [{ file_url: c.file_url, file_name: c.file_name }];
     }
     const canDeleteThisComment = CURRENT_USER && (CURRENT_USER.role === 'admin' || c.author_user_id === CURRENT_USER.id);
+    const canEditThisComment = canDeleteThisComment; // admins can edit any comment; everyone else only their own
     return `
-      <div class="comment-item">
+      <div class="comment-item" id="comment-${c.id}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
           <div class="comment-author">${escHtml(c.author)}</div>
-          ${canDeleteThisComment ? `<button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:0.9rem;padding:0 2px;" title="Delete comment">&times;</button>` : ''}
+          <div style="display:flex;gap:4px;align-items:center;">
+            ${canEditThisComment ? `<button onclick="startEditComment('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:0.8rem;padding:0 2px;" title="Edit comment">&#9998;</button>` : ''}
+            ${canDeleteThisComment ? `<button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:0.9rem;padding:0 2px;" title="Delete comment">&times;</button>` : ''}
+          </div>
         </div>
         <div class="comment-time">${time}</div>
-        <div class="comment-text">${escHtml(c.message)}</div>
+        <div class="comment-text" id="comment-text-${c.id}">${escHtml(c.message)}</div>
         ${renderAttachmentGrid(attachments, c.id)}
       </div>
     `;
   }).join('');
+}
+
+function startEditComment(commentId){
+  const box = document.getElementById('comment-text-' + commentId);
+  if(!box) return;
+  const current = box.dataset.orig !== undefined ? box.dataset.orig : box.textContent;
+  box.dataset.orig = current;
+  box.innerHTML = `<textarea id="comment-edit-${commentId}" class="field-input" rows="6" style="width:100%;resize:vertical;font-family:inherit;font-size:0.88rem;line-height:1.5;"></textarea>
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button class="btn btn-primary" onclick="saveEditComment('${commentId}', this)">Save</button>
+      <button class="btn" onclick="loadComments(currentDetailId)">Cancel</button>
+    </div>`;
+  const ta = document.getElementById('comment-edit-' + commentId);
+  ta.value = current;
+  ta.focus();
+}
+
+async function saveEditComment(commentId, btn){
+  const ta = document.getElementById('comment-edit-' + commentId);
+  if(!ta) return;
+  const message = ta.value.trim();
+  if(!message){ alert('A comment cannot be empty. Use the x button to delete it instead.'); return; }
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+  // Same rule as delete: admins can edit any comment, everyone else only their own.
+  let q = supabaseClient.from('board_comments').update({ message }).eq('id', commentId);
+  if(!(CURRENT_USER && CURRENT_USER.role === 'admin')){
+    if(!CURRENT_USER){ alert('You must be logged in to edit comments.'); return; }
+    q = q.eq('author_user_id', CURRENT_USER.id);
+  }
+  const { data, error } = await q.select();
+  if(error){ alert('Failed to save edit: ' + error.message); if(btn){ btn.disabled = false; btn.textContent = 'Save'; } return; }
+  if(!data || !data.length){ alert('Could not save: you can only edit your own comments.'); loadComments(currentDetailId); return; }
+  loadComments(currentDetailId);
 }
 
 async function deleteComment(commentId){
