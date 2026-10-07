@@ -466,6 +466,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
   <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 12px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb;</button>
   <button onclick="openNewJobModal()" id="new-job-btn" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
   <div class="range-note" id="range-note"></div>
+  <div id="uk-clock" title="Current UK time" style="color:#e5e7eb;font-size:0.85rem;font-weight:700;white-space:nowrap;line-height:1.15;text-align:right;font-family:'Inter',sans-serif;"></div>
 </div>
 
 <div id="side-overlay" onclick="toggleSideMenu(false)"></div>
@@ -2965,6 +2966,15 @@ async function makeWorkReport(mode){
   btns.forEach(b => b.disabled = false);
 }
 
+/* ===== UK CLOCK ===== */
+function tickUkClock(){
+  const el = document.getElementById('uk-clock'); if(!el) return;
+  const now = new Date();
+  const t = now.toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hour12: false });
+  const d = now.toLocaleDateString('en-GB', { timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short' });
+  el.innerHTML = '<span style="font-size:0.95rem;">' + t + '</span> <span style="font-size:0.68rem;color:#9ca3af;font-weight:600;">UK</span><br><span style="font-size:0.68rem;color:#9ca3af;font-weight:500;">' + d + '</span>';
+}
+tickUkClock(); setInterval(tickUkClock, 15000);
 /* ===== DARK/TEXT HELPERS END ===== */
 init();
 </script>
