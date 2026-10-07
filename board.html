@@ -6,6 +6,7 @@
 <title>Board - Fix & Go Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>try{ if(localStorage.getItem('fg-theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}</script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -344,6 +345,65 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   .detail-body-wrap { flex-direction:column; }
   .detail-sidebar { width:100%; border-left:none; border-top:1px solid var(--border); }
 }
+
+/* ===== DARK MODE ===== */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:#0f1419; --card:#1a2028; --border:#2d3640; --text:#e6e9ee; --muted:#9aa5b1; --muted2:#7d8894;
+  --accent:#60a5fa; --green:#34d399; --amber:#fbbf24; --red:#f87171;
+}
+html[data-theme="dark"] #topbar { background:#0b0f14; border-bottom:1px solid #2d3640; }
+html[data-theme="dark"] .quoted-age { color:#9aa5b1; }
+html[data-theme="dark"] .quoted-age.qa-follow { color:#fbbf24; }
+html[data-theme="dark"] .quoted-age.qa-chase { color:#f87171; }
+html[data-theme="dark"] .chase-tag { color:#fbbf24; background:#3a2e12; border-color:#6b5316; }
+html[data-theme="dark"] .quoted-divider { color:#6ee7b7; background:#10261c; border-color:#1f4a37; }
+html[data-theme="dark"] .today-strip { background:#16233a; border-color:#27406b; border-left-color:#60a5fa; }
+html[data-theme="dark"] .today-strip.empty { background:#161d27; border-color:#2d3640; border-left-color:#4b5b73; }
+html[data-theme="dark"] .today-head { color:#93c5fd; }
+html[data-theme="dark"] .today-strip.empty .today-head { color:#9aa5b1; }
+html[data-theme="dark"] .today-head .column-count { background:#0b0f14; color:#e6e9ee; }
+html[data-theme="dark"] .today-chip { background:#1a2028; border-color:#2f4a78; }
+html[data-theme="dark"] .today-chip:hover { border-color:#60a5fa; }
+html[data-theme="dark"] .today-chip .tc-time { background:#0b0f14; color:#e6e9ee; }
+html[data-theme="dark"] .today-chip .tc-ref { color:#93c5fd; }
+html[data-theme="dark"] .today-chip .tc-title { color:#e6e9ee; }
+html[data-theme="dark"] .today-chip .tc-addr { color:#9aa5b1; }
+html[data-theme="dark"] .today-resize { background:#1d2d49; border-color:#27406b; }
+html[data-theme="dark"] .today-resize:hover { background:#27406b; }
+html[data-theme="dark"] .missed-divider { color:#f87171; background:#2a1517; border-color:#5a2a2e; }
+html[data-theme="dark"] .upcoming-divider { background:#161d27; }
+html[data-theme="dark"] .rebook-mini input { background:#0f1419; color:#e6e9ee; border-color:#7f3a3a; }
+html[data-theme="dark"] .column-count { background:#2a323c; color:#e6e9ee; }
+html[data-theme="dark"] .column-body.drag-over { background:#1c2640; }
+html[data-theme="dark"] .row:hover { border-color:#4b5563; }
+html[data-theme="dark"] .ac-item:hover, html[data-theme="dark"] .ac-item.active { background:#222b36; }
+html[data-theme="dark"] .btn-secondary { background:#2a323c; border-color:#2a323c; color:#e6e9ee; }
+html[data-theme="dark"] .comment-item { background:#161d27; }
+html[data-theme="dark"] .detail-sidebar { background:#161d27; }
+html[data-theme="dark"] .link-item:hover { background:#222b36; }
+html[data-theme="dark"] .sb-status-active, html[data-theme="dark"] .sb-status-contacted { background:#3a2e12; color:#fbbf24; }
+html[data-theme="dark"] .sb-status-booked { background:#14284a; color:#93c5fd; }
+html[data-theme="dark"] .sb-status-completed { background:#10261c; color:#6ee7b7; }
+html[data-theme="dark"] .sb-status-revisit { background:#2a1b45; color:#d8b4fe; }
+html[data-theme="dark"] .sb-status-cancelled { background:#222b36; color:#9aa5b1; }
+html[data-theme="dark"] .sb-source-tracker { background:#1e2447; color:#a5b4fc; }
+html[data-theme="dark"] .sb-source-archive { background:#3a1a2c; color:#f9a8d4; }
+html[data-theme="dark"] input, html[data-theme="dark"] textarea, html[data-theme="dark"] select {
+  background:#0f1419; color:#e6e9ee; border-color:#2d3640;
+}
+html[data-theme="dark"] input::placeholder, html[data-theme="dark"] textarea::placeholder { color:#7d8894; }
+html[data-theme="dark"] #topbar input, html[data-theme="dark"] #topbar select { background:#1a2028 !important; border-color:#2d3640 !important; }
+html[data-theme="dark"] #topbar button { background:#1a2028 !important; border-color:#2d3640 !important; }
+/* pastel info boxes written as inline styles */
+html[data-theme="dark"] [style*="background:#fef3c7"] { background:#3a2e12 !important; border-color:#6b5316 !important; color:#fbbf24; }
+html[data-theme="dark"] [style*="background:#f5f3ff"] { background:#241a3d !important; border-color:#4c3a80 !important; }
+html[data-theme="dark"] [style*="background:#f0fdf4"], html[data-theme="dark"] [style*="background:#ecfdf5"] { background:#10261c !important; border-color:#1f4a37 !important; }
+html[data-theme="dark"] [style*="background:#eff6ff"] { background:#14284a !important; border-color:#27406b !important; }
+html[data-theme="dark"] [style*="background:#fee2e2"] { background:#3a1a1c !important; border-color:#7f3a3a !important; color:#fca5a5 !important; }
+html[data-theme="dark"] [style*="background:#e0e7ff"] { background:#1e2447 !important; color:#a5b4fc !important; }
+html[data-theme="dark"] [style*="background:#ede9fe"] { background:#2a1b45 !important; color:#d8b4fe !important; }
+html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style*="color:#111827"] { color:#e6e9ee !important; }
 </style>
 </head>
 <body>
@@ -354,6 +414,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   <select id="team-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
     <option value="">All Team Members</option>
   </select>
+  <button onclick="toggleTheme()" id="theme-btn" title="Switch between light and dark mode" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 12px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x1F319;</button>
   <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb; Update</button>
   <button onclick="openTechPanel()" id="tech-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Technicians</button>
   <button onclick="openTeamPanel()" id="team-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">👥 Team</button>
@@ -631,6 +692,19 @@ function openNewJobModal(){
 function closeNewJobModal(){
   document.getElementById('newjob-overlay').style.display = 'none';
 }
+
+/* ===== THEME ===== */
+function applyThemeButton(){
+  const b = document.getElementById('theme-btn');
+  if(b) b.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+}
+function toggleTheme(){
+  const dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+  if(dark) document.documentElement.setAttribute('data-theme','dark'); else document.documentElement.removeAttribute('data-theme');
+  try{ localStorage.setItem('fg-theme', dark ? 'dark' : 'light'); }catch(e){}
+  applyThemeButton();
+}
+document.addEventListener('DOMContentLoaded', applyThemeButton);
 
 /* ===== REF NUMBERING: JOB-### for jobs, QUO-### for quote requests ===== */
 async function nextRef(prefix){
