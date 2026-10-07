@@ -74,6 +74,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 }
 .today-chip:hover { border-color:#f97316; box-shadow:0 1px 6px rgba(249,115,22,0.25); }
 .today-chip.dragging { opacity:.45; }
+.today-chip .tc-time { font-weight:800; color:#fff; background:#f97316; border-radius:5px; padding:0 5px; margin-right:6px; font-size:0.9em; }
 .today-chip .tc-ref { font-weight:700; color:#9a3412; white-space:nowrap; }
 .today-chip .tc-title { font-weight:600; color:#1f2937; }
 .today-chip .tc-addr { color:#6b7280; }
@@ -101,8 +102,10 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   padding:5px 12px; margin:10px 0 6px;
 }
 .row.missed { border-left:3px solid #dc2626; }
-.rebook-mini { display:flex; gap:5px; align-items:center; margin-top:5px; }
-.rebook-mini input { font-size:0.72rem; padding:2px 4px; border:1px solid #fca5a5; border-radius:4px; }
+.rebook-mini { display:flex; gap:5px; align-items:center; flex-wrap:wrap; margin-top:5px; }
+.rebook-mini input { font-size:0.72rem; padding:2px 4px; border:1px solid #fca5a5; border-radius:4px; min-width:0; }
+.rebook-mini input[type=date] { width:112px; }
+.rebook-mini input[type=time] { width:84px; }
 .rebook-mini button { background:#dc2626; color:white; border:0; border-radius:4px; padding:3px 8px; font-size:0.7rem; font-weight:700; cursor:pointer; }
 .column {
   background:var(--card); border:1px solid var(--border); border-radius:10px;
@@ -169,6 +172,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .day-badge.amber { background:var(--amber); }
 .day-badge.red { background:var(--red); }
 .day-badge.date { background:#374151; border-radius:6px; padding:4px 8px; font-size:0.68rem; }
+.day-badge .bt { display:block; font-size:0.62rem; font-weight:700; opacity:.85; margin-left:6px; padding-left:6px; border-left:1px solid rgba(255,255,255,.35); }
 
 .empty-col { padding:30px 14px; text-align:center; color:var(--muted2); font-size:0.85rem; }
 
@@ -448,6 +452,8 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <div class="detail-field" id="d-scheduled-wrap">
             <label>Appointment Date <span id="d-scheduled-required" style="color:var(--red);"></span></label>
             <input class="field-input" type="date" id="d-scheduled">
+            <label style="margin-top:8px;">Appointment Time <span style="color:var(--muted2);font-weight:600;">(UK time)</span></label>
+            <input class="field-input" type="time" step="300" id="d-scheduled-time">
           </div>
         </div>
 
@@ -1169,20 +1175,59 @@ async function fetchAllJobs(){
   render();
 }
 
-function todayDateStr(){
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
+/* ===== UK TIME =====
+   Appointments are ALWAYS entered and shown in UK time (Europe/London, BST/GMT handled
+   automatically), no matter what timezone this computer is set to. They are stored as a
+   normal UTC instant. A value at exactly 00:00 UTC is how date-only bookings were saved
+   before times existed, so that means "no time set". */
+const UK_TZ = 'Europe/London';
+const _ukFmt = new Intl.DateTimeFormat('en-GB', { timeZone: UK_TZ, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+function _toDate(iso){
+  if(iso instanceof Date) return iso;
+  let t = String(iso).replace(' ', 'T');
+  if(!/(Z|[+-]\d\d(:?\d\d)?)$/.test(t)) t += (t.length <= 10 ? 'T00:00:00Z' : 'Z');
+  return new Date(t);
 }
+function ukParts(iso){
+  if(!iso) return null;
+  const d = _toDate(iso);
+  if(isNaN(d)) return null;
+  const o = {};
+  _ukFmt.formatToParts(d).forEach(p => { o[p.type] = p.value; });
+  return {
+    date: `${o.year}-${o.month}-${o.day}`,
+    time: `${o.hour}:${o.minute}`,
+    hasTime: !(d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0),
+    ms: d.getTime()
+  };
+}
+function ukDate(iso){ const p = ukParts(iso); return p ? p.date : ''; }
+function ukTime(iso){ const p = ukParts(iso); return (p && p.hasTime) ? p.time : ''; }
+// UK wall-clock date (+ optional HH:MM) -> value to store. No time = plain date, as before.
+function ukToIso(dateStr, timeStr){
+  if(!dateStr) return null;
+  if(!timeStr) return dateStr;
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const [h, mi] = timeStr.split(':').map(Number);
+  const wallMs = Date.UTC(y, mo-1, d, h, mi);
+  const offsetAt = ms => { const p = ukParts(new Date(ms)); const [yy,mm,dd] = p.date.split('-').map(Number); const [hh,mn] = p.time.split(':').map(Number); return Date.UTC(yy,mm-1,dd,hh,mn) - ms; };
+  let utc = wallMs - offsetAt(wallMs);
+  utc = wallMs - offsetAt(utc);
+  return new Date(utc).toISOString();
+}
+// Sort key: by UK date, then time; jobs with no time go after the timed ones that day
+function apptSortKey(j){
+  const p = ukParts(j.scheduled_at);
+  if(!p) return '9999-99-99 99:99';
+  return p.date + ' ' + (p.hasTime ? p.time : '99:99');
+}
+function todayDateStr(){ return ukDate(new Date()); }
 
 // Due today, or overdue (scheduled for a day that has already passed and
 // never got actioned) - both cases need to be front-and-centre on the board.
 function isDueTodayOrOverdue(scheduledAt){
   if(!scheduledAt) return false;
-  const datePart = scheduledAt.split('T')[0];
-  return datePart <= todayDateStr();
+  return ukDate(scheduledAt) <= todayDateStr();
 }
 
 function daysSince(dateStr){
@@ -1200,8 +1245,10 @@ function badgeColor(days){
 
 function formatShortDate(dateStr){
   if(!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
+  const p = ukParts(dateStr);
+  if(!p) return '';
+  const [y, m, d] = p.date.split('-').map(Number);
+  return new Date(Date.UTC(y, m-1, d)).toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' });
 }
 
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -1264,7 +1311,7 @@ const COLUMNS = [
     // here (even past the day itself) if it's overdue and still not done -
     // it only leaves once it's completed or cancelled. Never shows a job
     // that's booked for a future date; that one stays in the next column.
-    filter: j => !j.quote_needed && j.scheduled_at && j.scheduled_at.split('T')[0] === todayDateStr() && j.status !== 'completed' && j.status !== 'cancelled',
+    filter: j => !j.quote_needed && j.scheduled_at && ukDate(j.scheduled_at) === todayDateStr() && j.status !== 'completed' && j.status !== 'cancelled',
     targetStatus: 'booked',
     requiresDate: true
   },
@@ -1279,7 +1326,7 @@ const COLUMNS = [
     title: 'Jobs Awaiting Completion',
     // Same "booked / has a date" jobs as before, minus anything that's due
     // today or overdue - those move into Appointments Today instead, never both.
-    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')) && !(j.scheduled_at && j.scheduled_at.split('T')[0] === todayDateStr()),
+    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')) && !(j.scheduled_at && ukDate(j.scheduled_at) === todayDateStr()),
     targetStatus: 'booked',
     requiresDate: true
   },
@@ -1383,21 +1430,23 @@ function quotedAgeTag(dateStr){
 
 function renderTodayStrip(visibleJobs){
   const col = COLUMNS.find(c => c.key === 'appointments_today');
-  const todays = visibleJobs.filter(col.filter).sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
+  const todays = visibleJobs.filter(col.filter).sort((a, b) => apptSortKey(a).localeCompare(apptSortKey(b)));
   if(!todays.length){
     return `<div class="today-wrap"><div class="today-strip empty"><div class="today-head"><span>Appointments Today</span><span style="font-weight:500;text-transform:none;letter-spacing:0;">none</span></div></div></div>`;
   }
   const chips = todays.map(j => `
       <div class="today-chip" draggable="true" data-job-id="${j.id}" ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)" onclick="openDetail('${j.id}')" title="Drag to Awaiting Invoice when done">
-        <span class="tc-main"><span class="tc-ref">${escHtml(j.ref)}</span><span class="tc-title">${escHtml(j.title || 'Untitled')}</span></span><span class="tc-addr">${escHtml(j.address || '')}</span>
+        <span class="tc-main">${ukTime(j.scheduled_at) ? `<span class="tc-time">${ukTime(j.scheduled_at)}</span>` : ''}<span class="tc-ref">${escHtml(j.ref)}</span><span class="tc-title">${escHtml(j.title || 'Untitled')}</span></span><span class="tc-addr">${escHtml(j.address || '')}</span>
       </div>`).join('');
   return `<div class="today-wrap" id="today-wrap" style="--ch:${TODAY_CH}px" data-ch="${TODAY_CH}"><div class="today-strip"><div class="today-head"><span>Today</span><span class="column-count">${todays.length}</span></div><div class="today-chips" id="today-chips">${chips}</div></div><div class="today-resize" onpointerdown="startTodayResize(event)" title="Drag down to make this bigger, up to make it smaller"></div></div>`;
 }
 
 async function rebookJob(id){
   const input = document.getElementById('rebook-' + id);
-  const val = input ? input.value : '';
-  if(!val){ alert('Pick the new appointment date first.'); return; }
+  const dateVal = input ? input.value : '';
+  if(!dateVal){ alert('Pick the new appointment date first.'); return; }
+  const timeInput = document.getElementById('rebooktime-' + id);
+  const val = ukToIso(dateVal, timeInput ? timeInput.value : '');
   const job = JOBS.find(j => j.id === id);
   if(!job) return;
   const { error } = await supabaseClient.from('jobs').update({ scheduled_at: val, status: 'booked' }).eq('id', id);
@@ -1424,11 +1473,12 @@ function render(){
     }
     let quotedDividerDone = false;
     const todayStr = todayDateStr();
-    const isMissed = j => col.key === 'awaiting_completion' && j.scheduled_at && j.scheduled_at.split('T')[0] < todayStr;
+    const isMissed = j => col.key === 'awaiting_completion' && j.scheduled_at && ukDate(j.scheduled_at) < todayStr;
     if(col.key === 'awaiting_completion'){
       // Missed appointments (date already passed, not done) go first, oldest date at the top
-      const missedJobs = jobs.filter(isMissed).sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
-      const restJobs = jobs.filter(j => !isMissed(j));
+      const missedJobs = jobs.filter(isMissed).sort((a, b) => apptSortKey(a).localeCompare(apptSortKey(b)));
+      // Upcoming: soonest appointment (date, then UK time) first, even if it is tomorrow or later
+      const restJobs = jobs.filter(j => !isMissed(j)).sort((a, b) => apptSortKey(a).localeCompare(apptSortKey(b)));
       jobs.splice(0, jobs.length, ...missedJobs, ...restJobs);
     }
     let missedDividerDone = false, upcomingDividerDone = false;
@@ -1443,9 +1493,9 @@ function render(){
         // In Appointments Today, make an overdue job (date before today) stand
         // out in red rather than the neutral date pill, since it needs attention.
         if(isMissed(j)){
-          badgeHtml = `<div class="day-badge red">${formatShortDate(j.scheduled_at)}</div>`;
+          badgeHtml = `<div class="day-badge red">${formatShortDate(j.scheduled_at)}${ukTime(j.scheduled_at) ? `<span class="bt">${ukTime(j.scheduled_at)}</span>` : ''}</div>`;
         } else {
-          badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}</div>`;
+          badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}${ukTime(j.scheduled_at) ? `<span class="bt">${ukTime(j.scheduled_at)}</span>` : ''}</div>`;
         }
       } else {
         const days = daysSince(j.created_at || j.created);
@@ -1470,7 +1520,7 @@ function render(){
             <div class="row-address">${escHtml(j.address || '')}</div>
             ${(col.isQuoteColumn && j.quoted && QUOTE_DATES[j.id]) ? quotedAgeTag(QUOTE_DATES[j.id]) : ''}
             ${(col.key === 'awaiting_start' && daysSince(j.created_at || j.created) >= 2) ? `<div class="chase-tag">${daysSince(j.created_at || j.created)}d with no date - update the agent?</div>` : ''}
-            ${isMissed(j) ? `<div class="rebook-mini" onclick="event.stopPropagation()"><input type="date" id="rebook-${j.id}" min="${todayStr}"><button onclick="event.stopPropagation(); rebookJob('${j.id}')">Rebook</button></div>` : ''}
+            ${isMissed(j) ? `<div class="rebook-mini" onclick="event.stopPropagation()"><input type="date" id="rebook-${j.id}" min="${todayStr}"><input type="time" id="rebooktime-${j.id}" step="300" title="UK time"><button onclick="event.stopPropagation(); rebookJob('${j.id}')">Rebook</button></div>` : ''}
           </div>
           ${badgeHtml}
         </div>
@@ -1734,7 +1784,8 @@ function openDetail(id){
   document.getElementById('d-tenant-phone-input').value = j.tenant_phone || '';
   document.getElementById('d-desc-input').value = j.description || '';
   document.getElementById('d-status').value = j.status;
-  document.getElementById('d-scheduled').value = j.scheduled_at ? j.scheduled_at.split('T')[0] : '';
+  document.getElementById('d-scheduled').value = j.scheduled_at ? ukDate(j.scheduled_at) : '';
+  document.getElementById('d-scheduled-time').value = j.scheduled_at ? ukTime(j.scheduled_at) : '';
   document.getElementById('d-tech-input').value = j.tech || '';
   document.getElementById('d-tech-phone-input').value = j.tech_phone || '';
   const assignSelForDetail = document.getElementById('d-assigned-input');
@@ -1764,7 +1815,7 @@ function openDetail(id){
   document.getElementById('sb-tenant').textContent = j.tenant || '—';
   document.getElementById('sb-tech').textContent = j.tech || 'Unassigned';
   document.getElementById('sb-assigned').textContent = j.assigned_to || 'Unassigned';
-  document.getElementById('sb-appointment').textContent = j.scheduled_at ? formatShortDate(j.scheduled_at) : 'Not set';
+  document.getElementById('sb-appointment').textContent = j.scheduled_at ? (formatShortDate(j.scheduled_at) + (ukTime(j.scheduled_at) ? ' at ' + ukTime(j.scheduled_at) + ' UK' : '')) : 'Not set';
   document.getElementById('sb-budget').textContent = j.budget != null ? '£' + Number(j.budget).toFixed(2) : '—';
   document.getElementById('sb-cost').textContent = j.cost_to_us != null ? '£' + Number(j.cost_to_us).toFixed(2) : 'Not set';
   const sbInvoicedEl = document.getElementById('sb-invoiced');
@@ -2045,9 +2096,10 @@ async function saveDetail(){
   if(!currentDetailId) return;
 
   const newStatus = document.getElementById('d-status').value;
-  const scheduledVal = document.getElementById('d-scheduled').value;
+  const scheduledDate = document.getElementById('d-scheduled').value;
+  const scheduledVal = ukToIso(scheduledDate, document.getElementById('d-scheduled-time').value);
 
-  if(newStatus === 'booked' && !scheduledVal){
+  if(newStatus === 'booked' && !scheduledDate){
     alert('Please set an appointment date before marking this job as Booked.');
     switchTab('nextsteps');
     return;
