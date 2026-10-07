@@ -346,6 +346,30 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
   .detail-sidebar { width:100%; border-left:none; border-top:1px solid var(--border); }
 }
 
+/* ===== ACTION DESK ===== */
+#action-desk { display:none; padding:20px; max-width:1100px; margin:0 auto; }
+.ad-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.ad-head h2 { font-size:1.2rem; font-weight:800; }
+.ad-head .ad-sub { color:var(--muted); font-size:0.85rem; margin-top:2px; }
+.ad-section { background:var(--card); border:1px solid var(--border); border-radius:10px; margin-bottom:16px; overflow:hidden; }
+.ad-section h3 { font-size:0.92rem; font-weight:800; padding:12px 16px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); }
+.ad-section h3 .ad-count { font-size:0.72rem; background:#eef0f3; color:var(--text); border-radius:10px; padding:2px 8px; font-weight:700; }
+.ad-section .ad-hint { font-weight:500; color:var(--muted); font-size:0.78rem; margin-left:auto; }
+.ad-row { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border); cursor:pointer; }
+.ad-row:last-child { border-bottom:none; }
+.ad-row:hover { background:rgba(37,99,235,0.06); }
+.ad-ref { font-size:0.74rem; font-weight:700; color:var(--muted2); min-width:64px; }
+.ad-main { flex:1; min-width:0; }
+.ad-title { font-weight:700; font-size:0.9rem; }
+.ad-addr { color:var(--muted); font-size:0.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ad-age { font-size:0.76rem; font-weight:700; color:var(--muted); white-space:nowrap; text-align:right; }
+.ad-age.warn { color:#b45309; }
+.ad-age.bad { color:#b91c1c; }
+.ad-empty { padding:14px 16px; color:var(--muted2); font-size:0.85rem; }
+html[data-theme="dark"] .ad-section h3 .ad-count { background:#2a323c; }
+html[data-theme="dark"] .ad-age.warn { color:#fbbf24; }
+html[data-theme="dark"] .ad-age.bad { color:#f87171; }
+
 /* ===== DARK MODE ===== */
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -414,6 +438,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
   <select id="team-filter" style="padding:8px 10px;border-radius:7px;border:1px solid #4b5563;background:#374151;color:white;font-family:'Inter',sans-serif;font-size:0.85rem;" onchange="onSearchOrFilterChange()">
     <option value="">All Team Members</option>
   </select>
+  <button onclick="openActionDesk()" id="desk-btn" title="Everything that needs chasing or a nudge" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x1F4CB; Action Desk</button>
   <button onclick="toggleTheme()" id="theme-btn" title="Switch between light and dark mode" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 12px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x1F319;</button>
   <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb; Update</button>
   <button onclick="openTechPanel()" id="tech-btn" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">🔧 Technicians</button>
@@ -435,6 +460,8 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
 </div>
 
 <div id="board"></div>
+
+<div id="action-desk"></div>
 
 <div id="detail-view">
   <div class="detail-container">
@@ -1268,7 +1295,9 @@ async function fetchAllJobs(){
     quoted: !!j.quoted,
     category: j.category,
     created: j.created,
-    created_at: j.created_at || j.created
+    created_at: j.created_at || j.created,
+    updated_at: j.updated_at || null,
+    date_completed: j.date_completed || null
   }));
 
   // Deterministic sort: "latest added" means the real-world job date (created),
@@ -1965,6 +1994,87 @@ function canSeeJob(x){
   return (x.assigned_to || '').trim().toLowerCase() === CURRENT_USER.name.trim().toLowerCase();
 }
 
+/* ===== ACTION DESK: a second view of jobs that need a nudge (the main board is unchanged) ===== */
+let DESK_OPEN_FROM_DESK = false;
+function openActionDesk(){
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('board').style.display = 'none';
+  document.getElementById('action-desk').style.display = 'block';
+  renderActionDesk();
+  window.scrollTo(0, 0);
+}
+function closeActionDesk(){
+  document.getElementById('action-desk').style.display = 'none';
+  document.getElementById('board').style.display = 'flex';
+}
+
+function renderActionDesk(){
+  const el = document.getElementById('action-desk');
+  const jobs = JOBS.filter(j => canSeeJob(j));
+  const today = todayDateStr();
+  const norm = a => (a || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const sev = (d, warn, bad) => d >= bad ? 'bad' : (d >= warn ? 'warn' : '');
+  const byAgeDesc = (a, b) => b.days - a.days;
+
+  const sections = [];
+
+  // 1. Quotes sent, waiting on the agent
+  const sent = jobs.filter(j => j.quote_needed && j.quoted && j.status !== 'cancelled')
+    .map(j => ({ j, days: QUOTE_DATES[j.id] ? daysSince(QUOTE_DATES[j.id]) : daysSince(j.created_at) }))
+    .sort(byAgeDesc);
+  sections.push({ title: 'Quotes sent, waiting on a reply', hint: 'oldest first - chase after 7 days',
+    rows: sent.map(x => ({ j: x.j, note: 'quoted ' + (x.days === 0 ? 'today' : x.days + 'd ago'), cls: sev(x.days, 7, 14) })) });
+
+  // 2. Quotes still to send
+  const toQuote = jobs.filter(j => j.quote_needed && !j.quoted && j.status !== 'cancelled')
+    .map(j => ({ j, days: daysSince(j.created_at) })).sort(byAgeDesc);
+  sections.push({ title: 'Quotes still to send', hint: 'waiting since the request came in',
+    rows: toQuote.map(x => ({ j: x.j, note: 'asked ' + (x.days === 0 ? 'today' : x.days + 'd ago'), cls: sev(x.days, 2, 5) })) });
+
+  // 3. Missed appointments
+  const missed = jobs.filter(j => !j.quote_needed && j.scheduled_at && ukDate(j.scheduled_at) < today &&
+      j.status !== 'completed' && j.status !== 'cancelled')
+    .map(j => ({ j, days: daysSince(j.scheduled_at) })).sort(byAgeDesc);
+  sections.push({ title: 'Missed appointments', hint: 'rebook or close off',
+    rows: missed.map(x => ({ j: x.j, note: 'was ' + ukDate(x.j.scheduled_at) + (x.j.tech ? ' - ' + x.j.tech : ''), cls: 'bad' })) });
+
+  // 4. Jobs with no start date
+  const noDate = jobs.filter(j => !j.quote_needed && ['active','contacted'].includes(j.status) && !j.scheduled_at && daysSince(j.created_at) >= 2)
+    .map(j => ({ j, days: daysSince(j.created_at) })).sort(byAgeDesc);
+  sections.push({ title: 'No start date yet', hint: 'update the agent',
+    rows: noDate.map(x => ({ j: x.j, note: x.days + 'd with no date', cls: sev(x.days, 3, 6) })) });
+
+  // 5. Completed but not invoiced
+  const toInvoice = jobs.filter(j => !j.quote_needed && j.status === 'completed' && !j.invoiced)
+    .map(j => ({ j, days: daysSince(j.date_completed || j.updated_at || j.created_at) })).sort(byAgeDesc);
+  sections.push({ title: 'Completed, not invoiced', hint: 'oldest first',
+    rows: toInvoice.map(x => ({ j: x.j, note: 'done ' + (x.days === 0 ? 'today' : x.days + 'd ago'), cls: sev(x.days, 3, 7) })) });
+
+  // 6. Upsell: open quote requests at addresses where we have already completed work
+  const doneAt = {};
+  jobs.filter(j => !j.quote_needed && j.status === 'completed').forEach(j => { const k = norm(j.address); if(k) (doneAt[k] = doneAt[k] || []).push(j); });
+  const upsell = jobs.filter(j => j.quote_needed && j.status !== 'cancelled' && doneAt[norm(j.address)])
+    .map(j => ({ j, days: 0 }));
+  sections.push({ title: 'Upsell: open quotes at addresses we have already worked at', hint: 'quoted or not, not yet approved',
+    rows: upsell.map(x => ({ j: x.j, note: (x.j.quoted ? 'quoted' : 'not quoted yet') + ' - ' + doneAt[norm(x.j.address)].length + ' completed job' + (doneAt[norm(x.j.address)].length > 1 ? 's' : ''), cls: '' })) });
+
+  const total = sections.reduce((n, sct) => n + sct.rows.length, 0);
+  el.innerHTML = `
+    <div class="ad-head">
+      <div><h2>Action Desk</h2><div class="ad-sub">${total} item${total === 1 ? '' : 's'} that need a nudge. The main board still has everything.</div></div>
+      <button class="btn-secondary" onclick="closeActionDesk()" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">&larr; Back to Board</button>
+    </div>` + sections.map(sct => `
+    <div class="ad-section">
+      <h3>${escHtml(sct.title)} <span class="ad-count">${sct.rows.length}</span><span class="ad-hint">${escHtml(sct.hint)}</span></h3>
+      ${sct.rows.length ? sct.rows.map(r => `
+        <div class="ad-row" onclick="DESK_OPEN_FROM_DESK=true;document.getElementById('action-desk').style.display='none';openDetail('${r.j.id}')">
+          <div class="ad-ref">${escHtml(r.j.ref)}</div>
+          <div class="ad-main"><div class="ad-title">${escHtml(r.j.title || 'Untitled')}</div><div class="ad-addr">${escHtml(r.j.address || '')}</div></div>
+          <div class="ad-age ${r.cls}">${escHtml(r.note)}</div>
+        </div>`).join('') : '<div class="ad-empty">Nothing here.</div>'}
+    </div>`).join('');
+}
+
 /* ===== EMAIL THREAD LINK (admin only; stored in job_email_links, locked by RLS) ===== */
 async function loadEmailLink(j){
   const row = document.getElementById('sb-email-row');
@@ -2093,7 +2203,10 @@ let hashPushedByUs = false;
 
 function closeDetail(){
   document.getElementById('detail-view').style.display = 'none';
-  document.getElementById('board').style.display = 'flex';
+  const deskOpen = DESK_OPEN_FROM_DESK;
+  DESK_OPEN_FROM_DESK = false;
+  if(deskOpen){ document.getElementById('action-desk').style.display = 'block'; renderActionDesk(); }
+  else document.getElementById('board').style.display = 'flex';
   currentDetailId = null;
   const cMsgEl = document.getElementById('c-message');
   if(cMsgEl) cMsgEl.value = '';
