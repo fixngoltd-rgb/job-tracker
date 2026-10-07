@@ -1120,6 +1120,17 @@ async function fetchQuoteDates(){
   } catch(e){}
 }
 
+// Newest job first: by the day it was added, then by the exact time it was added to the
+// board that day. The job number is only a last tie-break for rows saved in one bulk import.
+function newestFirst(a, b){
+  const d = (b.created || '').localeCompare(a.created || '');
+  if(d !== 0) return d;
+  const t = (b.created_at || '').localeCompare(a.created_at || '');
+  if(t !== 0) return t;
+  const n = r => { const m = (r || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : 0; };
+  return n(b.ref) - n(a.ref);
+}
+
 async function fetchAllJobs(){
   const { data, error } = await supabaseClient
     .from('jobs')
@@ -1166,11 +1177,7 @@ async function fetchAllJobs(){
     const m = (ref || '').match(/(\d+)/);
     return m ? parseInt(m[1], 10) : 0;
   }
-  JOBS.sort((a, b) => {
-    const dateCmp = (b.created || '').localeCompare(a.created || '');
-    if(dateCmp !== 0) return dateCmp;
-    return refNum(b.ref) - refNum(a.ref);
-  });
+  JOBS.sort(newestFirst);
 
   document.getElementById('range-note').textContent = JOBS.length + ' jobs total';
   await fetchQuoteDates();
@@ -1472,16 +1479,13 @@ function render(){
   const visibleJobs = getVisibleJobs();
   board.innerHTML = renderTodayStrip(visibleJobs) + COLUMNS.filter(c => c.key !== 'appointments_today').map((col, idx) => {
     const jobs = visibleJobs.filter(col.filter);
-    // Quotation column only: still-to-quote jobs on top, already-quoted ones below,
-    // and within each group the oldest job first (longest waiting at the very top)
-    if(col.isQuoteColumn){
-      const refN = r => { const m = (r || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : 0; };
-      jobs.sort((a, b) => {
-        if(!!a.quoted !== !!b.quoted) return a.quoted ? 1 : -1;
-        const d = (a.created || '').localeCompare(b.created || '');
-        return d !== 0 ? d : refN(a.ref) - refN(b.ref);
-      });
-    }
+    // Every card: newest job on top. Quotation column: still-to-quote jobs on top,
+    // already-quoted ones below, each group newest first. (Awaiting Completion is
+    // ordered by appointment time further down instead.)
+    jobs.sort((a, b) => {
+      if(col.isQuoteColumn && !!a.quoted !== !!b.quoted) return a.quoted ? 1 : -1;
+      return newestFirst(a, b);
+    });
     let quotedDividerDone = false;
     const todayStr = todayDateStr();
     const isMissed = j => col.key === 'awaiting_completion' && j.scheduled_at && ukDate(j.scheduled_at) < todayStr;
