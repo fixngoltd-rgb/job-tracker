@@ -575,6 +575,14 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           <label>Invoiced</label>
           <div class="val" id="sb-invoiced"></div>
         </div>
+        <div class="sb-field" id="sb-email-row" style="display:none">
+          <label>Email Thread</label>
+          <div id="sb-email-view"></div>
+          <div class="link-add">
+            <input type="text" id="email-link-input" placeholder="Paste Gmail thread link" onkeydown="if(event.key==='Enter') saveEmailLink()">
+            <button onclick="saveEmailLink()">Save</button>
+          </div>
+        </div>
         <div class="sb-field" id="sb-linked-row">
           <label>Linked Jobs</label>
           <div id="sb-linked-list"></div>
@@ -1867,6 +1875,7 @@ function openDetail(id){
   loadComments(id);
   loadJobFiles(id);
   renderLinkedJobs(j);
+  loadEmailLink(j);
 
   document.getElementById('board').style.display = 'none';
   document.getElementById('detail-view').style.display = 'block';
@@ -1880,6 +1889,52 @@ function openDetail(id){
 function canSeeJob(x){
   if(!CURRENT_USER || CURRENT_USER.role === 'admin') return true;
   return (x.assigned_to || '').trim().toLowerCase() === CURRENT_USER.name.trim().toLowerCase();
+}
+
+/* ===== EMAIL THREAD LINK (admin only; stored in job_email_links, locked by RLS) ===== */
+async function loadEmailLink(j){
+  const row = document.getElementById('sb-email-row');
+  if(!row) return;
+  const isAdmin = CURRENT_USER && CURRENT_USER.role === 'admin';
+  row.style.display = isAdmin ? '' : 'none';
+  if(!isAdmin) return;
+  const view = document.getElementById('sb-email-view');
+  view.innerHTML = '<span style="color:var(--muted2)">Loading...</span>';
+  const { data } = await supabaseClient.from('job_email_links').select('*').eq('job_id', j.id).maybeSingle();
+  if(currentDetailId !== j.id) return;
+  if(data){
+    view.innerHTML = `<a href="${escHtml(data.gmail_url)}" target="_blank" rel="noopener" style="font-weight:600">Open in Gmail &#8599;</a>` +
+      `<button class="link-x" title="Remove link" onclick="removeEmailLink()" style="margin-left:8px">&times;</button>`;
+  } else {
+    view.innerHTML = '<span style="color:var(--muted2)">No thread linked</span>';
+  }
+}
+
+async function saveEmailLink(){
+  if(!(CURRENT_USER && CURRENT_USER.role === 'admin') || !currentDetailId) return;
+  const input = document.getElementById('email-link-input');
+  const raw = (input.value || '').trim();
+  if(!raw) return;
+  // accept a full Gmail URL (…#inbox/<id>, #all/<id>, thread-f:<id>) or a bare thread id
+  const m = raw.match(/([0-9a-f]{16})(?![0-9a-f])/i);
+  if(!m){ alert('Could not find a Gmail thread id in that link.'); return; }
+  const threadId = m[1].toLowerCase();
+  const url = 'https://mail.google.com/mail/?authuser=fixngoltd@gmail.com#all/' + threadId;
+  const { error } = await supabaseClient.from('job_email_links')
+    .upsert({ job_id: currentDetailId, thread_id: threadId, gmail_url: url }, { onConflict: 'job_id' });
+  if(error){ alert('Failed to save link: ' + error.message); return; }
+  input.value = '';
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j) loadEmailLink(j);
+}
+
+async function removeEmailLink(){
+  if(!(CURRENT_USER && CURRENT_USER.role === 'admin') || !currentDetailId) return;
+  if(!confirm('Remove the email thread link from this job?')) return;
+  const { error } = await supabaseClient.from('job_email_links').delete().eq('job_id', currentDetailId);
+  if(error){ alert('Failed to remove link: ' + error.message); return; }
+  const j = JOBS.find(x => x.id === currentDetailId);
+  if(j) loadEmailLink(j);
 }
 
 function renderLinkedJobs(j){
