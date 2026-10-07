@@ -370,6 +370,14 @@ html[data-theme="dark"] .ad-section h3 .ad-count { background:#2a323c; }
 html[data-theme="dark"] .ad-age.warn { color:#fbbf24; }
 html[data-theme="dark"] .ad-age.bad { color:#f87171; }
 
+/* top bar layout: menu + logo on the left, search fills the middle, controls tight on the right */
+#topbar { justify-content:flex-start; gap:14px; padding:12px 22px; }
+#topbar .logo { white-space:nowrap; margin-right:10px; }
+#topbar #board-search { flex:1 1 auto !important; max-width:none !important; min-width:180px; padding:10px 14px !important; font-size:0.92rem !important; }
+#topbar #team-filter { flex:0 0 auto; }
+#topbar .range-note { white-space:nowrap; }
+@media (max-width:760px){ #topbar { gap:8px; padding:10px 12px; } #topbar .logo { display:none; } #topbar .range-note { display:none; } }
+
 /* ===== SIDE MENU ===== */
 #side-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:90; }
 #side-overlay.open { display:block; }
@@ -434,6 +442,7 @@ html[data-theme="dark"] input, html[data-theme="dark"] textarea, html[data-theme
 html[data-theme="dark"] input::placeholder, html[data-theme="dark"] textarea::placeholder { color:#7d8894; }
 html[data-theme="dark"] #topbar input, html[data-theme="dark"] #topbar select { background:#1a2028 !important; border-color:#2d3640 !important; }
 html[data-theme="dark"] #topbar button { background:#1a2028 !important; border-color:#2d3640 !important; }
+html[data-theme="dark"] #topbar #new-job-btn { background:#2563eb !important; border-color:#2563eb !important; }
 /* pastel info boxes written as inline styles */
 html[data-theme="dark"] [style*="background:#fef3c7"] { background:#3a2e12 !important; border-color:#6b5316 !important; color:#fbbf24; }
 html[data-theme="dark"] [style*="background:#f5f3ff"] { background:#241a3d !important; border-color:#4c3a80 !important; }
