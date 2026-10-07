@@ -625,10 +625,12 @@ function closeNewJobModal(){
 }
 
 /* ===== REF NUMBERING: JOB-### for jobs, QUO-### for quote requests ===== */
-function nextRef(prefix){
+async function nextRef(prefix){
+  // ask the database (archived jobs included) so a number is never reused
+  const { data } = await supabaseClient.from('jobs').select('ref').like('ref', prefix + '-%');
   let max = 0;
-  (JOBS || []).forEach(j => {
-    const m = (j.ref || '').match(new RegExp('^' + prefix + '-(\\d+)$'));
+  (data || []).forEach(r => {
+    const m = (r.ref || '').match(new RegExp('^' + prefix + '-(\\d+)$'));
     if(m) max = Math.max(max, parseInt(m[1], 10));
   });
   return prefix + '-' + String(max + 1).padStart(3, '0');
@@ -657,12 +659,12 @@ async function createJob(){
     created: new Date().toISOString().split('T')[0]
   };
 
-  newJob.ref = nextRef(newJob.quote_needed ? 'QUO' : 'JOB');
+  newJob.ref = await nextRef(newJob.quote_needed ? 'QUO' : 'JOB');
   let { error } = await supabaseClient.from('jobs').insert([newJob]);
   if(error && error.code === '23505'){
     // someone else took that number a moment ago: refresh and take the next one
     await fetchAllJobs();
-    newJob.ref = nextRef(newJob.quote_needed ? 'QUO' : 'JOB');
+    newJob.ref = await nextRef(newJob.quote_needed ? 'QUO' : 'JOB');
     ({ error } = await supabaseClient.from('jobs').insert([newJob]));
   }
   if(error){ alert('Failed to create job: ' + error.message); return; }
@@ -1761,8 +1763,8 @@ async function onDrop(e, colKey){
   }
 
   // Quote requests carry QUO-###; once a job leaves the quote column it gets the next JOB-###
-  if(updates.quote_needed === true && !job.quote_needed) updates.ref = nextRef('QUO');
-  else if(updates.quote_needed === false && job.quote_needed) updates.ref = nextRef('JOB');
+  if(updates.quote_needed === true && !job.quote_needed) updates.ref = await nextRef('QUO');
+  else if(updates.quote_needed === false && job.quote_needed) updates.ref = await nextRef('JOB');
 
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', job.id);
   if(error){ alert('Failed to move job: ' + error.message); draggedJobId = null; return; }
@@ -2117,7 +2119,7 @@ async function markQuoteApproved(){
   // place it cleanly into Jobs Awaiting a Start Date.
   const updates = { quote_needed: false, quoted: false, status: 'active', scheduled_at: null };
   const cur = JOBS.find(x => x.id === currentDetailId);
-  if(cur && cur.quote_needed) updates.ref = nextRef('JOB');   // approved quote becomes a real job number
+  if(cur && cur.quote_needed) updates.ref = await nextRef('JOB');   // approved quote becomes a real job number
 
   const { error } = await supabaseClient
     .from('jobs')
