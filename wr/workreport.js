@@ -32,7 +32,7 @@
   }
 
   /* ---------- text ---------- */
-  const SECTION_RE = /^(issues reported|work carried out|outcome)\s*:?$/i;
+  const SECTION_RE = /^(issues reported|work carried out|outcome)\s*(\([^)]*\))?\s*:?$/i;   // main headings, with or without a bracket note or colon
   function parseText(raw){
     const out = [];
     String(raw || '').replace(/\r/g, '').split('\n').forEach(l0 => {
@@ -42,7 +42,8 @@
       if(!l) return;
       if(/ref:\s*job-\d+/i.test(l) || /ref:\s*quo-\d+/i.test(l)) return;   // address/ref line is not part of the report body
       if(!out.length && /^work report/i.test(l)){ out.push({ k: 'h', t: l }); return; }
-      if(SECTION_RE.test(l)){ out.push({ k: 's', t: l.replace(/\s*:$/, '') }); return; }
+      // any un-bulleted line that is a main heading or ends with a colon (e.g. 'Visit 1 - Initial inspection:') is a heading, not a bullet
+      if(SECTION_RE.test(l) || (!/^[•\-\*–]/.test(l) && /:$/.test(l))){ out.push({ k: 's', t: l.replace(/\s*:$/, '') }); return; }
       out.push({ k: 'b', t: l.replace(/^[•\-\*–]\s*/, '') });
     });
     return out;
@@ -62,7 +63,7 @@
     blocks.forEach(b => {
       if(b.k === 'h'){ wrap(b.t, 'bold', width).forEach(t => lines.push({ k: 'h', t })); }
       else if(b.k === 's'){
-        if(secCount++ > 0) lines.push({ k: 'gap' });
+        if(secCount++ > 0 && !(lines.length && lines[lines.length-1].k === 's')) lines.push({ k: 'gap' });
         wrap(b.t, 'bold', width).forEach(t => lines.push({ k: 's', t }));
       } else {
         wrap(b.t, 'normal', width - INDENT * sz).forEach((t, i) => lines.push({ k: 'b', t, first: i === 0 }));
