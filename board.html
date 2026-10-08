@@ -343,6 +343,15 @@ html[data-theme="dark"] .new-tag { color:#93c5fd; background:#1e3a5f; }
 }
 .sb-source-tracker { background:#e0e7ff; color:#3730a3; }
 .sb-source-archive { background:#fce7f3; color:#9d174d; }
+/* text boxes may only be stretched downwards, so they can never be dragged behind the sidebar */
+textarea.field-input { resize:vertical; max-width:100%; box-sizing:border-box; }
+/* wide screens: details form on the left, files and photos in their own column beside it */
+@media(min-width:1000px){
+  .detail-container { max-width:1200px; }
+  #panel-details.active { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:26px; row-gap:0; align-items:start; }
+  #panel-details.active > * { grid-column:1; }
+  #panel-details.active > #jf-dropzone { grid-column:2; grid-row:1 / span 40; position:sticky; top:12px; align-self:start; max-height:calc(100vh - 28px); overflow-y:auto; margin-bottom:0; }
+}
 @media(max-width:640px){
   .detail-body-wrap { flex-direction:column; }
   .detail-sidebar { width:100%; border-left:none; border-top:1px solid var(--border); }
