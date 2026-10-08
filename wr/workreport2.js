@@ -52,21 +52,49 @@
     try { const img = new Image(); img.src = u; await img.decode(); return img; }
     finally { setTimeout(() => URL.revokeObjectURL(u), 0); }
   }
-  // portrait photos are centre-cropped to the tile (a little biased to the top); landscape photos are kept whole
-  async function prepPhoto(src, tileAR){
+  // load a photo once at a sensible size (EXIF rotation applied by the browser) and keep it as a canvas
+  async function loadSized(src){
     const img = await loadImg(src);
-    const w0 = img.naturalWidth, h0 = img.naturalHeight, land = w0 > h0;
-    let sx = 0, sy = 0, sw = w0, sh = h0;
-    if(!land){
-      const ir = w0 / h0;
-      if(ir > tileAR){ sw = Math.round(h0 * tileAR); sx = Math.round((w0 - sw) / 2); }
-      else { sh = Math.round(w0 / tileAR); sy = Math.round((h0 - sh) * 0.4); }
+    const w0 = img.naturalWidth, h0 = img.naturalHeight, k = Math.min(1, 1300 / Math.max(w0, h0));
+    const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(w0 * k)); cv.height = Math.max(1, Math.round(h0 * k));
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+    return { cv, ar: w0 / h0 };
+  }
+  // crop a loaded photo to exactly fill a tile of tw x th (centred sideways, a little biased to the top vertically)
+  function coverData(cv, tw, th){
+    const ratio = tw / th, ir = cv.width / cv.height;
+    let sx = 0, sy = 0, sw = cv.width, sh = cv.height;
+    if(ir > ratio){ sw = Math.round(cv.height * ratio); sx = Math.round((cv.width - sw) / 2); }
+    else { sh = Math.round(cv.width / ratio); sy = Math.round((cv.height - sh) * 0.4); }
+    const k = Math.min(1, 1100 / Math.max(sw, sh));
+    const out = document.createElement('canvas'); out.width = Math.max(1, Math.round(sw * k)); out.height = Math.max(1, Math.round(sh * k));
+    out.getContext('2d').drawImage(cv, sx, sy, sw, sh, 0, 0, out.width, out.height);
+    return out.toDataURL('image/jpeg', 0.82);
+  }
+  // split photos (in order) into rows of 1-3 that run the full width with no empty space. A row's height is capped near the target
+  // (so tall photos are trimmed a little top and bottom); if that would trim a photo too much (e.g. the last 1-2 portrait photos)
+  // the row is left-aligned at natural proportions instead.
+  function planRows(ar, W0, gap, target){
+    const n = ar.length, INF = 1e9, best = new Array(n + 1).fill(INF), from = new Array(n + 1).fill(0), cap = target * 1.25;
+    best[0] = 0;
+    const rowOf = (i, k) => {
+      let sum = 0; for(let q = i; q < i + k; q++) sum += ar[q];
+      const hFull = (W0 - (k - 1) * gap) / sum, h = Math.min(hFull, cap), crop = 1 - h / hFull;
+      const full = crop <= 0.3;
+      let c = Math.pow(Math.log(h / target), 2) + (full ? 2 * crop * crop : 0.05 + 0.35 * (1 - (sum * h + (k - 1) * gap) / W0));
+      return { h, full, cost: c };
+    };
+    for(let i = 0; i < n; i++){
+      if(best[i] >= INF) continue;
+      for(let k = 1; k <= Math.min(3, n - i); k++){
+        const r = rowOf(i, k);
+        if(!r.full && i + k < n) r.cost += 1.5;     // only the very last row may be left short
+        if(best[i] + r.cost < best[i + k]){ best[i + k] = best[i] + r.cost; from[i + k] = i; }
+      }
     }
-    const k = Math.min(1, 1000 / Math.max(sw, sh));
-    const cw = Math.max(1, Math.round(sw * k)), ch = Math.max(1, Math.round(sh * k));
-    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
-    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); g.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
-    return { data: cv.toDataURL('image/jpeg', 0.82), w: cw, h: ch, land };
+    const rows = []; let e = n;
+    while(e > 0){ const st = from[e], k = e - st, r = rowOf(st, k); const idx = []; for(let q = st; q < e; q++) idx.push(q); rows.unshift({ idx, h: r.h, full: r.full }); e = st; }
+    return rows;
   }
 
   /* ---------- main ---------- */
@@ -215,62 +243,93 @@
     doc.addImage(A.terms, 'JPEG', 0, H - termsH, W, termsH, undefined, 'FAST');
     flow(chosen, extra, true);
     if(side){
-      for(let i = 0; i < side.n; i++){
-        const p = await prepPhoto(photosIn[i].url, side.tw / side.th);
-        const col = i % side.cols, row = Math.floor(i / side.cols);
-        const x = side.x + col * (side.tw + side.gap), y0 = bodyTop - 10 + row * (side.th + side.gap);
-        fill(C.light); doc.roundedRect(x, y0, side.tw, side.th, 3, 3, 'F');
-        if(p.land){ const k = Math.min(side.tw / p.w, side.th / p.h), dw = p.w * k, dh = p.h * k; doc.addImage(p.data, 'JPEG', x + (side.tw - dw) / 2, y0 + (side.th - dh) / 2, dw, dh, undefined, 'FAST'); }
-        else doc.addImage(p.data, 'JPEG', x, y0, side.tw, side.th, undefined, 'FAST');
+      const loaded = []; for(let i = 0; i < side.n; i++) loaded.push(await loadSized(photosIn[i].url));
+      const ths = loaded.map(l => Math.min(Math.max(side.tw / l.ar, side.tw * 0.72), side.tw * 1.4));
+      const nRows = Math.ceil(side.n / side.cols);
+      let rowsH = []; for(let r = 0; r < nRows; r++) rowsH.push(Math.max.apply(null, ths.slice(r * side.cols, r * side.cols + side.cols)));
+      const availS = LIM1 - bodyTop, totS = rowsH.reduce((a, b2) => a + b2, 0) + (nRows - 1) * side.gap;
+      if(totS > availS){ const k = (availS - (nRows - 1) * side.gap) / (totS - (nRows - 1) * side.gap); rowsH = rowsH.map(h => h * k); }
+      let y0 = bodyTop - 10;
+      for(let r = 0; r < nRows; r++){
+        for(let c = 0; c < side.cols; c++){
+          const i = r * side.cols + c; if(i >= side.n) break;
+          doc.addImage(coverData(loaded[i].cv, side.tw, rowsH[r]), 'JPEG', side.x + c * (side.tw + side.gap), y0, side.tw, rowsH[r], undefined, 'FAST');
+        }
+        y0 += rowsH[r] + side.gap;
       }
     }
 
     /* ----- photo pages ----- */
     const photos = side ? [] : (opts.photos || []);
     if(photos.length){
-      // no captions or sections: a plain grid where the gaps between photos are the same across and down,
-      // and the space under the header line equals the space above the footer; tile height is chosen so 3 rows fill the page exactly
       const plain = !photos.some(p => p.caption || p.section);
-      const COLS = 3, GAP = 10, CW = (W - 2 * M - (COLS - 1) * GAP) / COLS;
-      const TOP = plain ? 84 : 84, BOT = 46, HEAD = 28;
-      const LIMP = plain ? H - 29 - 24 + 0.5 : H - BOT;     // lowest allowed photo edge
-      const PH = plain ? (LIMP - TOP - 2 * GAP) / 3 : CW * 1.12, CAP = plain ? 0 : 16, ROW = plain ? PH + GAP : PH + CAP + 10;
-      const NEED = plain ? PH : ROW;
-      const prepared = [];
-      for(const p of photos) prepared.push(Object.assign({}, p, { img: await prepPhoto(p.url, CW / PH) }));
+      const GAP = 10, FW = W - 2 * M, TOP = 84, HEAD = 28, CAP = plain ? 0 : 16;
+      const LIMP = plain ? H - 29 - 24 + 0.5 : H - 46;      // lowest allowed photo edge
+      const AV = LIMP - TOP, FS = 0.9;
+      const TARGET = plain ? (AV - 2 * GAP) / 3 : 200;      // plain pages: three portrait rows fill the page exactly
+      const loaded = []; for(const p of photos) loaded.push(Object.assign({}, p, await loadSized(p.url)));
       doc.addPage(); smallHeader();
-      let py = TOP, first = true, lastSection = null;
-      const newPage = () => { doc.addPage(); smallHeader(); py = TOP; };
-      // group runs of the same section
-      const groups = []; prepared.forEach(p => { const s = p.section || ''; let g = groups.find(x => x.s === s); if(!g){ g = { s, items: [] }; groups.push(g); } g.items.push(p); });   // one block per section, in first-seen order
-      groups.forEach(g => {
-        if(g.s){
-          if(!first) py += 12;
-          if(py + HEAD + NEED > LIMP + 0.01) newPage();
-          fill(C.purple); doc.rect(M, py - 9, 3, 13, 'F'); font(true, 11); ink(C.navy); doc.text(g.s, M + 10, py); py += HEAD - 10;
-        }
-        for(let i = 0; i < g.items.length; i += COLS){
-          if(py + NEED > LIMP + 0.01){
-            newPage();
-            if(g.s){ fill(C.purple); doc.rect(M, py - 9, 3, 13, 'F'); font(true, 11); ink(C.navy); doc.text(g.s + ' (continued)', M + 10, py); py += HEAD - 10; }
+      const newPage = () => { doc.addPage(); smallHeader(); };
+      const drawRow = (row, grp, y, f) => {
+        let x = M; const th = row.h * f;
+        const sumAr = row.idx.reduce((a, q) => a + grp[q].ar, 0);
+        row.idx.forEach(q => {
+          const p = grp[q], tw = row.full ? (FW - (row.idx.length - 1) * GAP) * p.ar / sumAr : p.ar * row.h;
+          doc.addImage(coverData(p.cv, tw, th), 'JPEG', x, y, tw, th, undefined, 'FAST');
+          if(p.tag){
+            const lab = String(p.tag).toUpperCase(); font(true, 6.5);
+            const tgw = doc.getTextWidth(lab) + 12;
+            fill(/before/i.test(lab) ? C.grey : C.cyan); doc.roundedRect(x + 6, y + 6, tgw, 13, 6.5, 6.5, 'F');
+            ink(C.white); doc.text(lab, x + 12, y + 15);
           }
-          g.items.slice(i, i + COLS).forEach((p, j) => {
-            const x = M + j * (CW + GAP);
-            fill(C.light); doc.roundedRect(x, py, CW, PH, 3, 3, 'F');
-            const im = p.img;
-            if(im.land){ const s = Math.min(CW / im.w, PH / im.h), dw = im.w * s, dh = im.h * s; doc.addImage(im.data, 'JPEG', x + (CW - dw) / 2, py + (PH - dh) / 2, dw, dh, undefined, 'FAST'); }
-            else doc.addImage(im.data, 'JPEG', x, py, CW, PH, undefined, 'FAST');
-            if(p.tag){
-              const lab = String(p.tag).toUpperCase(); font(true, 6.5);
-              const tw = doc.getTextWidth(lab) + 12;
-              fill(/before/i.test(lab) ? C.grey : C.cyan); doc.roundedRect(x + 6, py + 6, tw, 13, 6.5, 6.5, 'F');
-              ink(C.white); doc.text(lab, x + 12, py + 15);
-            }
-            if(p.caption){ font(false, 7.8); ink(C.navy); doc.text(doc.splitTextToSize(p.caption, CW)[0], x, py + PH + 12); }
-          });
-          py += ROW; first = false;
+          if(p.caption){ font(false, 7.8); ink(C.navy); doc.text(doc.splitTextToSize(p.caption, tw)[0], x, y + th + 12); }
+          x += tw + GAP;
+        });
+      };
+      const groups = []; loaded.forEach(p => { const sname = p.section || ''; let g = groups.find(x => x.s === sname); if(!g){ g = { s: sname, items: [] }; groups.push(g); } g.items.push(p); });
+      if(plain){
+        // one run of rows; choose page breaks so each page is filled (rows stretched or squeezed a little to fit exactly)
+        const items = groups[0].items, rows = planRows(items.map(p => p.ar), FW, GAP, TARGET), n = rows.length;
+        const INF = 1e9, best = new Array(n + 1).fill(INF), from = new Array(n + 1).fill(0); best[0] = 0;
+        for(let i = 1; i <= n; i++) for(let j = Math.max(0, i - 6); j < i; j++){
+          if(best[j] >= INF) continue;
+          const m = i - j; let sumh = 0; for(let q = j; q < i; q++) sumh += rows[q].h;
+          const f = (AV - (m - 1) * GAP) / sumh;
+          let c;
+          if(i === n) c = f >= 1 ? 0.0001 : (f >= 0.85 ? Math.pow(Math.log(f), 2) : INF);
+          else c = (f >= 0.85 && f <= 1.2) ? Math.pow(Math.log(f), 2) : INF;
+          if(c < INF && best[j] + c + 0.002 < best[i]){ best[i] = best[j] + c + 0.002; from[i] = j; }
         }
-      });
+        let pagesRows = [];
+        if(best[n] < INF){ let e = n; while(e > 0){ const st = from[e]; pagesRows.unshift(rows.slice(st, e)); e = st; } }
+        else { let cur = [], used = 0; rows.forEach(r => { if(cur.length && used + r.h + GAP > AV){ pagesRows.push(cur); cur = []; used = 0; } cur.push(r); used += r.h + GAP; }); if(cur.length) pagesRows.push(cur); }
+        pagesRows.forEach((pr, pi) => {
+          if(pi > 0) newPage();
+          const sumh = pr.reduce((a, r) => a + r.h, 0), isLast = pi === pagesRows.length - 1;
+          let f = (AV - (pr.length - 1) * GAP) / sumh;
+          f = isLast ? Math.min(1, Math.max(0.85, f)) : Math.min(1.2, Math.max(0.85, f));
+          const used = sumh * f + (pr.length - 1) * GAP;
+          let y = TOP + (isLast ? 0 : Math.max(0, (AV - used) / 2));
+          pr.forEach(r => { drawRow(r, items, y, f); y += r.h * f + GAP; });
+        });
+      } else {
+        let py = TOP, first = true;
+        groups.forEach(g => {
+          const rows = planRows(g.items.map(p => p.ar), FW, GAP, TARGET);
+          const headFor = (label) => { fill(C.purple); doc.rect(M, py - 9, 3, 13, 'F'); font(true, 11); ink(C.navy); doc.text(label, M + 10, py); py += HEAD - 10; };
+          if(g.s){
+            if(!first) py += 12;
+            if(py + HEAD + rows[0].h * FS + CAP > LIMP + 0.01){ newPage(); py = TOP; }
+            headFor(g.s);
+          }
+          rows.forEach(r => {
+            const rh = r.h * FS;      // labelled pages use slightly shorter rows (light crop) so three rows plus a heading fit a page
+            if(py + rh + CAP > LIMP + 0.01){ newPage(); py = TOP; if(g.s) headFor(g.s + ' (continued)'); }
+            drawRow(r, g.items, py, FS);
+            py += rh + CAP + 6; first = false;
+          });
+        });
+      }
     }
 
     /* ----- page numbers + footer line ----- */
