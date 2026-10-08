@@ -131,7 +131,7 @@
     const bodyTop = y;
 
     /* ----- body text flow (dry run to pick a size, then draw) ----- */
-    const bodyW = W - 2 * M;
+    let bodyW = W - 2 * M;
     function flow(sz, extra, draw, startPage){
       let page = 1, yy = bodyTop;
       const lead = sz * 1.34, gapItem = sz * 0.28;
@@ -190,17 +190,43 @@
       });
       return { page, end: yy };
     }
+    // 1-4 photos and no labels: text on the left, photos in a column on the right (same idea as V1)
+    const photosIn = opts.photos || [];
+    const plainIn = !photosIn.some(p => p.caption || p.section);
+    let side = null;
+    const FULLW = bodyW;
+    if(plainIn && photosIn.length >= 1 && photosIn.length <= 4){
+      const n = photosIn.length, two = n >= 3;
+      const colW = two ? 290 : 232, gap = 10, cols = two ? 2 : 1;
+      const tw = (colW - (cols - 1) * gap) / cols;
+      const avail = LIM1 - bodyTop;
+      const rows = Math.ceil(n / cols);
+      const th = Math.min(tw * 1.4, (avail - (rows - 1) * gap) / rows);
+      side = { n, colW, cols, tw, th, gap, x: W - M - colW };
+      bodyW = W - 2 * M - colW - 22;
+    }
     // largest size that keeps everything on page 1; otherwise the smallest size and flow onto more pages
     let chosen = 8, ok = false;
-    for(let sz = 12; sz >= 8; sz -= 0.25){ const r = flow(sz, 0, false); if(r.page === 1 && r.end <= LIM1){ chosen = sz; ok = true; break; } }
+    for(let sz = 13.5; sz >= 8; sz -= 0.25){ const r = flow(sz, 0, false); if(r.page === 1 && r.end <= LIM1){ chosen = sz; ok = true; break; } }
+    if(side && !ok){ side = null; bodyW = FULLW; for(let sz = 13.5; sz >= 8; sz -= 0.25){ const r = flow(sz, 0, false); if(r.page === 1 && r.end <= LIM1){ chosen = sz; ok = true; break; } } }
     let extra = 0;
     if(ok){ const r = flow(chosen, 0, false); extra = Math.max(0, Math.min(16, (LIM1 - r.end) / Math.max(1, rep.sections.length + 1))); }
     // terms bar goes on page 1 first so it sits behind nothing else
     doc.addImage(A.terms, 'JPEG', 0, H - termsH, W, termsH, undefined, 'FAST');
     flow(chosen, extra, true);
+    if(side){
+      for(let i = 0; i < side.n; i++){
+        const p = await prepPhoto(photosIn[i].url, side.tw / side.th);
+        const col = i % side.cols, row = Math.floor(i / side.cols);
+        const x = side.x + col * (side.tw + side.gap), y0 = bodyTop - 10 + row * (side.th + side.gap);
+        fill(C.light); doc.roundedRect(x, y0, side.tw, side.th, 3, 3, 'F');
+        if(p.land){ const k = Math.min(side.tw / p.w, side.th / p.h), dw = p.w * k, dh = p.h * k; doc.addImage(p.data, 'JPEG', x + (side.tw - dw) / 2, y0 + (side.th - dh) / 2, dw, dh, undefined, 'FAST'); }
+        else doc.addImage(p.data, 'JPEG', x, y0, side.tw, side.th, undefined, 'FAST');
+      }
+    }
 
     /* ----- photo pages ----- */
-    const photos = opts.photos || [];
+    const photos = side ? [] : (opts.photos || []);
     if(photos.length){
       // no captions or sections: a plain grid where the gaps between photos are the same across and down,
       // and the space under the header line equals the space above the footer; tile height is chosen so 3 rows fill the page exactly
