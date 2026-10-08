@@ -202,8 +202,14 @@
     /* ----- photo pages ----- */
     const photos = opts.photos || [];
     if(photos.length){
-      const COLS = 3, GAP = 10, CW = (W - 2 * M - (COLS - 1) * GAP) / COLS, PH = CW * 1.12, CAP = 16, ROW = PH + CAP + 10;
-      const TOP = 84, BOT = 46, HEAD = 28;
+      // no captions or sections: a plain grid where the gaps between photos are the same across and down,
+      // and the space under the header line equals the space above the footer; tile height is chosen so 3 rows fill the page exactly
+      const plain = !photos.some(p => p.caption || p.section);
+      const COLS = 3, GAP = 10, CW = (W - 2 * M - (COLS - 1) * GAP) / COLS;
+      const TOP = plain ? 84 : 84, BOT = 46, HEAD = 28;
+      const LIMP = plain ? H - 29 - 24 + 0.5 : H - BOT;     // lowest allowed photo edge
+      const PH = plain ? (LIMP - TOP - 2 * GAP) / 3 : CW * 1.12, CAP = plain ? 0 : 16, ROW = plain ? PH + GAP : PH + CAP + 10;
+      const NEED = plain ? PH : ROW;
       const prepared = [];
       for(const p of photos) prepared.push(Object.assign({}, p, { img: await prepPhoto(p.url, CW / PH) }));
       doc.addPage(); smallHeader();
@@ -214,11 +220,11 @@
       groups.forEach(g => {
         if(g.s){
           if(!first) py += 12;
-          if(py + HEAD + ROW > H - BOT) newPage();
+          if(py + HEAD + NEED > LIMP + 0.01) newPage();
           fill(C.purple); doc.rect(M, py - 9, 3, 13, 'F'); font(true, 11); ink(C.navy); doc.text(g.s, M + 10, py); py += HEAD - 10;
         }
         for(let i = 0; i < g.items.length; i += COLS){
-          if(py + ROW > H - BOT){
+          if(py + NEED > LIMP + 0.01){
             newPage();
             if(g.s){ fill(C.purple); doc.rect(M, py - 9, 3, 13, 'F'); font(true, 11); ink(C.navy); doc.text(g.s + ' (continued)', M + 10, py); py += HEAD - 10; }
           }
