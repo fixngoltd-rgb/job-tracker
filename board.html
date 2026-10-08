@@ -2943,6 +2943,12 @@ function wrPhotoTime(f){
   if(m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
   return f.uploaded_at ? Date.parse(f.uploaded_at) : 0;
 }
+function wrVersionChanged(){
+  const v2 = document.getElementById('wr-version').value === 'v2';
+  document.getElementById('wr-date-wrap').style.display = v2 ? 'inline-flex' : 'none';
+  const d = document.getElementById('wr-date');
+  if(v2 && d && !d.value){ d.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' }); }
+}
 async function saveWorkReportText(){
   if(!currentDetailId) return;
   const v = document.getElementById('wr-text').value;
@@ -3004,7 +3010,13 @@ async function makeWorkReport(mode){
   try {
     await saveWorkReportText();
     const photos = WR_PHOTOS.filter(p => p.selected).map(p => p.url);
-    const blob = await window.WorkReport.makePdf({ address: j.address, text: document.getElementById('wr-text').value, photos });
+    const v2 = (document.getElementById('wr-version') || {}).value === 'v2';
+    let blob;
+    if(v2){
+      const dv = (document.getElementById('wr-date') || {}).value;
+      const dateStr = dv ? new Date(dv + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+      blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: photos.map(u => ({ url: u })) });
+    } else blob = await window.WorkReport.makePdf({ address: j.address, text: document.getElementById('wr-text').value, photos });
     const fname = (j.address || j.ref).replace(/[\\/:*?"<>|]+/g, '').trim() + '.pdf';
     if(mode === 'attach'){
       const filePath = `${j.id}/${Date.now()}_${fname}`;
@@ -3023,7 +3035,7 @@ async function makeWorkReport(mode){
       if(mode === 'view'){ window.open(u, '_blank'); }
       else { const a = document.createElement('a'); a.href = u; a.download = fname; document.body.appendChild(a); a.click(); a.remove(); }
       setTimeout(() => URL.revokeObjectURL(u), 60000);
-      st.style.color = 'var(--green)'; st.textContent = 'Done (' + (blob.layout === 'A' ? 'photos beside the text' : blob.layout === 'B' ? 'long text: photos underneath' : 'photos on a separate page') + ').';
+      st.style.color = 'var(--green)'; st.textContent = blob.layout === 'V2' ? 'Done (V2 layout).' : 'Done (' + (blob.layout === 'A' ? 'photos beside the text' : blob.layout === 'B' ? 'long text: photos underneath' : 'photos on a separate page') + ').';
     }
   } catch(e){ st.style.color = 'var(--red)'; st.textContent = e.message || String(e); }
   btns.forEach(b => b.disabled = false);
@@ -3208,6 +3220,11 @@ init();
     <div id="wr-photos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin:8px 0 14px;"></div>
     <div id="wr-status" style="font-size:0.82rem;min-height:1.2em;margin-bottom:10px;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;margin-bottom:8px;">
+        <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Layout</label>
+        <select id="wr-version" onchange="wrVersionChanged()" style="padding:6px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"><option value="v1">V1 (current)</option><option value="v2">V2 (new)</option></select>
+        <span id="wr-date-wrap" style="display:none;align-items:center;gap:6px;"><label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Date completed</label><input type="date" id="wr-date" style="padding:5px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"></span>
+      </div>
       <button class="btn-secondary" id="wr-btn-view" onclick="makeWorkReport('view')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Preview</button>
       <button class="btn-secondary" id="wr-btn-dl" onclick="makeWorkReport('download')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Download PDF</button>
       <button id="wr-btn-attach" onclick="makeWorkReport('attach')" style="background:#2563eb;color:#fff;border:none;padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Attach to job</button>
@@ -3217,5 +3234,6 @@ init();
 
 <script src="wr/jspdf.umd.min.js"></script>
 <script src="wr/workreport.js"></script>
+<script src="wr/workreport2.js"></script>
 </body>
 </html>
