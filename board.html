@@ -527,13 +527,14 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
         </div>
         <div class="detail-field"><label>Description</label><textarea class="field-input" id="d-desc-input" rows="4" placeholder="What's the issue?"></textarea></div>
 
-        <div class="detail-field">
+        <div class="detail-field" id="jf-dropzone" ondragover="jfDragOver(event)" ondragleave="jfDragLeave(event)" ondrop="jfDrop(event)" style="border:2px dashed transparent;border-radius:10px;padding:6px;transition:border-color .12s,background .12s;">
           <label>Files &amp; Images</label>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-            <input type="file" id="d-file-input" accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm" style="font-size:0.85rem;flex:1;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <input type="file" id="d-file-input" multiple accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm" style="font-size:0.85rem;flex:1;">
             <button class="btn btn-primary" id="d-file-upload-btn" onclick="uploadJobFile()" style="white-space:nowrap;">+ Upload</button>
           </div>
-          <div id="job-files-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;"></div>
+          <div id="jf-status" style="font-size:0.78rem;color:var(--muted);min-height:1.1em;margin-bottom:8px;">Drag and drop photos or PDFs here to upload them.</div>
+          <div id="job-files-grid"></div>
         </div>
       </div>
 
@@ -2665,26 +2666,44 @@ async function loadJobFiles(jobId){
   if(error){ grid.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;">Failed to load files.</div>'; return; }
   if(!data || !data.length){ grid.innerHTML = '<div style="color:var(--muted2);font-size:0.85rem;">No files uploaded yet.</div>'; return; }
 
-  grid.innerHTML = data.map(f => {
-    const mime = f.mime_type || '';
-    let inner;
-    if(mime.startsWith('image/')){
-      inner = `<img src="${escHtml(f.file_url)}" alt="${escHtml(f.file_name)}">`;
-    } else if(mime.startsWith('video/')){
-      inner = `<span class="jf-icon">🎬</span>`;
-    } else if(mime === 'application/pdf'){
-      inner = `<span class="jf-icon">📄</span>`;
-    } else {
-      inner = `<span class="jf-icon">📎</span>`;
-    }
-    return `
-      <div class="jf-thumb" onclick="openLightbox('${escHtml(f.file_url)}','${escHtml(f.file_name)}','${escHtml(mime)}')">
-        <button class="jf-delete" onclick="event.stopPropagation();deleteJobFile('${f.id}')" title="Delete">&times;</button>
+  const isImg = f => (f.mime_type || '').startsWith('image/');
+  const isVid = f => (f.mime_type || '').startsWith('video/');
+  const docs = data.filter(f => !isImg(f) && !isVid(f));
+  const vids = data.filter(isVid);
+  // photos oldest first, same order and numbers as the Work Report picker
+  const imgs = data.filter(isImg).map(f => ({ f, t: (typeof wrPhotoTime === 'function') ? wrPhotoTime(f) : 0 }))
+    .sort((a, b) => (a.t - b.t) || String(a.f.uploaded_at || '').localeCompare(String(b.f.uploaded_at || ''))).map(x => x.f);
+
+  const head = (label, n) => `<div style="display:flex;align-items:center;gap:8px;margin:14px 0 8px;font-size:0.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">${label}<span style="font-weight:600;color:var(--muted2);">${n}</span><span style="flex:1;height:1px;background:var(--border);"></span></div>`;
+  const delBtn = f => `<button class="jf-delete" onclick="event.stopPropagation();deleteJobFile('${f.id}')" title="Delete">&times;</button>`;
+  const open = f => `openLightbox('${escHtml(f.file_url)}','${escHtml(f.file_name)}','${escHtml(f.mime_type || '')}')`;
+  const thumb = (f, inner) => `
+      <div class="jf-thumb" onclick="${open(f)}">
+        ${delBtn(f)}
         ${inner}
         <div class="jf-name">${escHtml(f.file_name)}</div>
-      </div>
-    `;
-  }).join('');
+      </div>`;
+  const gridStyle = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;';
+  let html = '';
+  if(docs.length){
+    html += head('Documents', docs.length) + docs.map(f => {
+      const when = f.uploaded_at ? new Date(f.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      const icon = (f.mime_type === 'application/pdf') ? '📄' : '📎';
+      return `<div onclick="${open(f)}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;margin-bottom:6px;background:var(--card, transparent);">
+        <span style="font-size:1.2rem;">${icon}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85rem;">${escHtml(f.file_name)}</span>
+        <span style="font-size:0.72rem;color:var(--muted2);white-space:nowrap;">${when}</span>
+        <button onclick="event.stopPropagation();deleteJobFile('${f.id}')" title="Delete" style="background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;line-height:1;">&times;</button>
+      </div>`;
+    }).join('');
+  }
+  if(imgs.length){
+    html += head('Photos', imgs.length) + `<div style="${gridStyle}">` + imgs.map(f => thumb(f, `<img src="${escHtml(f.file_url)}" alt="${escHtml(f.file_name)}">`)).join('') + '</div>';
+  }
+  if(vids.length){
+    html += head('Videos', vids.length) + `<div style="${gridStyle}">` + vids.map(f => thumb(f, `<span class="jf-icon">🎬</span>`)).join('') + '</div>';
+  }
+  grid.innerHTML = html;
 }
 
 async function deleteJobFile(fileId){
@@ -2694,45 +2713,60 @@ async function deleteJobFile(fileId){
   loadJobFiles(currentDetailId);
 }
 
+const JF_ALLOWED_EXT = ['jpg','jpeg','png','pdf','mp4','mov','webm'];
+let JF_UPLOADING = false;
+async function uploadFilesToJob(fileList){
+  if(!currentDetailId || JF_UPLOADING) return;
+  const all = Array.from(fileList || []);
+  const files = all.filter(f => JF_ALLOWED_EXT.includes((f.name.split('.').pop() || '').toLowerCase()));
+  const st = document.getElementById('jf-status'); const btn = document.getElementById('d-file-upload-btn');
+  if(!files.length){ if(st){ st.style.color = 'var(--red)'; st.textContent = all.length ? 'Only JPEG, PNG, PDF, or short videos (MP4/MOV/WEBM) can be uploaded here.' : 'Please choose a file first.'; } return; }
+  const jobId = currentDetailId, originalText = btn.textContent;
+  JF_UPLOADING = true; btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Uploading...';
+  let done = 0, failed = 0, next = 0; const total = files.length, base = Date.now();
+  const worker = async () => {
+    while(next < total){
+      const i = next++; const file = files[i];
+      try {
+        const filePath = `${jobId}/${base}_${i}_${file.name}`;
+        const { error: ue } = await supabaseClient.storage.from('job-files').upload(filePath, file);
+        if(ue) throw ue;
+        const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
+        const { error: de } = await supabaseClient.from('job_files').insert([{ job_id: jobId, file_name: file.name, file_url: urlData.publicUrl, mime_type: file.type || null }]);
+        if(de) throw de;
+      } catch(e){ failed++; }
+      done++;
+      if(st){ st.style.color = 'var(--muted)'; st.textContent = 'Uploading ' + done + ' of ' + total + '...'; }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  JF_UPLOADING = false; btn.disabled = false; btn.textContent = originalText;
+  const skipped = all.length - files.length;
+  if(st){
+    st.style.color = failed ? 'var(--red)' : 'var(--green)';
+    st.textContent = (total - failed) + ' uploaded' + (failed ? ', ' + failed + ' failed' : '') + (skipped ? ', ' + skipped + ' skipped (type not allowed)' : '') + '.';
+  }
+  const fi = document.getElementById('d-file-input'); if(fi) fi.value = '';
+  if(currentDetailId === jobId) loadJobFiles(jobId);
+}
 async function uploadJobFile(){
-  if(!currentDetailId) return;
   const fileInput = document.getElementById('d-file-input');
-  const file = fileInput.files[0];
-  if(!file){ alert('Please choose a file first.'); return; }
-
-  const allowedExt = ['jpg','jpeg','png','pdf','mp4','mov','webm'];
-  const ext = file.name.split('.').pop().toLowerCase();
-  if(!allowedExt.includes(ext)){
-    alert('Only JPEG, PNG, PDF, or short videos (MP4/MOV/WEBM) can be uploaded here.');
-    return;
-  }
-
-  const btn = document.getElementById('d-file-upload-btn');
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="btn-spinner"></span> Uploading...';
-
-  const fileName = `${Date.now()}_${file.name}`;
-  const filePath = `${currentDetailId}/${fileName}`;
-
-  const { error: uploadError } = await supabaseClient.storage.from('job-files').upload(filePath, file);
-  if(uploadError){
-    alert('Upload failed: ' + uploadError.message);
-    btn.disabled = false; btn.textContent = originalText;
-    return;
-  }
-
-  const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
-
-  const { error: dbError } = await supabaseClient.from('job_files').insert([{
-    job_id: currentDetailId, file_name: file.name, file_url: urlData.publicUrl, mime_type: file.type || null
-  }]);
-  if(dbError){ alert('Failed to save file record: ' + dbError.message); }
-
-  fileInput.value = '';
-  btn.disabled = false;
-  btn.textContent = originalText;
-  loadJobFiles(currentDetailId);
+  await uploadFilesToJob(fileInput.files);
+}
+function jfDragOver(e){
+  if(!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+  e.preventDefault();
+  const z = document.getElementById('jf-dropzone'); z.style.borderColor = '#2563eb'; z.style.background = 'rgba(37,99,235,0.06)';
+}
+function jfDragLeave(e){
+  const z = document.getElementById('jf-dropzone');
+  if(e.relatedTarget && z.contains(e.relatedTarget)) return;
+  z.style.borderColor = 'transparent'; z.style.background = '';
+}
+function jfDrop(e){
+  e.preventDefault();
+  const z = document.getElementById('jf-dropzone'); z.style.borderColor = 'transparent'; z.style.background = '';
+  if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) uploadFilesToJob(e.dataTransfer.files);
 }
 
 async function loadComments(jobId){
