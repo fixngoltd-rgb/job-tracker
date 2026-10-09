@@ -3055,6 +3055,15 @@ function toggleWrPhoto(i){
   if(p.selected){ WR_PHOTOS.splice(i, 1); WR_PHOTOS.push(p); }   // newly ticked goes last in the order
   renderWrPhotos();
 }
+/* Work report file name: "<ticket ID, or first words of the address> <what the job was> Work Report.pdf" */
+function wrFileName(j){
+  let what = String(j.title || '').split(/\s+[-–—]\s+|,|\(|:/)[0]
+    .replace(/^\s*(quotation|quote)( needed)?\s*/i, '').replace(/\b(approved|follow-?up)\b/ig, '').replace(/&/g, ' ');
+  what = what.split(/\s+/).filter(Boolean).slice(0, 3).join(' ');
+  const t = String(j.external_job_id || '').trim();
+  const lead = t || String(j.address || '').split(',')[0].trim() || j.ref;
+  return [lead, what, 'Work Report'].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim() + '.pdf';
+}
 async function makeWorkReport(mode){
   const j = JOBS.find(x => x.id === currentDetailId); if(!j) return;
   const st = document.getElementById('wr-status'); const btns = ['wr-btn-view','wr-btn-dl','wr-btn-attach'].map(id => document.getElementById(id));
@@ -3069,7 +3078,7 @@ async function makeWorkReport(mode){
       const dateStr = dv ? new Date(dv + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
       blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: WR_PHOTOS.filter(p => p.selected).map(p => Object.assign({ url: p.url }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
     } else blob = await window.WorkReport.makePdf({ address: j.address, text: document.getElementById('wr-text').value, photos });
-    const fname = (j.address || j.ref).replace(/[\\/:*?"<>|]+/g, '').trim() + '.pdf';
+    const fname = wrFileName(j);
     if(mode === 'attach'){
       const filePath = `${j.id}/${Date.now()}_${fname}`;
       const { error: upErr } = await supabaseClient.storage.from('job-files').upload(filePath, blob, { contentType: 'application/pdf' });
