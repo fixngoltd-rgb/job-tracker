@@ -595,7 +595,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
             <label>Appointment Date <span id="d-scheduled-required" style="color:var(--red);"></span></label>
             <input class="field-input" type="date" id="d-scheduled">
             <label style="margin-top:8px;">Appointment Time <span style="color:var(--muted2);font-weight:600;">(UK time)</span></label>
-            <input class="field-input" type="time" step="300" id="d-scheduled-time">
+            <select class="field-input" id="d-scheduled-time"><option value="">--:--</option><option value="00:00">00:00</option><option value="00:30">00:30</option><option value="01:00">01:00</option><option value="01:30">01:30</option><option value="02:00">02:00</option><option value="02:30">02:30</option><option value="03:00">03:00</option><option value="03:30">03:30</option><option value="04:00">04:00</option><option value="04:30">04:30</option><option value="05:00">05:00</option><option value="05:30">05:30</option><option value="06:00">06:00</option><option value="06:30">06:30</option><option value="07:00">07:00</option><option value="07:30">07:30</option><option value="08:00">08:00</option><option value="08:30">08:30</option><option value="09:00">09:00</option><option value="09:30">09:30</option><option value="10:00">10:00</option><option value="10:30">10:30</option><option value="11:00">11:00</option><option value="11:30">11:30</option><option value="12:00">12:00</option><option value="12:30">12:30</option><option value="13:00">13:00</option><option value="13:30">13:30</option><option value="14:00">14:00</option><option value="14:30">14:30</option><option value="15:00">15:00</option><option value="15:30">15:30</option><option value="16:00">16:00</option><option value="16:30">16:30</option><option value="17:00">17:00</option><option value="17:30">17:30</option><option value="18:00">18:00</option><option value="18:30">18:30</option><option value="19:00">19:00</option><option value="19:30">19:30</option><option value="20:00">20:00</option><option value="20:30">20:30</option><option value="21:00">21:00</option><option value="21:30">21:30</option><option value="22:00">22:00</option><option value="22:30">22:30</option><option value="23:00">23:00</option><option value="23:30">23:30</option></select>
           </div>
         </div>
 
@@ -1400,6 +1400,9 @@ function ukParts(iso){
   };
 }
 function ukDate(iso){ const p = ukParts(iso); return p ? p.date : ''; }
+// time pickers: half-hour steps only (value stays HH:MM so the rest of the code is unchanged)
+function timeOptsHtml(){ let h = '<option value="">--:--</option>'; for(let i = 0; i < 48; i++){ const v = String(Math.floor(i / 2)).padStart(2, '0') + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + v + '">' + v + '</option>'; } return h; }
+function setTimeVal(el, v){ if(!el) return; v = v || ''; if(v && ![...el.options].some(o => o.value === v)){ const o = document.createElement('option'); o.value = v; o.textContent = v; el.appendChild(o); } el.value = v; }
 function ukTime(iso){ const p = ukParts(iso); return (p && p.hasTime) ? p.time : ''; }
 // UK wall-clock date (+ optional HH:MM) -> value to store. No time = plain date, as before.
 function ukToIso(dateStr, timeStr){
@@ -1742,7 +1745,7 @@ function render(){
             <div class="row-address">${escHtml(j.address || '')}</div>
             ${(col.isQuoteColumn && j.quoted && QUOTE_DATES[j.id]) ? quotedAgeTag(QUOTE_DATES[j.id]) : ''}
             ${(col.key === 'awaiting_start' && daysSince(j.created_at || j.created) >= 2) ? `<div class="chase-tag">${daysSince(j.created_at || j.created)}d with no date - update the agent?</div>` : ''}
-            ${isMissed(j) ? `<div class="rebook-mini" onclick="event.stopPropagation()"><input type="date" id="rebook-${j.id}" min="${todayStr}"><input type="time" id="rebooktime-${j.id}" step="300" title="UK time"><button onclick="event.stopPropagation(); rebookJob('${j.id}')">Rebook</button></div>` : ''}
+            ${isMissed(j) ? `<div class="rebook-mini" onclick="event.stopPropagation()"><input type="date" id="rebook-${j.id}" min="${todayStr}"><select id="rebooktime-${j.id}" title="UK time">${timeOptsHtml()}</select><button onclick="event.stopPropagation(); rebookJob('${j.id}')">Rebook</button></div>` : ''}
           </div>
           ${badgeHtml}
         </div>
@@ -2013,7 +2016,7 @@ function openDetail(id){
   document.getElementById('d-desc-input').value = j.description || '';
   document.getElementById('d-status').value = j.status;
   document.getElementById('d-scheduled').value = j.scheduled_at ? ukDate(j.scheduled_at) : '';
-  document.getElementById('d-scheduled-time').value = j.scheduled_at ? ukTime(j.scheduled_at) : '';
+  setTimeVal(document.getElementById('d-scheduled-time'), j.scheduled_at ? ukTime(j.scheduled_at) : '');
   document.getElementById('d-tech-input').value = j.tech || '';
   document.getElementById('d-tech-phone-input').value = j.tech_phone || '';
   const assignSelForDetail = document.getElementById('d-assigned-input');
