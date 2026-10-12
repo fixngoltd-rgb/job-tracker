@@ -101,6 +101,12 @@ html[data-theme="dark"] .new-tag { color:#93c5fd; background:#1e3a5f; }
   color:#b91c1c; background:#fef2f2; border-top:1px solid #fecaca; border-bottom:1px solid #fecaca;
   padding:5px 12px; margin:6px 0;
 }
+.today-divider {
+  font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+  color:#1e3a8a; background:#eaf1fd; border-top:1px solid #c7d8f5; border-bottom:1px solid #c7d8f5;
+  padding:5px 12px; margin:2px 0 6px;
+}
+.row.is-today { border-left:3px solid #2563eb; }
 .upcoming-divider {
   font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
   color:var(--muted); background:#f8fafc; border-top:1px solid var(--border); border-bottom:1px solid var(--border);
@@ -431,6 +437,7 @@ html[data-theme="dark"] .today-resize { background:#1d2d49; border-color:#27406b
 html[data-theme="dark"] .today-resize:hover { background:#27406b; }
 html[data-theme="dark"] .missed-divider { color:#f87171; background:#2a1517; border-color:#5a2a2e; }
 html[data-theme="dark"] .upcoming-divider { background:#161d27; }
+html[data-theme="dark"] .today-divider { color:#93c5fd; background:#16233a; border-color:#27406b; }
 html[data-theme="dark"] .rebook-mini input { background:#0f1419; color:#e6e9ee; border-color:#7f3a3a; }
 html[data-theme="dark"] .column-count { background:#2a323c; color:#e6e9ee; }
 html[data-theme="dark"] .column-body.drag-over { background:#1c2640; }
@@ -1531,9 +1538,8 @@ const COLUMNS = [
   {
     key: 'awaiting_completion',
     title: 'Jobs Awaiting Completion',
-    // Same "booked / has a date" jobs as before, minus anything that's due
-    // today or overdue - those move into Appointments Today instead, never both.
-    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')) && !(j.scheduled_at && ukDate(j.scheduled_at) === todayDateStr()),
+    // Every booked job. Order: today's appointments first, then missed ones, then upcoming nearest to farthest.
+    filter: j => !j.quote_needed && (j.status === 'booked' || (j.scheduled_at && j.status !== 'completed' && j.status !== 'cancelled')),
     targetStatus: 'booked',
     requiresDate: true
   },
@@ -1675,7 +1681,7 @@ async function rebookJob(id){
 function render(){
   const board = document.getElementById('board');
   const visibleJobs = getVisibleJobs();
-  board.innerHTML = renderTodayStrip(visibleJobs) + COLUMNS.filter(c => c.key !== 'appointments_today').map((col, idx) => {
+  board.innerHTML = COLUMNS.filter(c => c.key !== 'appointments_today').map((col, idx) => {
     const jobs = visibleJobs.filter(col.filter);
     // Every card: newest job on top. Quotation column: still-to-quote jobs on top,
     // already-quoted ones below, each group newest first. (Awaiting Completion is
@@ -1687,14 +1693,16 @@ function render(){
     let quotedDividerDone = false;
     const todayStr = todayDateStr();
     const isMissed = j => col.key === 'awaiting_completion' && j.scheduled_at && ukDate(j.scheduled_at) < todayStr;
+    const isToday = j => col.key === 'awaiting_completion' && j.scheduled_at && ukDate(j.scheduled_at) === todayStr;
     if(col.key === 'awaiting_completion'){
-      // Missed appointments (date already passed, not done) go first, oldest date at the top
-      const missedJobs = jobs.filter(isMissed).sort((a, b) => apptSortKey(a).localeCompare(apptSortKey(b)));
-      // Upcoming: soonest appointment (date, then UK time) first, even if it is tomorrow or later
-      const restJobs = jobs.filter(j => !isMissed(j)).sort((a, b) => apptSortKey(a).localeCompare(apptSortKey(b)));
-      jobs.splice(0, jobs.length, ...missedJobs, ...restJobs);
+      const byAppt = (a, b) => apptSortKey(a).localeCompare(apptSortKey(b));
+      // Today first (by time), then missed (date already passed, oldest first), then upcoming nearest to farthest
+      const todayJobs = jobs.filter(isToday).sort(byAppt);
+      const missedJobs = jobs.filter(j => !isToday(j) && isMissed(j)).sort(byAppt);
+      const restJobs = jobs.filter(j => !isToday(j) && !isMissed(j)).sort(byAppt);
+      jobs.splice(0, jobs.length, ...todayJobs, ...missedJobs, ...restJobs);
     }
-    let missedDividerDone = false, upcomingDividerDone = false;
+    let todayDividerDone = false, missedDividerDone = false, upcomingDividerDone = false;
     const rows = jobs.map(j => {
       let badgeHtml;
       if(col.key === 'completed_invoiced'){
@@ -1716,15 +1724,16 @@ function render(){
       }
       let dividerHtml = '';
       if(col.key === 'awaiting_completion'){
-        if(isMissed(j) && !missedDividerDone){ missedDividerDone = true; dividerHtml = `<div class="missed-divider">Missed - needs a new date</div>`; }
-        else if(!isMissed(j) && missedDividerDone && !upcomingDividerDone){ upcomingDividerDone = true; dividerHtml = `<div class="upcoming-divider">Booked</div>`; }
+        if(isToday(j)){ if(!todayDividerDone){ todayDividerDone = true; dividerHtml = `<div class="today-divider">Today</div>`; } }
+        else if(isMissed(j)){ if(!missedDividerDone){ missedDividerDone = true; dividerHtml = `<div class="missed-divider">Missed - needs a new date</div>`; } }
+        else if(!upcomingDividerDone && (todayDividerDone || missedDividerDone)){ upcomingDividerDone = true; dividerHtml = `<div class="upcoming-divider">Booked</div>`; }
       }
       if(col.isQuoteColumn && j.quoted && !quotedDividerDone){
         quotedDividerDone = true;
         dividerHtml = `<div class="quoted-divider">Quoted - waiting on approval</div>`;
       }
       return dividerHtml + `
-        <div class="row${isMissed(j) ? ' missed' : ''}" draggable="true" data-job-id="${j.id}"
+        <div class="row${isMissed(j) ? ' missed' : ''}${isToday(j) ? ' is-today' : ''}" draggable="true" data-job-id="${j.id}"
              ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)"
              onclick="openDetail('${j.id}')">
           <div class="row-main">
@@ -1767,7 +1776,6 @@ function render(){
       </div>
     `;
   }).join('');
-  applyTodaySize(document.getElementById('today-wrap'));
 }
 
 /* ===== RESIZABLE COLUMNS ===== */
