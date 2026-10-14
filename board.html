@@ -255,6 +255,11 @@ html[data-theme="dark"] .new-tag { color:#93c5fd; background:#1e3a5f; }
 .preview-item img { width:100%; height:100%; object-fit:cover; }
 .preview-item .file-icon { font-size:1.6rem; }
 .preview-item .file-label { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:white; font-size:0.6rem; padding:2px; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jf-pending { display:flex; gap:10px; flex-wrap:wrap; margin:4px 0 8px; }
+.jf-pending .preview-item { width:92px; height:92px; }
+.jf-pending .preview-item .file-icon { font-size:2rem; }
+.jf-pending .preview-remove { width:22px; height:22px; font-size:0.95rem; top:3px; right:3px; }
+.jf-pending-bar { display:flex; align-items:center; gap:10px; font-size:0.85rem; margin-bottom:6px; }
 .preview-remove {
   position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%;
   background:rgba(0,0,0,0.7); color:white; border:none; cursor:pointer; font-size:0.75rem;
@@ -546,10 +551,14 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
         <div class="detail-field" id="jf-dropzone" ondragover="jfDragOver(event)" ondragleave="jfDragLeave(event)" ondrop="jfDrop(event)" style="border:2px dashed transparent;border-radius:10px;padding:6px;transition:border-color .12s,background .12s;">
           <label>Files &amp; Images</label>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-            <input type="file" id="d-file-input" multiple accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm" style="font-size:0.85rem;flex:1;">
-            <button class="btn btn-primary" id="d-file-upload-btn" onclick="uploadJobFile()" style="white-space:nowrap;">+ Upload</button>
+            <input type="file" id="d-file-input" multiple accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm" onchange="jfOnPick(event)" style="display:none;">
+            <button class="btn" type="button" onclick="document.getElementById('d-file-input').click()" style="white-space:nowrap;">Choose files</button>
+            <span style="flex:1;"></span>
+            <button class="btn btn-primary" id="d-file-upload-btn" onclick="uploadJobFile()" style="white-space:nowrap;" disabled>+ Upload</button>
           </div>
-          <div id="jf-status" style="font-size:0.78rem;color:var(--muted);min-height:1.1em;margin-bottom:8px;">Drag and drop photos or PDFs here to upload them.</div>
+          <div id="jf-pending-bar" class="jf-pending-bar" style="display:none;"><strong id="jf-pending-count"></strong><button class="btn" type="button" onclick="jfClearPending()" style="padding:2px 10px;font-size:0.78rem;">Clear all</button></div>
+          <div id="jf-pending" class="jf-pending"></div>
+          <div id="jf-status" style="font-size:0.78rem;color:var(--muted);min-height:1.1em;margin-bottom:8px;">Drag and drop photos or PDFs here, or use Choose files.</div>
           <div id="job-files-grid"></div>
         </div>
       </div>
@@ -2056,6 +2065,7 @@ function openDetail(id){
   switchTab('details');
   loadComments(id);
   loadJobFiles(id);
+  if(typeof jfClearPending === 'function' && !JF_UPLOADING){ JF_PENDING = []; jfRenderPending(); const _st = document.getElementById('jf-status'); if(_st){ _st.style.color = 'var(--muted)'; _st.textContent = 'Drag and drop photos or PDFs here, or use Choose files.'; } }
   renderLinkedJobs(j);
   loadEmailLink(j);
   const wrBtn = document.getElementById('wr-open-btn'); if(wrBtn) wrBtn.style.display = (CURRENT_USER && CURRENT_USER.role === 'admin') ? '' : 'none';
@@ -2736,11 +2746,11 @@ async function deleteJobFile(fileId){
 const JF_ALLOWED_EXT = ['jpg','jpeg','png','pdf','mp4','mov','webm'];
 let JF_UPLOADING = false;
 async function uploadFilesToJob(fileList){
-  if(!currentDetailId || JF_UPLOADING) return;
+  if(!currentDetailId || JF_UPLOADING) return false;
   const all = Array.from(fileList || []);
   const files = all.filter(f => JF_ALLOWED_EXT.includes((f.name.split('.').pop() || '').toLowerCase()));
   const st = document.getElementById('jf-status'); const btn = document.getElementById('d-file-upload-btn');
-  if(!files.length){ if(st){ st.style.color = 'var(--red)'; st.textContent = all.length ? 'Only JPEG, PNG, PDF, or short videos (MP4/MOV/WEBM) can be uploaded here.' : 'Please choose a file first.'; } return; }
+  if(!files.length){ if(st){ st.style.color = 'var(--red)'; st.textContent = all.length ? 'Only JPEG, PNG, PDF, or short videos (MP4/MOV/WEBM) can be uploaded here.' : 'Please choose a file first.'; } return false; }
   const jobId = currentDetailId, originalText = btn.textContent;
   JF_UPLOADING = true; btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Uploading...';
   let done = 0, failed = 0, next = 0; const total = files.length, base = Date.now();
@@ -2768,10 +2778,53 @@ async function uploadFilesToJob(fileList){
   }
   const fi = document.getElementById('d-file-input'); if(fi) fi.value = '';
   if(currentDetailId === jobId) loadJobFiles(jobId);
+  return true;
 }
+let JF_PENDING = [];
+function jfExt(f){ return (f.name.split('.').pop() || '').toLowerCase(); }
+function jfOnPick(e){
+  jfAddPending(e.target.files);
+  e.target.value = ''; // so choosing the same file again still fires change
+}
+function jfAddPending(fileList){
+  const all = Array.from(fileList || []); let skipped = 0;
+  for(const f of all){
+    if(!JF_ALLOWED_EXT.includes(jfExt(f))){ skipped++; continue; }
+    if(JF_PENDING.some(p => p.name === f.name && p.size === f.size && p.lastModified === f.lastModified)) continue;
+    JF_PENDING.push(f);
+  }
+  const st = document.getElementById('jf-status');
+  if(st){
+    if(skipped){ st.style.color = 'var(--red)'; st.textContent = skipped + ' file' + (skipped > 1 ? 's' : '') + ' skipped (only JPEG, PNG, PDF, MP4/MOV/WEBM allowed).'; }
+    else { st.style.color = 'var(--muted)'; st.textContent = JF_PENDING.length ? 'Check the files below, remove any you do not want, then click Upload.' : 'Drag and drop photos or PDFs here, or use Choose files.'; }
+  }
+  jfRenderPending();
+}
+function jfRenderPending(){
+  const box = document.getElementById('jf-pending'), bar = document.getElementById('jf-pending-bar'), btn = document.getElementById('d-file-upload-btn');
+  if(!box) return;
+  box.querySelectorAll('img[data-obj]').forEach(i => URL.revokeObjectURL(i.dataset.obj));
+  box.innerHTML = JF_PENDING.map((f, idx) => {
+    const ext = jfExt(f);
+    const x = `<button class="preview-remove" type="button" onclick="event.stopPropagation();jfRemovePending(${idx})" title="Remove">&times;</button>`;
+    if(['jpg','jpeg','png'].includes(ext)){
+      const url = URL.createObjectURL(f);
+      return `<div class="preview-item" title="${escHtml(f.name)}"><img src="${url}" data-obj="${url}">${x}</div>`;
+    }
+    const icon = ext === 'pdf' ? '📄' : '🎬';
+    return `<div class="preview-item" title="${escHtml(f.name)}"><span class="file-icon">${icon}</span><div class="file-label">${escHtml(f.name)}</div>${x}</div>`;
+  }).join('');
+  if(bar){ bar.style.display = JF_PENDING.length ? 'flex' : 'none'; }
+  const cnt = document.getElementById('jf-pending-count'); if(cnt) cnt.textContent = JF_PENDING.length + ' file' + (JF_PENDING.length === 1 ? '' : 's') + ' ready to upload';
+  if(btn && !JF_UPLOADING){ btn.disabled = !JF_PENDING.length; btn.textContent = JF_PENDING.length ? '+ Upload ' + JF_PENDING.length : '+ Upload'; }
+}
+function jfRemovePending(idx){ JF_PENDING.splice(idx, 1); jfAddPending([]); }
+function jfClearPending(){ JF_PENDING = []; jfAddPending([]); }
 async function uploadJobFile(){
-  const fileInput = document.getElementById('d-file-input');
-  await uploadFilesToJob(fileInput.files);
+  if(!JF_PENDING.length){ const st = document.getElementById('jf-status'); if(st){ st.style.color = 'var(--red)'; st.textContent = 'Please choose a file first.'; } return; }
+  const toSend = JF_PENDING.slice();
+  const ok = await uploadFilesToJob(toSend);
+  if(ok !== false){ JF_PENDING = []; jfRenderPending(); }
 }
 function jfDragOver(e){
   if(!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
@@ -2786,7 +2839,7 @@ function jfDragLeave(e){
 function jfDrop(e){
   e.preventDefault();
   const z = document.getElementById('jf-dropzone'); z.style.borderColor = 'transparent'; z.style.background = '';
-  if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) uploadFilesToJob(e.dataTransfer.files);
+  if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) jfAddPending(e.dataTransfer.files);
 }
 
 async function loadComments(jobId){
