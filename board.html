@@ -3160,13 +3160,13 @@ async function makeWorkReport(mode){
   try {
     await saveWorkReportText();
     const sel = WR_PHOTOS.filter(p => p.selected); const srcs = []; for(const p of sel) srcs.push(await wrPdfSrc(p));
-    const photos = srcs;
+    const photos = sel.map((p, ix) => p.video ? { url: srcs[ix], link: p.url } : srcs[ix]);
     const v2 = (document.getElementById('wr-version') || {}).value === 'v2';
     let blob;
     if(v2){
       const dv = (document.getElementById('wr-date') || {}).value;
       const dateStr = dv ? new Date(dv + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-      blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix] }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
+      blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix], link: p.video ? p.url : undefined }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
     } else blob = await window.WorkReport.makePdf({ address: j.address, text: document.getElementById('wr-text').value, photos });
     const fname = wrFileName(j);
     if(mode === 'attach'){
@@ -3384,7 +3384,7 @@ init();
 </div>
 
 <script src="wr/jspdf.umd.min.js"></script>
-<script src="wr/workreport.js?v=20261012b"></script>
-<script src="wr/workreport2.js?v=20261012b"></script>
+<script src="wr/workreport.js?v=20261019v"></script>
+<script src="wr/workreport2.js?v=20261019v"></script>
 </body>
 </html>

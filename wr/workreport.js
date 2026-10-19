@@ -103,6 +103,7 @@
     doc.roundedRect(x, y, w, h, 28, 28, null); doc.clip(); doc.discardPath();
     doc.addImage(p.data, 'JPEG', x, y, w, h, undefined, 'FAST');
     doc.restoreGraphicsState();
+    if(p.link) doc.link(x, y, w, h, { url: p.link });
   }
 
   // fills the whole box (crops the overflow), rounded corners, like the hand-made reports
@@ -113,6 +114,7 @@
     doc.roundedRect(bx, by, bw, bh, 28, 28, null); doc.clip(); doc.discardPath();
     doc.addImage(p.data, 'JPEG', bx + (bw - w) / 2, by + (bh - h) / 2, w, h, undefined, 'FAST');
     doc.restoreGraphicsState();
+    if(p.link) doc.link(bx, by, bw, bh, { url: p.link });
   }
 
   /* ---------- photo page packing (5+ photos) ----------
@@ -189,6 +191,8 @@
 
   async function prepPhoto(src){
     // src: URL string or Blob/File
+    let link = null;
+    if(src && typeof src === 'object' && 'url' in src && !(src instanceof Blob)){ link = src.link || null; src = src.url; }
     let blob = src;
     if(typeof src === 'string'){
       const r = await fetch(src); if(!r.ok) throw new Error('photo download failed (' + r.status + ')');
@@ -201,7 +205,7 @@
       if(m > lim){ w = Math.round(w * lim / m); h = Math.round(h * lim / m); }
       const c = document.createElement('canvas'); c.width = w; c.height = h;
       const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
-      return { data: c.toDataURL('image/jpeg', 0.85), w, h };
+      return { data: c.toDataURL('image/jpeg', 0.85), w, h, link };
     } finally { URL.revokeObjectURL(u); }
   }
 
