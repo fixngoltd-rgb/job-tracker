@@ -637,11 +637,11 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
         <div class="field-row">
           <div class="detail-field">
             <label>Budget (£)</label>
-            <input class="field-input" type="number" step="0.01" id="d-budget" placeholder="200.00">
+            <input class="field-input" type="text" inputmode="decimal" autocomplete="off" id="d-budget" placeholder="200.00 (or type e.g. 200+50 then Enter)">
           </div>
           <div class="detail-field">
             <label>Cost to Us (£)</label>
-            <input class="field-input" type="number" step="0.01" id="d-cost" placeholder="What it's costing us">
+            <input class="field-input" type="text" inputmode="decimal" autocomplete="off" id="d-cost" placeholder="What it's costing us (sums work, e.g. 120+35)">
           </div>
           <div class="detail-field" id="d-invoice-amount-wrap">
             <label>Invoice Amount (£)</label>
@@ -2471,6 +2471,36 @@ async function markQuoteApproved(){
   render();
 }
 
+// Money boxes accept sums: type "200+50" and press Enter (or leave the box) to get 250.
+function evalMoney(raw){
+  const s = String(raw == null ? '' : raw).replace(/[£,\s]/g, '');
+  if (s === '') return null;
+  if (!/^[0-9.+\-*\/()]+$/.test(s)) return NaN;
+  try {
+    const v = Function('"use strict";return (' + s + ')')();
+    return (typeof v === 'number' && isFinite(v)) ? Math.round(v * 100) / 100 : NaN;
+  } catch (e) { return NaN; }
+}
+function applyMoneyBox(el){
+  const v = evalMoney(el.value);
+  if (v === null) return true;
+  if (isNaN(v)) { el.style.outline = '2px solid #e5484d'; return false; }
+  el.style.outline = '';
+  el.value = v.toFixed(2);
+  return true;
+}
+document.addEventListener('keydown', function(e){
+  const el = e.target;
+  if (e.key === 'Enter' && el && (el.id === 'd-budget' || el.id === 'd-cost')) {
+    e.preventDefault();
+    applyMoneyBox(el);
+  }
+});
+document.addEventListener('focusout', function(e){
+  const el = e.target;
+  if (el && (el.id === 'd-budget' || el.id === 'd-cost')) applyMoneyBox(el);
+});
+
 async function saveDetail(){
   if(!currentDetailId) return;
 
@@ -2486,6 +2516,10 @@ async function saveDetail(){
 
   const budgetVal = document.getElementById('d-budget').value;
   const costVal = document.getElementById('d-cost').value;
+  if (isNaN(evalMoney(budgetVal)) || isNaN(evalMoney(costVal))) {
+    alert('Budget or Cost to Us is not a valid amount. Use numbers and + - * / only, e.g. 200+50.');
+    return;
+  }
   const invoiceAmountEl = document.getElementById('d-invoice-amount');
   const invoiceAmtVal = invoiceAmountEl ? invoiceAmountEl.value : '';
   const invoiceNumberEl = document.getElementById('d-invoice-number');
@@ -2503,8 +2537,8 @@ async function saveDetail(){
     tech: document.getElementById('d-tech-input').value.trim() || null,
     tech_phone: document.getElementById('d-tech-phone-input').value.trim() || null,
     category: document.getElementById('d-category-input').value.trim() || null,
-    budget: budgetVal !== '' ? parseFloat(budgetVal) : 200,
-    cost_to_us: costVal !== '' ? parseFloat(costVal) : null,
+    budget: (evalMoney(budgetVal) != null && !isNaN(evalMoney(budgetVal))) ? evalMoney(budgetVal) : 200,
+    cost_to_us: (evalMoney(costVal) != null && !isNaN(evalMoney(costVal))) ? evalMoney(costVal) : null,
     invoice_amount: invoiceAmtVal !== '' ? parseFloat(invoiceAmtVal) : null,
     invoiced: invoicedEl ? invoicedEl.checked : undefined,
     invoice_number: invoiceNumberEl ? (invoiceNumberEl.value.trim() || null) : undefined
