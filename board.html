@@ -608,7 +608,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
             <label>Appointment Date <span id="d-scheduled-required" style="color:var(--red);"></span></label>
             <input class="field-input" type="date" id="d-scheduled">
             <label style="margin-top:8px;">Appointment Time <span style="color:var(--muted2);font-weight:600;">(UK time)</span></label>
-            <select class="field-input" id="d-scheduled-time"><option value="">--:--</option><option value="00:00">00:00</option><option value="00:30">00:30</option><option value="01:00">01:00</option><option value="01:30">01:30</option><option value="02:00">02:00</option><option value="02:30">02:30</option><option value="03:00">03:00</option><option value="03:30">03:30</option><option value="04:00">04:00</option><option value="04:30">04:30</option><option value="05:00">05:00</option><option value="05:30">05:30</option><option value="06:00">06:00</option><option value="06:30">06:30</option><option value="07:00">07:00</option><option value="07:30">07:30</option><option value="08:00">08:00</option><option value="08:30">08:30</option><option value="09:00">09:00</option><option value="09:30">09:30</option><option value="10:00">10:00</option><option value="10:30">10:30</option><option value="11:00">11:00</option><option value="11:30">11:30</option><option value="12:00">12:00</option><option value="12:30">12:30</option><option value="13:00">13:00</option><option value="13:30">13:30</option><option value="14:00">14:00</option><option value="14:30">14:30</option><option value="15:00">15:00</option><option value="15:30">15:30</option><option value="16:00">16:00</option><option value="16:30">16:30</option><option value="17:00">17:00</option><option value="17:30">17:30</option><option value="18:00">18:00</option><option value="18:30">18:30</option><option value="19:00">19:00</option><option value="19:30">19:30</option><option value="20:00">20:00</option><option value="20:30">20:30</option><option value="21:00">21:00</option><option value="21:30">21:30</option><option value="22:00">22:00</option><option value="22:30">22:30</option><option value="23:00">23:00</option><option value="23:30">23:30</option></select>
+            <select class="field-input" id="d-scheduled-time"><option value="">--:-- --</option><option value="00:00">12:00 AM</option><option value="00:30">12:30 AM</option><option value="01:00">1:00 AM</option><option value="01:30">1:30 AM</option><option value="02:00">2:00 AM</option><option value="02:30">2:30 AM</option><option value="03:00">3:00 AM</option><option value="03:30">3:30 AM</option><option value="04:00">4:00 AM</option><option value="04:30">4:30 AM</option><option value="05:00">5:00 AM</option><option value="05:30">5:30 AM</option><option value="06:00">6:00 AM</option><option value="06:30">6:30 AM</option><option value="07:00">7:00 AM</option><option value="07:30">7:30 AM</option><option value="08:00">8:00 AM</option><option value="08:30">8:30 AM</option><option value="09:00">9:00 AM</option><option value="09:30">9:30 AM</option><option value="10:00">10:00 AM</option><option value="10:30">10:30 AM</option><option value="11:00">11:00 AM</option><option value="11:30">11:30 AM</option><option value="12:00">12:00 PM</option><option value="12:30">12:30 PM</option><option value="13:00">1:00 PM</option><option value="13:30">1:30 PM</option><option value="14:00">2:00 PM</option><option value="14:30">2:30 PM</option><option value="15:00">3:00 PM</option><option value="15:30">3:30 PM</option><option value="16:00">4:00 PM</option><option value="16:30">4:30 PM</option><option value="17:00">5:00 PM</option><option value="17:30">5:30 PM</option><option value="18:00">6:00 PM</option><option value="18:30">6:30 PM</option><option value="19:00">7:00 PM</option><option value="19:30">7:30 PM</option><option value="20:00">8:00 PM</option><option value="20:30">8:30 PM</option><option value="21:00">9:00 PM</option><option value="21:30">9:30 PM</option><option value="22:00">10:00 PM</option><option value="22:30">10:30 PM</option><option value="23:00">11:00 PM</option><option value="23:30">11:30 PM</option></select>
           </div>
         </div>
 
@@ -1414,8 +1414,9 @@ function ukParts(iso){
 }
 function ukDate(iso){ const p = ukParts(iso); return p ? p.date : ''; }
 // time pickers: half-hour steps only (value stays HH:MM so the rest of the code is unchanged)
-function timeOptsHtml(){ let h = '<option value="">--:--</option>'; for(let i = 0; i < 48; i++){ const v = String(Math.floor(i / 2)).padStart(2, '0') + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + v + '">' + v + '</option>'; } return h; }
-function setTimeVal(el, v){ if(!el) return; v = v || ''; if(v && ![...el.options].some(o => o.value === v)){ const o = document.createElement('option'); o.value = v; o.textContent = v; el.appendChild(o); } el.value = v; }
+function timeOptsHtml(){ let h = '<option value="">--:-- --</option>'; for(let i = 0; i < 48; i++){ const v = String(Math.floor(i / 2)).padStart(2, '0') + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + v + '">' + fmt12(v) + '</option>'; } return h; }
+function setTimeVal(el, v){ if(!el) return; v = v || ''; if(v && ![...el.options].some(o => o.value === v)){ const o = document.createElement('option'); o.value = v; o.textContent = fmt12(v); el.appendChild(o); } el.value = v; }
+function fmt12(t){ if(!t) return ''; const m = /^(\d{1,2}):(\d{2})/.exec(String(t)); if(!m) return t; const h = +m[1]; return ((h % 12) || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM'); }
 function ukTime(iso){ const p = ukParts(iso); return (p && p.hasTime) ? p.time : ''; }
 // UK wall-clock date (+ optional HH:MM) -> value to store. No time = plain date, as before.
 function ukToIso(dateStr, timeStr){
@@ -1674,7 +1675,7 @@ function renderTodayStrip(visibleJobs){
   }
   const chips = todays.map(j => `
       <div class="today-chip" draggable="true" data-job-id="${j.id}" ondragstart="onDragStart(event,'${j.id}')" ondragend="onDragEnd(event)" onclick="openDetail('${j.id}')" title="Drag to Awaiting Invoice when done">
-        <span class="tc-main">${ukTime(j.scheduled_at) ? `<span class="tc-time">${ukTime(j.scheduled_at)}</span>` : ''}<span class="tc-ref">${escHtml(j.ref)}</span><span class="tc-title">${escHtml(j.title || 'Untitled')}</span></span><span class="tc-addr">${escHtml(j.address || '')}</span>
+        <span class="tc-main">${ukTime(j.scheduled_at) ? `<span class="tc-time">${fmt12(ukTime(j.scheduled_at))}</span>` : ''}<span class="tc-ref">${escHtml(j.ref)}</span><span class="tc-title">${escHtml(j.title || 'Untitled')}</span></span><span class="tc-addr">${escHtml(j.address || '')}</span>
       </div>`).join('');
   return `<div class="today-wrap" id="today-wrap" style="--ch:${TODAY_CH}px" data-ch="${TODAY_CH}"><div class="today-strip"><div class="today-head"><span>Today</span><span class="column-count">${todays.length}</span></div><div class="today-chips" id="today-chips">${chips}</div></div><div class="today-resize" onpointerdown="startTodayResize(event)" title="Drag down to make this bigger, up to make it smaller"></div></div>`;
 }
@@ -1730,9 +1731,9 @@ function render(){
         // In Appointments Today, make an overdue job (date before today) stand
         // out in red rather than the neutral date pill, since it needs attention.
         if(isMissed(j)){
-          badgeHtml = `<div class="day-badge red">${formatShortDate(j.scheduled_at)}${ukTime(j.scheduled_at) ? `<span class="bt">${ukTime(j.scheduled_at)}</span>` : ''}</div>`;
+          badgeHtml = `<div class="day-badge red">${formatShortDate(j.scheduled_at)}${ukTime(j.scheduled_at) ? `<span class="bt">${fmt12(ukTime(j.scheduled_at))}</span>` : ''}</div>`;
         } else {
-          badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}${ukTime(j.scheduled_at) ? `<span class="bt">${ukTime(j.scheduled_at)}</span>` : ''}</div>`;
+          badgeHtml = `<div class="day-badge date">${formatShortDate(j.scheduled_at)}${ukTime(j.scheduled_at) ? `<span class="bt">${fmt12(ukTime(j.scheduled_at))}</span>` : ''}</div>`;
         }
       } else {
         const days = daysSince(j.created_at || j.created);
@@ -2059,7 +2060,7 @@ function openDetail(id){
   document.getElementById('sb-tenant').textContent = j.tenant || '—';
   document.getElementById('sb-tech').textContent = j.tech || 'Unassigned';
   document.getElementById('sb-assigned').textContent = j.assigned_to || 'Unassigned';
-  document.getElementById('sb-appointment').textContent = j.scheduled_at ? (formatShortDate(j.scheduled_at) + (ukTime(j.scheduled_at) ? ' at ' + ukTime(j.scheduled_at) + ' UK' : '')) : 'Not set';
+  document.getElementById('sb-appointment').textContent = j.scheduled_at ? (formatShortDate(j.scheduled_at) + (ukTime(j.scheduled_at) ? ' at ' + fmt12(ukTime(j.scheduled_at)) + ' UK' : '')) : 'Not set';
   document.getElementById('sb-budget').textContent = j.budget != null ? '£' + Number(j.budget).toFixed(2) : '—';
   document.getElementById('sb-cost').textContent = j.cost_to_us != null ? '£' + Number(j.cost_to_us).toFixed(2) : 'Not set';
   const sbInvoicedEl = document.getElementById('sb-invoiced');
@@ -2347,7 +2348,7 @@ async function refreshData(){
       loadComments(currentDetailId);
       loadJobFiles(currentDetailId);
     }
-    const t = new Date().toTimeString().slice(0,5);
+    const t = new Date().toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
     document.getElementById('range-note').textContent = JOBS.length + ' jobs total - updated ' + t;
   } finally {
     btn.disabled = false;
