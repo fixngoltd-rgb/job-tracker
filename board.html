@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
 <title>Board - Fix & Go Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -401,9 +402,56 @@ html[data-theme="dark"] .ad-age.bad { color:#f87171; }
 #today-badge { display:none; position:absolute; top:-7px; right:-7px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#dc2626; color:#fff; font-size:0.7rem; font-weight:800; line-height:19px; text-align:center; }
 #today-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:90; }
 #today-overlay.open { display:block; }
-#today-drawer { position:fixed; top:0; right:0; bottom:0; width:430px; max-width:100vw; background:var(--bg); border-left:1px solid var(--border); z-index:100;
+#today-drawer, #myday-drawer, #notif-drawer { position:fixed; top:0; right:0; bottom:0; width:430px; max-width:100vw; background:var(--bg); border-left:1px solid var(--border); z-index:100;
   transform:translateX(100%); transition:transform .2s ease; display:flex; flex-direction:column; }
-#today-drawer.open { transform:translateX(0); box-shadow:-4px 0 24px rgba(0,0,0,0.25); }
+#today-drawer.open, #myday-drawer.open, #notif-drawer.open { transform:translateX(0); box-shadow:-4px 0 24px rgba(0,0,0,0.25); }
+#bell-btn, #myday-btn { position:relative; background:#374151; color:#fff; border:1px solid #4b5563; padding:9px 12px; border-radius:7px; font-weight:700; font-size:0.88rem; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
+#bell-badge, .nav-badge { display:none; position:absolute; top:-7px; right:-7px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#dc2626; color:#fff; font-size:0.7rem; font-weight:800; line-height:19px; text-align:center; }
+.nt-item { display:flex; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:6px; cursor:pointer; }
+.nt-item.unread { border-left:4px solid #2563eb; background:rgba(37,99,235,0.07); }
+.nt-t { font-weight:700; font-size:0.88rem; line-height:1.3; }
+.nt-b { color:var(--muted); font-size:0.78rem; margin-top:2px; word-break:break-word; }
+.nt-when { color:var(--muted2); font-size:0.72rem; margin-top:3px; }
+.nt-actions { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+.nt-actions button { padding:8px 12px; border-radius:7px; border:1px solid var(--border); background:var(--card); color:var(--text); font-weight:700; font-size:0.78rem; cursor:pointer; font-family:'Inter',sans-serif; }
+.nt-actions button.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
+#mention-pop { display:none; position:fixed; z-index:300; background:var(--card); border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 22px rgba(0,0,0,0.2); min-width:170px; max-height:200px; overflow-y:auto; }
+#mention-pop div { padding:10px 14px; font-size:0.9rem; font-weight:600; cursor:pointer; }
+#mention-pop div.sel, #mention-pop div:hover { background:rgba(37,99,235,0.12); }
+.mention { color:#2563eb; font-weight:700; }
+#bottom-nav { display:none; }
+/* ===== PHONE: lighter, friendlier, thumb-reachable ===== */
+@media (max-width:760px){
+  body { padding-bottom:calc(68px + env(safe-area-inset-bottom)); -webkit-tap-highlight-color:transparent; }
+  #topbar { background:#ffffff; color:#1f2328; border-bottom:1px solid var(--border); box-shadow:0 1px 6px rgba(0,0,0,0.05); padding:10px 12px; gap:8px; flex-wrap:wrap; }
+  #topbar #board-search, #topbar #team-filter, #topbar #refresh-btn { background:#f1f3f6 !important; color:#1f2328 !important; border:1px solid #e1e5ea !important; border-radius:10px !important; min-height:44px; font-size:16px !important; }
+  #topbar #board-search { flex:1 1 100% !important; order:1; }
+  #topbar #team-filter { flex:1 1 auto; order:2; }
+  #topbar #refresh-btn { order:3; padding:0 14px !important; }
+  #topbar #menu-btn, #topbar #today-btn, #topbar #bell-btn, #topbar #myday-btn, #topbar #uk-clock { display:none !important; }
+  #new-job-btn { position:fixed; right:16px; bottom:calc(80px + env(safe-area-inset-bottom)); z-index:60; border-radius:28px !important; padding:14px 20px !important; font-size:0.95rem !important; box-shadow:0 6px 18px rgba(37,99,235,0.45); }
+  #board { padding:10px; gap:10px; }
+  .column-wrap, .column { width:100% !important; min-width:0 !important; max-width:100% !important; flex:1 1 100% !important; }
+  .column { max-height:none; border-radius:14px; }
+  .column-wrap { display:block; }
+  .resize-handle, .resize-handle-h { display:none !important; }
+  .row { padding:13px 14px; border-radius:12px; }
+  .column-header { padding:14px 16px; font-size:1rem; }
+  #today-drawer, #myday-drawer, #notif-drawer { width:100vw; border-left:none; }
+  .td-body { padding-bottom:110px; }
+  .td-item, .nt-item { padding:12px; border-radius:12px; }
+  .td-chk { width:22px; height:22px; }
+  .td-x { font-size:1.5rem; padding:4px 8px; }
+  .td-add input[type=text], .td-add select, .td-add button { min-height:44px; font-size:16px; }
+  #bottom-nav { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:80; background:#ffffff; border-top:1px solid var(--border); padding:6px 4px calc(6px + env(safe-area-inset-bottom)); box-shadow:0 -2px 12px rgba(0,0,0,0.06); }
+  #bottom-nav button { position:relative; flex:1; background:none; border:none; color:var(--muted); font-family:'Inter',sans-serif; font-size:0.68rem; font-weight:700; padding:6px 0; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; }
+  #bottom-nav button .ni { font-size:1.35rem; line-height:1; position:relative; }
+  #bottom-nav button.on { color:#2563eb; }
+  .nav-badge { top:-6px; right:-12px; }
+  html[data-theme="dark"] #topbar { background:#0b0f14; color:#e6e9ee; }
+  html[data-theme="dark"] #bottom-nav { background:#0b0f14; }
+  html[data-theme="dark"] #topbar #board-search, html[data-theme="dark"] #topbar #team-filter, html[data-theme="dark"] #topbar #refresh-btn { background:#1a2028 !important; color:#e6e9ee !important; border-color:#2d3640 !important; }
+}
 .td-head { padding:16px 18px 12px; background:var(--card); border-bottom:1px solid var(--border); }
 .td-top { display:flex; align-items:center; justify-content:space-between; }
 .td-title { font-size:1.15rem; font-weight:800; }
@@ -533,6 +581,8 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
     <option value="">All Team Members</option>
   </select>
   <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 12px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb;</button>
+  <button onclick="toggleDrawer('notif-drawer')" id="bell-btn" title="Notifications"><span>&#128276;</span><span id="bell-badge"></span></button>
+  <button onclick="toggleDrawer('myday-drawer')" id="myday-btn" title="My day: your jobs"><span>&#128197;</span> <span class="lbl">My day</span></button>
   <button onclick="toggleToday()" id="today-btn" title="Today: your priority to-do list"><span>&#9989;</span> <span class="lbl">Today</span><span id="today-badge"></span></button>
   <button onclick="openNewJobModal()" id="new-job-btn"style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
   <div class="range-note" id="range-note"></div>
@@ -565,7 +615,41 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
 
 <div id="action-desk"></div>
 
-<div id="today-overlay" onclick="toggleToday(false)"></div>
+<div id="today-overlay" onclick="closeDrawers()"></div>
+<div id="mention-pop"></div>
+
+<aside id="notif-drawer" aria-label="Notifications">
+  <div class="td-head">
+    <div class="td-top">
+      <div><div class="td-title">Notifications</div><div class="td-date" id="nt-sub"></div></div>
+      <button class="td-close" onclick="closeDrawers()" aria-label="Close">&times;</button>
+    </div>
+    <div class="nt-actions">
+      <button onclick="markAllNotifsRead()">Mark all read</button>
+      <button class="primary" id="nt-push-btn" onclick="enablePush()" style="display:none">Turn on pop-up alerts</button>
+    </div>
+    <div class="td-prog" id="nt-push-note"></div>
+  </div>
+  <div class="td-body" id="nt-body"></div>
+</aside>
+
+<aside id="myday-drawer" aria-label="My day">
+  <div class="td-head">
+    <div class="td-top">
+      <div><div class="td-title">My day</div><div class="td-date" id="md-date"></div></div>
+      <button class="td-close" onclick="closeDrawers()" aria-label="Close">&times;</button>
+    </div>
+    <div class="td-prog" id="md-prog"></div>
+  </div>
+  <div class="td-body" id="md-body"></div>
+</aside>
+
+<nav id="bottom-nav" aria-label="Main">
+  <button id="nav-board" class="on" onclick="navBoard()"><span class="ni">&#127968;</span>Board</button>
+  <button id="nav-today" onclick="navToday()"><span class="ni">&#9989;</span><span id="nav-today-lbl">Today</span><span class="nav-badge" id="nav-today-badge"></span></button>
+  <button id="nav-bell" onclick="toggleDrawer('notif-drawer')"><span class="ni">&#128276;</span>Alerts<span class="nav-badge" id="nav-bell-badge"></span></button>
+  <button id="nav-menu" onclick="toggleSideMenu()"><span class="ni">&#9776;</span>Menu</button>
+</nav>
 <aside id="today-drawer" aria-label="Today to-do list">
   <div class="td-head">
     <div class="td-top">
@@ -1366,6 +1450,7 @@ async function init(){
 
   await fetchAllJobs();
   openJobFromHash();
+  initNotifications();
 }
 
 // When each quoted job was quoted: the date of its latest quotation comment (read only, no schema needed)
@@ -1449,6 +1534,8 @@ async function fetchAllJobs(){
   await fetchQuoteDates();
   render();
   if(typeof refreshTodayPanel === 'function') refreshTodayPanel();
+  const mdOpen = document.getElementById('myday-drawer');
+  if(mdOpen && mdOpen.classList.contains('open')) renderMyDay();
 }
 
 /* ===== UK TIME =====
@@ -2251,15 +2338,39 @@ async function loadTodos(){
   if(!error) TODOS = data || [];
 }
 
+const DRAWERS = ['today-drawer', 'myday-drawer', 'notif-drawer'];
+function closeDrawers(){
+  DRAWERS.forEach(id => { const el = document.getElementById(id); if(el) el.classList.remove('open'); });
+  const ov = document.getElementById('today-overlay'); if(ov) ov.classList.remove('open');
+  markNav('nav-board');
+}
+function markNav(id){
+  document.querySelectorAll('#bottom-nav button').forEach(b => b.classList.toggle('on', b.id === id));
+}
+async function toggleDrawer(id, force){
+  const target = document.getElementById(id);
+  if(!target) return;
+  const open = (typeof force === 'boolean') ? force : !target.classList.contains('open');
+  DRAWERS.forEach(d => { const el = document.getElementById(d); if(el) el.classList.toggle('open', d === id && open); });
+  document.getElementById('today-overlay').classList.toggle('open', open);
+  markNav(open ? (id === 'notif-drawer' ? 'nav-bell' : 'nav-today') : 'nav-board');
+  if(!open) return;
+  if(id === 'today-drawer'){ await loadTodos(); renderToday(); }
+  if(id === 'myday-drawer') renderMyDay();
+  if(id === 'notif-drawer'){ await loadNotifs(); renderNotifs(); }
+}
 async function toggleToday(force){
   if(!isAdminUser()) return;
-  const dr = document.getElementById('today-drawer');
-  const open = (typeof force === 'boolean') ? force : !dr.classList.contains('open');
-  dr.classList.toggle('open', open);
-  document.getElementById('today-overlay').classList.toggle('open', open);
-  if(open){ await loadTodos(); renderToday(); }
+  return toggleDrawer('today-drawer', force);
 }
-document.addEventListener('keydown', e => { if(e.key === 'Escape'){ const dr = document.getElementById('today-drawer'); if(dr) toggleToday(false); } });
+function navBoard(){
+  closeDrawers();
+  if(currentDetailId) closeDetail();
+  const desk = document.getElementById('action-desk'); if(desk && desk.style.display === 'block') closeActionDesk();
+  window.scrollTo(0, 0);
+}
+function navToday(){ toggleDrawer(isAdminUser() ? 'today-drawer' : 'myday-drawer'); }
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeDrawers(); });
 
 async function refreshTodayPanel(){
   if(!isAdminUser()) return;
@@ -2374,6 +2485,8 @@ function renderToday(){
   const badge = document.getElementById('today-badge');
   const n = manualOpen('urgent').length + manualOpen('today').length + auto.urgent.length;
   if(badge){ badge.textContent = n > 99 ? '99+' : n; badge.style.display = n ? 'block' : 'none'; }
+  const nb = document.getElementById('nav-today-badge');
+  if(nb){ nb.textContent = n > 99 ? '99+' : n; nb.style.display = n ? 'block' : 'none'; }
 }
 
 async function addTodo(){
@@ -2399,6 +2512,237 @@ async function deleteTodo(id){
   const { error } = await supabaseClient.from('board_todos').delete().eq('id', id);
   if(error){ alert('Could not remove task: ' + error.message); }
   await loadTodos(); renderToday();
+}
+
+/* ===== NOTIFICATIONS: bell, @mentions, assignment alerts, browser pop-ups (all free) ===== */
+const VAPID_PUBLIC = 'BKC0SCyHiWXmtsT8IDbrYGYXMiyMQCiDHq2wDaF8NAaU77OdeiptlcgH9CgiOFk2_r5yj3b3SHhivOAKEqqtn60';
+let NOTIFS = [];
+let USER_DIR = [];
+let NOTIF_TIMER = null;
+
+async function loadUserDirectory(){
+  const { data } = await supabaseClient.from('user_directory').select('id,name,role');
+  USER_DIR = data || [];
+}
+
+function setBadges(n){
+  ['bell-badge', 'nav-bell-badge'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el){ el.textContent = n > 99 ? '99+' : n; el.style.display = n ? 'block' : 'none'; }
+  });
+}
+
+async function loadNotifs(){
+  if(!CURRENT_USER) return;
+  const { data, error } = await supabaseClient.from('notifications').select('*')
+    .eq('user_id', CURRENT_USER.id).order('created_at', { ascending: false }).limit(50);
+  if(error) return;
+  NOTIFS = data || [];
+  setBadges(NOTIFS.filter(n => !n.read).length);
+}
+
+function timeAgo(iso){
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if(m < 1) return 'just now';
+  if(m < 60) return m + ' min ago';
+  const h = Math.floor(m / 60);
+  if(h < 24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+function renderNotifs(){
+  const body = document.getElementById('nt-body');
+  if(!body) return;
+  const unread = NOTIFS.filter(n => !n.read).length;
+  document.getElementById('nt-sub').textContent = unread ? unread + ' unread' : 'All caught up';
+  body.innerHTML = NOTIFS.length ? NOTIFS.map(n => `
+    <div class="nt-item ${n.read ? '' : 'unread'}" onclick="openNotif('${n.id}')">
+      <div class="td-ico">${n.kind === 'mention' ? '💬' : '📌'}</div>
+      <div class="td-main"><div class="nt-t">${escHtml(n.title)}</div>${n.body ? `<div class="nt-b">${escHtml(n.body)}</div>` : ''}<div class="nt-when">${timeAgo(n.created_at)}</div></div>
+    </div>`).join('') : '<div class="td-empty">Nothing yet. You will see a message here when a job is assigned to you or someone mentions you.</div>';
+  refreshPushUi();
+}
+
+async function openNotif(id){
+  const n = NOTIFS.find(x => x.id === id);
+  if(!n) return;
+  if(!n.read){
+    n.read = true;
+    setBadges(NOTIFS.filter(x => !x.read).length);
+    supabaseClient.from('notifications').update({ read: true }).eq('id', id).then(() => {});
+  }
+  closeDrawers();
+  if(n.job_id) openDetail(n.job_id);
+}
+
+async function markAllNotifsRead(){
+  if(!CURRENT_USER) return;
+  await supabaseClient.from('notifications').update({ read: true }).eq('user_id', CURRENT_USER.id).eq('read', false);
+  NOTIFS.forEach(n => n.read = true);
+  setBadges(0);
+  renderNotifs();
+}
+
+// Write the notification, then ask the push function to ping the person's devices (best effort)
+async function createNotifications(rows){
+  if(!rows.length || !CURRENT_USER) return;
+  const { error } = await supabaseClient.from('notifications').insert(rows.map(r => Object.assign({ from_name: CURRENT_USER.name }, r)));
+  if(error){ console.error('notify failed:', error.message); return; }
+  rows.forEach(r => {
+    supabaseClient.functions.invoke('send-push', { body: { user_id: r.user_id, title: r.title, body: r.body, job_id: r.job_id } }).catch(() => {});
+  });
+}
+
+async function notifyAssigned(job, assigneeName){
+  if(!job || !assigneeName) return;
+  if(!USER_DIR.length) await loadUserDirectory();
+  const want = assigneeName.trim().toLowerCase();
+  const people = USER_DIR.filter(u => u.name.trim().toLowerCase() === want && u.id !== CURRENT_USER.id);
+  await createNotifications(people.map(u => ({
+    user_id: u.id, kind: 'assigned', job_id: job.id,
+    title: 'New job assigned: ' + (job.ref || ''),
+    body: (job.title || '') + (job.address ? ' - ' + job.address : '')
+  })));
+}
+
+async function notifyMentions(jobId, message, authorName){
+  if(!message || message.indexOf('@') < 0) return;
+  if(!USER_DIR.length) await loadUserDirectory();
+  const low = message.toLowerCase();
+  const job = JOBS.find(j => j.id === jobId);
+  const people = USER_DIR.filter(u => u.id !== CURRENT_USER.id && low.indexOf('@' + u.name.trim().toLowerCase()) >= 0);
+  await createNotifications(people.map(u => ({
+    user_id: u.id, kind: 'mention', job_id: jobId,
+    title: (authorName || 'Someone') + ' mentioned you' + (job ? ' on ' + job.ref : ''),
+    body: message.slice(0, 200)
+  })));
+}
+
+/* ---- browser pop-up alerts (Web Push) ---- */
+function pushSupported(){ return ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window); }
+function b64ToU8(s){
+  const pad = '='.repeat((4 - s.length % 4) % 4);
+  const raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+function refreshPushUi(){
+  const btn = document.getElementById('nt-push-btn'), note = document.getElementById('nt-push-note');
+  if(!btn || !note) return;
+  if(!pushSupported()){ btn.style.display = 'none'; note.textContent = 'Pop-up alerts are not available in this browser. On iPhone, add the board to your Home Screen first.'; return; }
+  if(Notification.permission === 'granted'){ btn.style.display = 'none'; note.textContent = 'Pop-up alerts are on for this device.'; }
+  else if(Notification.permission === 'denied'){ btn.style.display = 'none'; note.textContent = 'Pop-up alerts are blocked. Allow notifications for this site in your browser settings.'; }
+  else { btn.style.display = ''; note.textContent = 'Turn on pop-up alerts to be pinged even when the board is closed.'; }
+}
+async function enablePush(){
+  if(!pushSupported()){ refreshPushUi(); return; }
+  const perm = await Notification.requestPermission();
+  if(perm === 'granted') await ensurePushSubscription(true);
+  refreshPushUi();
+}
+async function ensurePushSubscription(force){
+  try {
+    if(!pushSupported() || !CURRENT_USER) return;
+    if(Notification.permission !== 'granted' && !force) return;
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(VAPID_PUBLIC) });
+    const j = sub.toJSON();
+    await supabaseClient.from('push_subscriptions').upsert(
+      { user_id: CURRENT_USER.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, { onConflict: 'endpoint' });
+  } catch(e){ console.error('push setup failed:', e); }
+}
+
+async function initNotifications(){
+  const isAdmin = isAdminUser();
+  const md = document.getElementById('myday-btn'); if(md && isAdmin) md.remove();
+  const lbl = document.getElementById('nav-today-lbl'); if(lbl) lbl.textContent = isAdmin ? 'Today' : 'My day';
+  await loadUserDirectory();
+  await loadNotifs();
+  ensurePushSubscription(false);
+  if(NOTIF_TIMER) clearInterval(NOTIF_TIMER);
+  NOTIF_TIMER = setInterval(() => { if(!document.hidden){ loadNotifs().then(() => { if(document.getElementById('notif-drawer').classList.contains('open')) renderNotifs(); }); } }, 45000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) loadNotifs(); });
+  const q = new URLSearchParams(location.search).get('job');
+  if(q && JOBS.find(j => j.id === q)) openDetail(q);
+}
+
+/* ---- @mention picker in the comment box ---- */
+let MENTION_SEL = 0, MENTION_MATCHES = [];
+function mentionContext(ta){
+  const upto = ta.value.slice(0, ta.selectionStart);
+  const m = upto.match(/(^|\s)@([A-Za-z][A-Za-z ]{0,20})?$/);
+  return m ? { start: upto.length - (m[2] ? m[2].length : 0) - 1, query: (m[2] || '').toLowerCase() } : null;
+}
+function hideMentionPop(){ const p = document.getElementById('mention-pop'); if(p) p.style.display = 'none'; }
+function updateMentionPop(ta){
+  const ctx = mentionContext(ta);
+  if(!ctx){ hideMentionPop(); return; }
+  const seen = new Set();
+  MENTION_MATCHES = USER_DIR.filter(u => u.id !== (CURRENT_USER && CURRENT_USER.id))
+    .map(u => u.name.trim()).filter(n => { const k = n.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return k.startsWith(ctx.query); });
+  if(!MENTION_MATCHES.length){ hideMentionPop(); return; }
+  MENTION_SEL = 0;
+  const pop = document.getElementById('mention-pop');
+  const r = ta.getBoundingClientRect();
+  pop.innerHTML = MENTION_MATCHES.map((n, i) => `<div class="${i === 0 ? 'sel' : ''}" onmousedown="event.preventDefault();pickMention(${i})">@${escHtml(n)}</div>`).join('');
+  pop.style.left = r.left + 'px';
+  pop.style.top = Math.min(r.bottom + 4, window.innerHeight - 210) + 'px';
+  pop.style.display = 'block';
+}
+function pickMention(i){
+  const ta = document.getElementById('c-message');
+  const ctx = mentionContext(ta);
+  if(!ctx || !MENTION_MATCHES[i]) return;
+  const before = ta.value.slice(0, ctx.start), after = ta.value.slice(ta.selectionStart);
+  const ins = '@' + MENTION_MATCHES[i] + ' ';
+  ta.value = before + ins + after;
+  ta.selectionStart = ta.selectionEnd = (before + ins).length;
+  hideMentionPop();
+  ta.focus();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('c-message');
+  if(!ta) return;
+  ta.addEventListener('input', () => updateMentionPop(ta));
+  ta.addEventListener('blur', () => setTimeout(hideMentionPop, 150));
+  ta.addEventListener('keydown', e => {
+    const pop = document.getElementById('mention-pop');
+    if(!pop || pop.style.display !== 'block') return;
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      MENTION_SEL = (MENTION_SEL + (e.key === 'ArrowDown' ? 1 : -1) + MENTION_MATCHES.length) % MENTION_MATCHES.length;
+      [...pop.children].forEach((c, i) => c.classList.toggle('sel', i === MENTION_SEL));
+    } else if(e.key === 'Enter' || e.key === 'Tab'){ e.preventDefault(); pickMention(MENTION_SEL); }
+    else if(e.key === 'Escape'){ hideMentionPop(); }
+  });
+});
+
+/* ===== MY DAY: a clean list of the jobs that are yours ===== */
+function renderMyDay(){
+  const body = document.getElementById('md-body');
+  if(!body) return;
+  const jobs = JOBS.filter(j => canSeeJob(j) && j.status !== 'completed' && j.status !== 'cancelled');
+  const today = todayDateStr();
+  const sched = j => j.scheduled_at ? ukDate(j.scheduled_at) : null;
+  const nice = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const t = j => { const p = ukParts(j.scheduled_at); return p && p.hasTime ? p.time : ''; };
+  const groups = [
+    { label: 'Today', cls: 'today', rows: jobs.filter(j => !j.quote_needed && sched(j) === today).sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)).map(j => ({ j, s: (t(j) ? t(j) + ' - ' : '') + 'visit today' })) },
+    { label: 'Missed, needs rebooking', cls: 'urgent', rows: jobs.filter(j => !j.quote_needed && sched(j) && sched(j) < today).map(j => ({ j, s: 'Was ' + nice(sched(j)) })) },
+    { label: 'Coming up', cls: 'chase', rows: jobs.filter(j => !j.quote_needed && sched(j) && sched(j) > today).sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)).map(j => ({ j, s: nice(sched(j)) + (t(j) ? ' at ' + t(j) : '') })) },
+    { label: 'Needs booking in', cls: 'today', rows: jobs.filter(j => !j.quote_needed && !j.scheduled_at && ['active', 'contacted'].includes(j.status)).map(j => ({ j, s: 'No date yet' })) },
+    { label: 'Prices to give', cls: 'later', rows: jobs.filter(j => j.quote_needed && !j.quoted).map(j => ({ j, s: 'Price still to give' })) }
+  ];
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  document.getElementById('md-date').textContent = new Date().toLocaleDateString('en-GB', { timeZone: UK_TZ, weekday: 'long', day: 'numeric', month: 'long' });
+  document.getElementById('md-prog').textContent = total ? total + ' job' + (total === 1 ? '' : 's') + ' on your plate' : 'Nothing assigned to you right now';
+  body.innerHTML = groups.filter(g => g.rows.length).map(g => `
+    <div class="td-group"><div class="td-gh ${g.cls}">${g.label}<span class="n">${g.rows.length}</span></div>
+    ${g.rows.map(r => `<div class="td-item auto ${g.cls}" onclick="closeDrawers();openDetail('${r.j.id}')">
+      <div class="td-ico">${g.label === 'Prices to give' ? '💷' : '🔧'}</div>
+      <div class="td-main"><div class="td-t"><span class="td-ref">${escHtml(r.j.ref)}</span>${escHtml(r.j.title || 'Untitled')}</div><div class="td-s">${escHtml(r.s)}${r.j.address ? ' - ' + escHtml(r.j.address) : ''}</div></div>
+    </div>`).join('')}</div>`).join('') || '<div class="td-empty">You are all clear. New jobs assigned to you will show up here.</div>';
 }
 
 /* ===== EMAIL THREAD LINK (admin only; stored in job_email_links, locked by RLS) ===== */
@@ -2781,6 +3125,8 @@ async function saveDetail(){
     updates.assigned_to = assignSelForSave.value.trim() || null;
   }
 
+  const prevJob = JOBS.find(x => x.id === currentDetailId);
+  const prevAssignee = prevJob ? (prevJob.assigned_to || '') : '';
   const { error } = await supabaseClient.from('jobs').update(updates).eq('id', currentDetailId);
   if(error){ alert('Failed to save: ' + error.message); return; }
 
@@ -2788,6 +3134,9 @@ async function saveDetail(){
 
   const j = JOBS.find(x => x.id === currentDetailId);
   if(j) Object.assign(j, updates);
+  if(assignSelForSave && j && (updates.assigned_to || '') !== prevAssignee && updates.assigned_to){
+    notifyAssigned(j, updates.assigned_to);
+  }
 
   closeDetail();
   render();
@@ -3161,7 +3510,7 @@ async function loadComments(jobId){
           </div>
         </div>
         <div class="comment-time">${time}</div>
-        <div class="comment-text" id="comment-text-${c.id}">${escHtml(c.message)}</div>
+        <div class="comment-text" id="comment-text-${c.id}">${escHtml(c.message).replace(/(^|\s)@([A-Za-z]+)/g, '$1<span class="mention">@$2</span>')}</div>
         ${renderAttachmentGrid(attachments, c.id)}
       </div>
     `;
@@ -3268,6 +3617,7 @@ async function addComment(){
   }]);
   if(noteError){ console.error('Failed to sync comment to main tracker notes:', noteError.message); }
 
+  notifyMentions(currentDetailId, message, author);
   document.getElementById('c-message').value = '';
   pendingFiles = [];
   renderPreviewStrip();
