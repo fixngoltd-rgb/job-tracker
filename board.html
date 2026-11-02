@@ -396,6 +396,48 @@ html[data-theme="dark"] .ad-section h3 .ad-count { background:#2a323c; }
 html[data-theme="dark"] .ad-age.warn { color:#fbbf24; }
 html[data-theme="dark"] .ad-age.bad { color:#f87171; }
 
+/* ===== TODAY DRAWER (admin): one clean priority list, right-hand side ===== */
+#today-btn { position:relative; background:#374151; color:#fff; border:1px solid #4b5563; padding:9px 12px; border-radius:7px; font-weight:700; font-size:0.88rem; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
+#today-badge { display:none; position:absolute; top:-7px; right:-7px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#dc2626; color:#fff; font-size:0.7rem; font-weight:800; line-height:19px; text-align:center; }
+#today-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:90; }
+#today-overlay.open { display:block; }
+#today-drawer { position:fixed; top:0; right:0; bottom:0; width:430px; max-width:100vw; background:var(--bg); border-left:1px solid var(--border); z-index:100;
+  transform:translateX(100%); transition:transform .2s ease; display:flex; flex-direction:column; }
+#today-drawer.open { transform:translateX(0); box-shadow:-4px 0 24px rgba(0,0,0,0.25); }
+.td-head { padding:16px 18px 12px; background:var(--card); border-bottom:1px solid var(--border); }
+.td-top { display:flex; align-items:center; justify-content:space-between; }
+.td-title { font-size:1.15rem; font-weight:800; }
+.td-date { color:var(--muted); font-size:0.8rem; margin-top:1px; }
+.td-close { background:none; border:none; color:var(--muted); font-size:1.7rem; cursor:pointer; line-height:1; }
+.td-bar { height:6px; background:var(--border); border-radius:4px; margin-top:12px; overflow:hidden; }
+.td-bar > div { height:100%; background:var(--green); width:0; transition:width .25s; }
+.td-prog { color:var(--muted); font-size:0.76rem; font-weight:600; margin-top:5px; }
+.td-add { display:flex; gap:6px; margin-top:12px; flex-wrap:wrap; }
+.td-add input[type=text] { flex:1 1 100%; padding:9px 11px; border-radius:7px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; font-size:0.88rem; }
+.td-add select { flex:1 1 40%; min-width:0; padding:8px 8px; border-radius:7px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; font-size:0.8rem; }
+.td-add button { padding:8px 14px; border-radius:7px; border:none; background:#2563eb; color:#fff; font-weight:700; font-size:0.82rem; cursor:pointer; font-family:'Inter',sans-serif; }
+.td-body { flex:1; overflow-y:auto; padding:14px 14px 30px; }
+.td-group { margin-bottom:18px; }
+.td-gh { display:flex; align-items:center; gap:8px; font-size:0.74rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:0 4px 7px; }
+.td-gh .n { background:var(--border); color:var(--text); border-radius:9px; padding:1px 8px; font-size:0.72rem; letter-spacing:0; }
+.td-gh.urgent { color:#dc2626; } .td-gh.today { color:#d97706; } .td-gh.chase { color:#2563eb; } .td-gh.later { color:var(--muted); }
+.td-item { display:flex; align-items:flex-start; gap:10px; background:var(--card); border:1px solid var(--border); border-left-width:4px; border-radius:8px; padding:9px 11px; margin-bottom:6px; }
+.td-item.urgent { border-left-color:#dc2626; } .td-item.today { border-left-color:#f59e0b; } .td-item.chase { border-left-color:#3b82f6; } .td-item.later { border-left-color:#9ca3af; }
+.td-item.auto { cursor:pointer; } .td-item.auto:hover { background:rgba(37,99,235,0.06); }
+.td-chk { margin-top:2px; width:17px; height:17px; accent-color:#16a34a; cursor:pointer; flex:none; }
+.td-ico { flex:none; font-size:1rem; line-height:1.3; }
+.td-main { flex:1; min-width:0; }
+.td-t { font-weight:700; font-size:0.88rem; line-height:1.3; word-break:break-word; }
+.td-s { color:var(--muted); font-size:0.76rem; margin-top:2px; }
+.td-ref { display:inline-block; font-size:0.7rem; font-weight:700; background:var(--border); color:var(--text); border-radius:5px; padding:1px 6px; margin-right:5px; cursor:pointer; }
+.td-x { background:none; border:none; color:var(--muted2); font-size:1.15rem; cursor:pointer; line-height:1; padding:0 2px; }
+.td-x:hover { color:#dc2626; }
+.td-more { font-size:0.76rem; color:#2563eb; font-weight:700; padding:2px 6px 0; cursor:pointer; }
+.td-empty { color:var(--muted2); font-size:0.85rem; padding:6px 4px; }
+.td-done-h { font-size:0.76rem; font-weight:700; color:var(--muted); cursor:pointer; padding:4px; }
+.td-item.isdone .td-t { text-decoration:line-through; color:var(--muted2); }
+@media (max-width:760px){ #today-btn .lbl { display:none; } }
+
 /* top bar layout: menu + logo on the left, search fills the middle, controls tight on the right */
 #topbar { justify-content:flex-start; gap:14px; padding:12px 22px; }
 #topbar .logo { white-space:nowrap; margin-right:10px; }
@@ -491,7 +533,8 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
     <option value="">All Team Members</option>
   </select>
   <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 12px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb;</button>
-  <button onclick="openNewJobModal()" id="new-job-btn" style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
+  <button onclick="toggleToday()" id="today-btn" title="Today: your priority to-do list"><span>&#9989;</span> <span class="lbl">Today</span><span id="today-badge"></span></button>
+  <button onclick="openNewJobModal()" id="new-job-btn"style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
   <div class="range-note" id="range-note"></div>
   <div id="uk-clock" title="Current UK time" style="color:#e5e7eb;font-size:0.85rem;font-weight:700;white-space:nowrap;line-height:1.15;text-align:right;font-family:'Inter',sans-serif;"></div>
 </div>
@@ -521,6 +564,26 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
 <div id="board"></div>
 
 <div id="action-desk"></div>
+
+<div id="today-overlay" onclick="toggleToday(false)"></div>
+<aside id="today-drawer" aria-label="Today to-do list">
+  <div class="td-head">
+    <div class="td-top">
+      <div><div class="td-title">Today</div><div class="td-date" id="td-date"></div></div>
+      <button class="td-close" onclick="toggleToday(false)" aria-label="Close">&times;</button>
+    </div>
+    <div class="td-bar"><div id="td-bar-fill"></div></div>
+    <div class="td-prog" id="td-prog"></div>
+    <div class="td-add">
+      <input type="text" id="td-new-title" placeholder="Add a task, e.g. Post pest control job" onkeydown="if(event.key==='Enter')addTodo()">
+      <select id="td-new-pri"><option value="today">Today</option><option value="urgent">Urgent</option><option value="later">Later</option></select>
+      <select id="td-new-kind"><option value="other">Task</option><option value="post">Post a job</option><option value="quote">Give a price</option><option value="call">Call / text</option><option value="email">Email</option><option value="job">Job work</option></select>
+      <input type="text" id="td-new-ref" placeholder="Job ref" style="flex:1 1 90px;padding:8px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:0.8rem;" onkeydown="if(event.key==='Enter')addTodo()">
+      <button onclick="addTodo()">Add</button>
+    </div>
+  </div>
+  <div class="td-body" id="td-body"></div>
+</aside>
 
 <div id="detail-view">
   <div class="detail-container">
@@ -1210,6 +1273,7 @@ function applyRoleUI(){
     if(usersBtn) usersBtn.remove();
     const newJobBtn = document.getElementById('new-job-btn');
     if(newJobBtn) newJobBtn.remove();
+    ['today-btn','today-drawer','today-overlay'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
 
     // Employees only ever see their own jobs, so the "which team member" filter
     // has nothing to filter between.
@@ -1384,6 +1448,7 @@ async function fetchAllJobs(){
   document.getElementById('range-note').textContent = JOBS.length + ' jobs total';
   await fetchQuoteDates();
   render();
+  if(typeof refreshTodayPanel === 'function') refreshTodayPanel();
 }
 
 /* ===== UK TIME =====
@@ -2168,6 +2233,172 @@ function renderActionDesk(){
           <div class="ad-age ${r.cls}">${escHtml(r.note)}</div>
         </div>`).join('') : '<div class="ad-empty">Nothing here.</div>'}
     </div>`).join('');
+}
+
+/* ===== TODAY DRAWER (admin only): a clean priority list. Manual tasks live in board_todos
+   (admin-only RLS); the rest is worked out live from the board so it can never go stale. ===== */
+let TODOS = [];
+let TODAY_SHOW_DONE = false;
+const TD_ICON = { post:'📮', quote:'💷', call:'📞', email:'✉️', job:'🔧', other:'📝' };
+
+function isAdminUser(){ return CURRENT_USER && CURRENT_USER.role === 'admin'; }
+
+async function loadTodos(){
+  if(!isAdminUser()) return;
+  const since = new Date(Date.now() - 24*3600*1000).toISOString();
+  const { data, error } = await supabaseClient.from('board_todos').select('*')
+    .or('done.eq.false,done_at.gte.' + since).order('created_at', { ascending: true });
+  if(!error) TODOS = data || [];
+}
+
+async function toggleToday(force){
+  if(!isAdminUser()) return;
+  const dr = document.getElementById('today-drawer');
+  const open = (typeof force === 'boolean') ? force : !dr.classList.contains('open');
+  dr.classList.toggle('open', open);
+  document.getElementById('today-overlay').classList.toggle('open', open);
+  if(open){ await loadTodos(); renderToday(); }
+}
+document.addEventListener('keydown', e => { if(e.key === 'Escape'){ const dr = document.getElementById('today-drawer'); if(dr) toggleToday(false); } });
+
+async function refreshTodayPanel(){
+  if(!isAdminUser()) return;
+  await loadTodos();
+  renderToday();
+}
+
+function openJobFromToday(id){ toggleToday(false); openDetail(id); }
+function openRefFromToday(ref){
+  const j = JOBS.find(x => (x.ref || '').toUpperCase() === String(ref).toUpperCase());
+  if(j) openJobFromToday(j.id);
+}
+
+function todayAutoItems(){
+  const jobs = JOBS.filter(j => canSeeJob(j));
+  const today = todayDateStr();
+  const byAge = (a, b) => b.days - a.days;
+  const open = j => j.status !== 'completed' && j.status !== 'cancelled';
+  const age = d => d === 0 ? 'today' : d + 'd ago';
+  const out = { urgent: [], today: [], chase: [], later: [] };
+
+  jobs.filter(j => !j.quote_needed && j.scheduled_at && ukDate(j.scheduled_at) < today && open(j))
+    .map(j => ({ j, days: daysSince(j.scheduled_at) })).sort(byAge)
+    .forEach(x => out.urgent.push({ j: x.j, ico: '📅', t: x.j.title, s: 'Missed appointment, was ' + ukDate(x.j.scheduled_at) + ' - rebook or close' }));
+  jobs.filter(j => j.quote_needed && !j.quoted && open(j))
+    .map(j => ({ j, days: daysSince(j.created_at) })).sort(byAge).filter(x => x.days >= 5)
+    .forEach(x => out.urgent.push({ j: x.j, ico: '💷', t: x.j.title, s: 'Price still owed, asked ' + age(x.days) }));
+
+  jobs.filter(j => !j.quote_needed && j.scheduled_at && ukDate(j.scheduled_at) === today && open(j))
+    .forEach(j => out.today.push({ j, ico: '🔧', t: j.title, s: 'Visit today' + (j.tech ? ' - ' + j.tech : '') }));
+  jobs.filter(j => j.quote_needed && !j.quoted && open(j))
+    .map(j => ({ j, days: daysSince(j.created_at) })).sort(byAge).filter(x => x.days < 5)
+    .forEach(x => out.today.push({ j: x.j, ico: '💷', t: x.j.title, s: 'Give a price, asked ' + age(x.days) }));
+  jobs.filter(j => !j.quote_needed && j.status === 'completed' && !j.invoiced)
+    .map(j => ({ j, days: daysSince(j.date_completed || j.updated_at || j.created_at) })).sort(byAge)
+    .forEach(x => out.today.push({ j: x.j, ico: '🧾', t: x.j.title, s: 'Raise invoice, done ' + age(x.days) }));
+
+  jobs.filter(j => j.quote_needed && j.quoted && open(j))
+    .map(j => ({ j, days: QUOTE_DATES[j.id] ? daysSince(QUOTE_DATES[j.id]) : daysSince(j.created_at) })).sort(byAge).filter(x => x.days >= 7)
+    .forEach(x => out.chase.push({ j: x.j, ico: '🔔', t: x.j.title, s: 'Quoted ' + age(x.days) + ' - polite chase' }));
+
+  const noDate = jobs.filter(j => !j.quote_needed && ['active','contacted'].includes(j.status) && !j.scheduled_at && daysSince(j.created_at) >= 2).length;
+  if(noDate) out.later.push({ summary: true, t: noDate + ' active job' + (noDate === 1 ? '' : 's') + ' with no start date', s: 'Open the Action Desk to go through them' });
+  return out;
+}
+
+function tdAutoRow(it, pri){
+  const addr = it.j.address ? ' - ' + escHtml(it.j.address) : '';
+  return `<div class="td-item auto ${pri}" onclick="openJobFromToday('${it.j.id}')">
+    <div class="td-ico">${it.ico}</div>
+    <div class="td-main"><div class="td-t"><span class="td-ref">${escHtml(it.j.ref)}</span>${escHtml(it.t || 'Untitled')}</div><div class="td-s">${escHtml(it.s)}${addr}</div></div>
+  </div>`;
+}
+
+function tdManualRow(t){
+  const ref = t.job_ref ? `<span class="td-ref" onclick="event.stopPropagation();openRefFromToday('${escHtml(t.job_ref)}')">${escHtml(t.job_ref)}</span>` : '';
+  return `<div class="td-item ${t.priority} ${t.done ? 'isdone' : ''}">
+    <input type="checkbox" class="td-chk" ${t.done ? 'checked' : ''} onchange="setTodoDone('${t.id}', this.checked)">
+    <div class="td-ico">${TD_ICON[t.kind] || TD_ICON.other}</div>
+    <div class="td-main"><div class="td-t">${ref}${escHtml(t.title)}</div>${t.note ? `<div class="td-s">${escHtml(t.note)}</div>` : ''}</div>
+    <button class="td-x" title="Remove" onclick="deleteTodo('${t.id}')">&times;</button>
+  </div>`;
+}
+
+const TD_LIMIT = 4;
+function renderToday(){
+  const body = document.getElementById('td-body');
+  if(!body) return;
+  const auto = todayAutoItems();
+  const manualOpen = p => TODOS.filter(t => !t.done && t.priority === p);
+  const manualDone = TODOS.filter(t => t.done);
+
+  const groups = [
+    { key:'urgent', label:'Do first', pri:'urgent', cls:'urgent' },
+    { key:'today',  label:'Today',    pri:'today',  cls:'today' },
+    { key:'chase',  label:'Chase',    pri:null,     cls:'chase' },
+    { key:'later',  label:'Later',    pri:'later',  cls:'later' }
+  ];
+  let html = '';
+  groups.forEach(g => {
+    const man = g.pri ? manualOpen(g.pri) : [];
+    const aut = auto[g.key] || [];
+    const taken = new Set(TODOS.filter(t => !t.done && t.job_ref).map(t => t.job_ref.toUpperCase()));
+    const real = aut.filter(a => !a.summary && !(a.j && taken.has((a.j.ref || '').toUpperCase())));
+    const shown = real.slice(0, TD_LIMIT);
+    const hidden = real.length - shown.length;
+    const count = man.length + real.length;
+    if(!count && !aut.length && g.key === 'later') return;
+    html += `<div class="td-group"><div class="td-gh ${g.cls}">${g.label}<span class="n">${count}</span></div>`;
+    html += man.map(tdManualRow).join('');
+    html += shown.map(it => tdAutoRow(it, g.cls)).join('');
+    if(hidden > 0) html += `<div class="td-more" onclick="toggleToday(false);openActionDesk()">+ ${hidden} more in the Action Desk</div>`;
+    aut.filter(a => a.summary).forEach(a => {
+      html += `<div class="td-item auto later" onclick="toggleToday(false);openActionDesk()"><div class="td-ico">🗓️</div><div class="td-main"><div class="td-t">${escHtml(a.t)}</div><div class="td-s">${escHtml(a.s)}</div></div></div>`;
+    });
+    if(!count && !aut.length) html += '<div class="td-empty">Nothing here.</div>';
+    html += '</div>';
+  });
+  if(manualDone.length){
+    html += `<div class="td-group"><div class="td-done-h" onclick="TODAY_SHOW_DONE=!TODAY_SHOW_DONE;renderToday()">${TODAY_SHOW_DONE ? '▾' : '▸'} Done (${manualDone.length})</div>`;
+    if(TODAY_SHOW_DONE) html += manualDone.map(tdManualRow).join('');
+    html += '</div>';
+  }
+  body.innerHTML = html;
+
+  const openManual = TODOS.filter(t => !t.done).length;
+  const total = TODOS.length;
+  document.getElementById('td-date').textContent = new Date().toLocaleDateString('en-GB', { timeZone: UK_TZ, weekday:'long', day:'numeric', month:'long' });
+  document.getElementById('td-prog').textContent = total ? `${manualDone.length} of ${total} tasks done` + (auto.urgent.length ? ` - ${auto.urgent.length} urgent from the board` : '') : (auto.urgent.length ? `${auto.urgent.length} urgent from the board` : 'Add your first task above');
+  document.getElementById('td-bar-fill').style.width = (total ? Math.round(100 * manualDone.length / total) : 0) + '%';
+
+  const badge = document.getElementById('today-badge');
+  const n = manualOpen('urgent').length + manualOpen('today').length + auto.urgent.length;
+  if(badge){ badge.textContent = n > 99 ? '99+' : n; badge.style.display = n ? 'block' : 'none'; }
+}
+
+async function addTodo(){
+  const titleEl = document.getElementById('td-new-title');
+  const title = (titleEl.value || '').trim();
+  if(!title) return;
+  const refRaw = (document.getElementById('td-new-ref').value || '').trim().toUpperCase();
+  const job_ref = refRaw ? (/^\d+$/.test(refRaw) ? 'JOB-' + refRaw.padStart(3, '0') : refRaw) : null;
+  const row = { title, priority: document.getElementById('td-new-pri').value, kind: document.getElementById('td-new-kind').value, job_ref };
+  const { error } = await supabaseClient.from('board_todos').insert(row);
+  if(error){ alert('Could not add task: ' + error.message); return; }
+  titleEl.value = ''; document.getElementById('td-new-ref').value = '';
+  await loadTodos(); renderToday();
+}
+
+async function setTodoDone(id, done){
+  const { error } = await supabaseClient.from('board_todos').update({ done, done_at: done ? new Date().toISOString() : null }).eq('id', id);
+  if(error){ alert('Could not update task: ' + error.message); }
+  await loadTodos(); renderToday();
+}
+
+async function deleteTodo(id){
+  const { error } = await supabaseClient.from('board_todos').delete().eq('id', id);
+  if(error){ alert('Could not remove task: ' + error.message); }
+  await loadTodos(); renderToday();
 }
 
 /* ===== EMAIL THREAD LINK (admin only; stored in job_email_links, locked by RLS) ===== */
