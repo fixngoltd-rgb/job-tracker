@@ -1,0 +1,33 @@
+plugins { id 'com.android.application' }
+
+def run = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'pk.me.app'
+    compileSdk 34
+    defaultConfig {
+        applicationId "pk.me.app"
+        minSdk 24
+        targetSdk 34
+        versionCode run
+        versionName "1.${run}"
+    }
+    // Fixed key so each new APK installs over the old one and keeps your data.
+    signingConfigs {
+        release {
+            storeFile file("me-app.keystore")
+            storePassword "meapp-store-2026"
+            keyAlias "meapp"
+            keyPassword "meapp-store-2026"
+        }
+    }
+    buildTypes {
+        release { signingConfig signingConfigs.release; minifyEnabled false }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies { implementation 'androidx.webkit:webkit:1.11.0' }

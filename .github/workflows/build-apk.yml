@@ -1,0 +1,33 @@
+name: Build Me App APK
+on:
+  push:
+    branches: [me-app-android]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.7"
+      - run: gradle :app:assembleRelease --no-daemon
+      - run: cp app/build/outputs/apk/release/app-release.apk me-app.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: me-app-apk
+          path: me-app.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: me-app-v${{ github.run_number }}
+          name: Me App ${{ github.run_number }}
+          target_commitish: me-app-android
+          prerelease: true
+          files: me-app.apk
+          body: Personal Me App build. Download me-app.apk on your Android phone and install it.
