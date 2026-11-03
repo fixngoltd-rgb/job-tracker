@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Me</title>
+<!--me-app-->
 <meta name="description" content="Spends, brother's money, investing, lists and the baby and wedding fund.">
 <meta name="theme-color" content="#EEF2ED" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F1411" media="(prefers-color-scheme: dark)">
@@ -288,6 +289,10 @@ textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:
 .cloud[data-state="ok"]{background:var(--accent-soft);color:var(--accent)}
 .cloud[data-state="error"],.cloud[data-state="local"],.cloud[data-state="locked"]{background:var(--owe-soft);color:var(--owe)}
 .banner.warn{background:var(--owe-soft)}
+.refresh{width:36px;height:36px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--accent);display:grid;place-items:center;cursor:pointer;padding:0}
+.refresh svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.refresh.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 
 </head>
@@ -1019,7 +1024,7 @@ function renderTabs(){
 }
 function header(title, sub){
   return `<header class="top"><div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:""}</div>
-    <div class="hdr-r"><span class="cloud" id="cloud-pill" data-state="${cloud}" title="${esc(cloudMsg)}">${{ok:"Synced",saving:"Saving…",connecting:"Connecting…",local:"On this phone",error:"Not synced",locked:"Locked"}[cloud]}</span>
+    <div class="hdr-r"><button class="refresh" id="refresh-btn" data-act="refresh" aria-label="Refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></button><span class="cloud" id="cloud-pill" data-state="${cloud}" title="${esc(cloudMsg)}">${{ok:"Synced",saving:"Saving…",connecting:"Connecting…",local:"On this phone",error:"Not synced",locked:"Locked"}[cloud]}</span>
     <div class="seg" role="group" aria-label="Show amounts in">
       <button data-cur="PKR" aria-pressed="${state.settings.display==="PKR"}">Rs</button>
       <button data-cur="USD" aria-pressed="${state.settings.display==="USD"}">$</button></div></div></header>`;
@@ -1294,7 +1299,7 @@ document.addEventListener("click", e => {
     return;
   }
   if (act==="import") return openImport();
-  if (act==="cloud-retry"){ synced ? cloudPush() : cloudLoad(); return; }
+  if (act==="cloud-retry" || act==="refresh"){ refreshNow(); return; }
   if (act==="do-import"){
     try { const s = JSON.parse(document.getElementById("imp").value); if (!s.spends || !s.settings) throw 0; state = s; save(); closeSheet(); render(); toast("Data updated"); }
     catch(err){ document.getElementById("imp-err").textContent = "That doesn't look like app data. Ask Claude for the full data block and paste all of it."; }
@@ -1427,7 +1432,7 @@ const explain = err => !navigator.onLine ? "You're offline. Changes are kept on 
 
 async function cloudLoad(){
   const pass = getPass();
-  if (!pass) { setCloud("locked", "Set or enter your Me App passphrase to sync. The first one you enter becomes your passphrase, so pick one you'll remember."); render(); return; }
+  if (!pass) { setCloud("locked", "Type a passphrase to switch on syncing. You only do this once on this phone; pick anything you'll remember (6+ characters)."); render(); return; }
   setCloud("connecting");
   try {
     const data = await rpc("me_app_load", { p: pass });
@@ -1474,6 +1479,16 @@ document.addEventListener("submit", e => {
   const p = document.getElementById("cloud-pass").value.trim();
   if (p.length >= 6) unlock(p); else setCloud("locked", "Use at least 6 characters.");
 }, true);
+
+async function refreshNow(){
+  try { window.MeNative?.update(); } catch(e){}
+  const btn = document.getElementById("refresh-btn"); if (btn) btn.classList.add("spin");
+  clearTimeout(pushTimer); pushTimer = null;
+  if (synced) await cloudPush();
+  await cloudLoad();
+  const b2 = document.getElementById("refresh-btn"); if (b2) b2.classList.remove("spin");
+  if (cloud === "ok") toast("Up to date");
+}
 
 
 window.__planner?.setRate(state.settings.rate);
