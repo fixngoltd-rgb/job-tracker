@@ -286,7 +286,7 @@ textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:
 .cloud{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:var(--sunk);color:var(--muted);white-space:nowrap}
 .cloud::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:1px}
 .cloud[data-state="ok"]{background:var(--accent-soft);color:var(--accent)}
-.cloud[data-state="error"],.cloud[data-state="local"]{background:var(--owe-soft);color:var(--owe)}
+.cloud[data-state="error"],.cloud[data-state="local"],.cloud[data-state="locked"]{background:var(--owe-soft);color:var(--owe)}
 .banner.warn{background:var(--owe-soft)}
 </style>
 
@@ -1019,7 +1019,7 @@ function renderTabs(){
 }
 function header(title, sub){
   return `<header class="top"><div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:""}</div>
-    <div class="hdr-r"><span class="cloud" id="cloud-pill" data-state="${cloud}" title="${esc(cloudMsg)}">${{ok:"Synced",saving:"Saving…",connecting:"Connecting…",local:"On this phone",error:"Not synced"}[cloud]}</span>
+    <div class="hdr-r"><span class="cloud" id="cloud-pill" data-state="${cloud}" title="${esc(cloudMsg)}">${{ok:"Synced",saving:"Saving…",connecting:"Connecting…",local:"On this phone",error:"Not synced",locked:"Locked"}[cloud]}</span>
     <div class="seg" role="group" aria-label="Show amounts in">
       <button data-cur="PKR" aria-pressed="${state.settings.display==="PKR"}">Rs</button>
       <button data-cur="USD" aria-pressed="${state.settings.display==="USD"}">$</button></div></div></header>`;
@@ -1164,7 +1164,7 @@ function viewDetails(){
       <label class="field"><span>Invest %</span><input type="number" id="invest-pct" value="${state.settings.investPct}" inputmode="decimal"></label></div>
     </section>
     <section class="card stack"><h2>Your data</h2>
-      <div class="small muted">${cloud==="local"?"Right now everything is saved on this phone only. Copy a backup now and then and paste it to Claude with your weekly recap; Claude sends back updated data for you to paste in.":"Everything saves to your own Supabase, so it's the same on every device and Claude can update it from your weekly recap. A copy also stays on this phone in case you're offline."}</div>
+      <div class="small muted">${cloud==="never"?"Right now everything is saved on this phone only. Copy a backup now and then and paste it to Claude with your weekly recap; Claude sends back updated data for you to paste in.":"Everything saves to your own Supabase, so it's the same on every device and Claude can update it from your weekly recap. A copy also stays on this phone in case you're offline."}</div>
       <div class="inline" style="flex-wrap:wrap"><button class="btn small" data-act="copy">Copy a backup</button><button class="btn small ghost" data-act="import">Paste data from Claude</button><button class="btn small danger" data-act="reset">Start empty</button></div>
     </section>
   </div>`;
@@ -1350,8 +1350,8 @@ document.addEventListener("submit", e => {
 });
 document.addEventListener("keydown", e => { if (e.key==="Escape") closeSheet(); });
 
-/* ---------- cloud sync: your Supabase, through your own Supabase connection ---------- */
-const SB = { server: "Supabase", project: "__PROJECT_REF__" };
+/* ---------- cloud sync: your own Supabase (Me App database) ---------- */
+const SB = { url: "https://akbsxkmrbxspzzcsgpps.supabase.co", key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrYnN4a21yYnhzcHp6Y3NncHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3MTc3MTcsImV4cCI6MjEwOTI5MzcxN30.4Mm0vDo47pTmvfrRJtRSBXpmia6p3P3TvmMPSkRaIQA" };
 const pick = (o, cols) => Object.fromEntries(cols.map(c => [c, o[c] ?? null]));
 const TABLES = {
   spends:   { cols:["id","date","amt","cur","what","from_acct","for_whom","sample"],
@@ -1367,14 +1367,23 @@ const TABLES = {
 };
 for (const t of Object.values(TABLES)) {
   t.to ||= o => { const r = pick(o, t.cols); if ("sample" in r) r.sample = !!o.sample; if ("done" in r) r.done = !!o.done; return r; };
-  t.from ||= r => { const o = {...r}; for (const k of ["amt","price"]) if (k in o) o[k] = o[k]==null ? 0 : +o[k]; if (!o.sample) delete o.sample; return o; };
+  t.from ||= r => { const o = {...r}; delete o.updated_at; for (const k of ["amt","price"]) if (k in o) o[k] = o[k]==null ? 0 : +o[k]; if (!o.sample) delete o.sample; return o; };
 }
-const lit = v => v === null || v === undefined || v === "" ? "null"
-  : typeof v === "number" ? (isFinite(v) ? String(v) : "null")
-  : typeof v === "boolean" ? String(v)
-  : "'" + String(v).replace(/'/g, "''") + "'";
 
-let mcp = null, synced = null, cloud = "connecting", cloudMsg = "", pushTimer = null, pushing = false, pushAgain = false;
+let synced = null, cloud = "connecting", cloudMsg = "", pushTimer = null, pushing = false, pushAgain = false;
+const PASS_KEY = "me-app-pass";
+const getPass = () => { try { return localStorage.getItem(PASS_KEY) || ""; } catch(e){ return ""; } };
+
+async function rpc(fn, body){
+  const r = await fetch(`${SB.url}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": SB.key, "Authorization": "Bearer " + SB.key, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const txt = await r.text();
+  if (!r.ok) { let m = txt; try { m = JSON.parse(txt).message || txt; } catch(e){} const err = new Error(m); err.status = r.status; throw err; }
+  return txt ? JSON.parse(txt) : null;
+}
 
 function snapshot(){
   const o = {};
@@ -1383,35 +1392,22 @@ function snapshot(){
   const p = window.__planner?.getState(); if (p) o.kv.planner = JSON.stringify(p);
   return o;
 }
-function diffSQL(prev, cur){
-  const out = [];
+function diff(prev, cur){
+  const ch = { upserts:{}, deletes:{}, kv:{} }; let any = false;
   for (const t in TABLES) {
-    const cols = TABLES[t].cols, before = prev[t] || {}, now = cur[t];
+    const before = prev[t] || {}, now = cur[t];
     const ups = Object.keys(now).filter(id => now[id] !== before[id]).map(id => JSON.parse(now[id]));
-    if (ups.length) out.push(`insert into ${t} (${cols.join(",")}) values ${ups.map(r => "(" + cols.map(c => lit(r[c])).join(",") + ")").join(",")} on conflict (id) do update set ${cols.filter(c => c!=="id").map(c => `${c}=excluded.${c}`).join(",")};`);
+    if (ups.length) { ch.upserts[t] = ups; any = true; }
     const gone = Object.keys(before).filter(id => !(id in now));
-    if (gone.length) out.push(`delete from ${t} where id in (${gone.map(lit).join(",")});`);
+    if (gone.length) { ch.deletes[t] = gone; any = true; }
   }
-  for (const k in cur.kv) if (cur.kv[k] !== (prev.kv || {})[k])
-    out.push(`insert into kv (key, value) values (${lit(k)}, ${lit(cur.kv[k])}::jsonb) on conflict (key) do update set value=excluded.value, updated_at=now();`);
-  return out.join("\n");
+  for (const k in cur.kv) if (cur.kv[k] !== (prev.kv || {})[k]) { ch.kv[k] = JSON.parse(cur.kv[k]); any = true; }
+  return any ? ch : null;
 }
-function rowsFrom(res){
-  const p = res?.payload;
-  if (Array.isArray(p)) return p;
-  let txt = typeof p === "string" ? p
-    : p && typeof p.result === "string" ? p.result
-    : (res?.content || []).map(c => c.text || "").join("\n");
-  const m = txt.match(/<untrusted-data-[^>]*>([\s\S]*?)<\/untrusted-data/);
-  if (m) txt = m[1];
-  const i = txt.indexOf("["), j = txt.lastIndexOf("]");
-  return i < 0 ? [] : JSON.parse(txt.slice(i, j + 1));
-}
-const sql = query => mcp.callTool(SB.server, "execute_sql", { project_id: SB.project, query }, { cache: false });
 
 function setCloud(s, msg = ""){
   cloud = s; cloudMsg = msg;
-  const label = {ok:"Synced", saving:"Saving…", connecting:"Connecting…", local:"On this phone", error:"Not synced"}[s];
+  const label = {ok:"Synced", saving:"Saving…", connecting:"Connecting…", local:"On this phone", error:"Not synced", locked:"Locked"}[s];
   window.__planner?.setStatus(s === "ok" ? "Saved to your Supabase" : label);
   const pill = document.getElementById("cloud-pill");
   if (pill) { pill.textContent = label; pill.dataset.state = s; pill.title = msg; }
@@ -1419,61 +1415,70 @@ function setCloud(s, msg = ""){
   if (b) b.outerHTML = cloudBanner();
 }
 function cloudBanner(){
+  if (cloud === "locked") return `<form id="cloud-banner" class="banner warn" data-form="pass" style="flex-direction:column;align-items:stretch">
+      <span>${esc(cloudMsg)}</span>
+      <div class="inline"><input type="password" id="cloud-pass" placeholder="Passphrase" autocomplete="current-password" aria-label="Passphrase"><button class="btn small">Unlock</button></div></form>`;
   if (cloud !== "error") return `<div id="cloud-banner" hidden></div>`;
-  return `<div id="cloud-banner" class="banner warn"><span>${esc(cloudMsg)}</span>${cloud==="error"?`<button class="btn small ghost" data-act="cloud-retry">Try again</button>`:""}</div>`;
+  return `<div id="cloud-banner" class="banner warn"><span>${esc(cloudMsg)}</span><button class="btn small ghost" data-act="cloud-retry">Try again</button></div>`;
 }
-function explain(err){
-  const c = err?.code;
-  if (c === "server_not_connected") return "Supabase isn't connected for you. Add it in claude.ai Settings → Connectors. Changes are kept on this phone for now.";
-  if (c === "needs_reauth") return "Your Supabase connection needs signing in again: claude.ai Settings → Connectors. Changes are kept on this phone for now.";
-  if (c === "selection_required") return "You have more than one Supabase connection. Pick one when claude.ai asks, then tap Try again.";
-  if (c === "not_in_manifest" || c === "approval_required" || c === "consent_required") return "This app needs your OK to use Supabase. Tap Try again and allow it.";
-  if (c === "tool_error") return "Supabase refused the request: " + (err.message || "unknown error").slice(0, 160);
-  return "Couldn't reach Supabase just now. Changes are kept on this phone; tap Try again.";
-}
+const explain = err => !navigator.onLine ? "You're offline. Changes are kept on this phone and will sync when you're back online."
+  : err?.status === 401 || /passphrase/.test(err?.message || "") ? "Wrong passphrase."
+  : "Couldn't reach your database just now. Changes are kept on this phone; tap Try again.";
 
 async function cloudLoad(){
-  if (!mcp) return;
+  const pass = getPass();
+  if (!pass) { setCloud("locked", "Set or enter your Me App passphrase to sync. The first one you enter becomes your passphrase, so pick one you'll remember."); render(); return; }
   setCloud("connecting");
   try {
-    const rows = rowsFrom(await sql(`select json_build_object(${Object.keys(TABLES).map(t => `'${t}', (select coalesce(json_agg(x), '[]'::json) from ${t} x)`).join(", ")}, 'kv', (select coalesce(json_object_agg(key, value), '{}'::json) from kv)) as data;`));
-    let data = rows[0]?.data; if (typeof data === "string") data = JSON.parse(data);
+    const data = await rpc("me_app_load", { p: pass });
     if (data && data.kv && data.kv.settings) {
       for (const t in TABLES) state[t] = (data[t] || []).map(TABLES[t].from);
       state.settings = {...state.settings, ...data.kv.settings};
       if (data.kv.planner) window.__planner?.setState(data.kv.planner);
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
-      synced = snapshot();
-      render();
-      setCloud("ok");
+      synced = snapshot(); render(); setCloud("ok");
     } else {
       synced = {kv:{}}; for (const t in TABLES) synced[t] = {};
       await cloudPush();
     }
-  } catch (err) { setCloud("error", explain(err)); }
+  } catch (err) {
+    if (/passphrase/.test(err.message)) { try { localStorage.removeItem(PASS_KEY); } catch(e){} setCloud("locked", "That passphrase didn't match. Try again."); render(); }
+    else setCloud("error", explain(err));
+  }
 }
 async function cloudPush(){
-  if (!mcp || !synced) return;
+  pushTimer = null;
+  if (!synced) return;
   if (pushing) { pushAgain = true; return; }
-  const cur = snapshot(), q = diffSQL(synced, cur);
-  if (!q) { setCloud("ok"); return; }
+  const cur = snapshot(), ch = diff(synced, cur);
+  if (!ch) { setCloud("ok"); return; }
   pushing = true; setCloud("saving");
-  try { await sql(q); synced = cur; setCloud("ok"); }
+  try { await rpc("me_app_save", { p: getPass(), changes: ch }); synced = cur; setCloud("ok"); }
   catch (err) { setCloud("error", explain(err)); }
   pushing = false;
   if (pushAgain) { pushAgain = false; cloudPush(); }
 }
 function schedulePush(){ clearTimeout(pushTimer); pushTimer = setTimeout(cloudPush, 700); }
 window.__onPlannerChange = schedulePush;
+window.addEventListener("online", () => { synced ? cloudPush() : cloudLoad(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && synced && !pushing && !pushTimer) cloudLoad(); });
 
-(async () => {
-  try { mcp = await window.claude?.use?.("mcp"); } catch(e){ mcp = null; }
-  if (!mcp) { setCloud("local", "Saved on this phone. Cloud sync switches on once your Supabase is set up."); render(); return; }
+async function unlock(p){
+  try { await rpc("me_app_claim", { p }); } catch(e) {}
+  try { localStorage.setItem(PASS_KEY, p); } catch(e){}
   cloudLoad();
-})();
+}
+document.addEventListener("submit", e => {
+  if (e.target.dataset?.form !== "pass") return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const p = document.getElementById("cloud-pass").value.trim();
+  if (p.length >= 6) unlock(p); else setCloud("locked", "Use at least 6 characters.");
+}, true);
+
 
 window.__planner?.setRate(state.settings.rate);
 render();
+cloudLoad();
 </script>
 
 </body>
