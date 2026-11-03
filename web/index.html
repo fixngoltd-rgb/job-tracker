@@ -1377,6 +1377,44 @@ for (const t of Object.values(TABLES)) {
 
 let synced = null, cloud = "connecting", cloudMsg = "", pushTimer = null, pushing = false, pushAgain = false;
 const PASS_KEY = "me-app-pass";
+/* Inside claude.ai the same screen syncs through your Supabase connector instead of the passphrase. */
+let mcp = null;
+const MCP = { server: "Supabase", project: "akbsxkmrbxspzzcsgpps" };
+const lit = v => v === null || v === undefined || v === "" ? "null"
+  : typeof v === "number" ? (isFinite(v) ? String(v) : "null")
+  : typeof v === "boolean" ? String(v)
+  : "'" + String(v).replace(/'/g, "''") + "'";
+const sql = query => mcp.callTool(MCP.server, "execute_sql", { project_id: MCP.project, query }, { cache: false });
+function rowsFrom(res){
+  const p = res?.payload;
+  if (Array.isArray(p)) return p;
+  let txt = typeof p === "string" ? p : p && typeof p.result === "string" ? p.result : (res?.content || []).map(c => c.text || "").join("\n");
+  const m = txt.match(/<untrusted-data-[^>]*>([\s\S]*?)<\/untrusted-data/); if (m) txt = m[1];
+  const i = txt.indexOf("["), j = txt.lastIndexOf("]");
+  return i < 0 ? [] : JSON.parse(txt.slice(i, j + 1));
+}
+function changesSQL(ch){
+  const out = [];
+  for (const t in ch.upserts) { const cols = TABLES[t].cols, rows = ch.upserts[t];
+    out.push(`insert into me_app.${t} (${cols.join(",")}) values ${rows.map(r => "(" + cols.map(c => lit(r[c])).join(",") + ")").join(",")} on conflict (id) do update set ${cols.filter(c => c!=="id").map(c => `${c}=excluded.${c}`).join(",")}, updated_at=now();`); }
+  for (const t in ch.deletes) out.push(`delete from me_app.${t} where id in (${ch.deletes[t].map(lit).join(",")});`);
+  for (const k in ch.kv) out.push(`insert into me_app.kv (key, value) values (${lit(k)}, ${lit(JSON.stringify(ch.kv[k]))}::jsonb) on conflict (key) do update set value=excluded.value, updated_at=now();`);
+  return out.join("\n");
+}
+const LOAD_SQL = () => `select json_build_object(${Object.keys(TABLES).map(t => `'${t}', (select coalesce(json_agg(x), '[]'::json) from me_app.${t} x)`).join(", ")}, 'kv', (select coalesce(json_object_agg(key, value), '{}'::json) from me_app.kv)) as data;`;
+async function loadData(){
+  if (!mcp) return rpc("me_app_load", { p: getPass() });
+  let d = rowsFrom(await sql(LOAD_SQL()))[0]?.data; if (typeof d === "string") d = JSON.parse(d);
+  return d;
+}
+const saveData = ch => mcp ? sql(changesSQL(ch)) : rpc("me_app_save", { p: getPass(), changes: ch });
+function explainMcp(err){
+  const c = err?.code;
+  if (c === "server_not_connected" || c === "needs_reauth") return "Your Supabase connector needs signing in: claude.ai Settings, Connectors. Changes are kept here for now.";
+  if (c === "not_in_manifest" || c === "approval_required" || c === "consent_required") return "This page needs your OK to use Supabase. Tap Try again and allow it.";
+  if (c === "tool_error") return "Supabase refused the request: " + (err.message || "unknown error").slice(0, 160);
+  return "Couldn't reach Supabase just now. Changes are kept here; tap Try again.";
+}
 const getPass = () => { try { return localStorage.getItem(PASS_KEY) || ""; } catch(e){ return ""; } };
 
 async function rpc(fn, body){
@@ -1432,10 +1470,10 @@ const explain = err => !navigator.onLine ? "You're offline. Changes are kept on 
 
 async function cloudLoad(){
   const pass = getPass();
-  if (!pass) { setCloud("locked", "Type a passphrase to switch on syncing. You only do this once on this phone; pick anything you'll remember (6+ characters)."); render(); return; }
+  if (!mcp && !pass) { setCloud("locked", "Type a passphrase to switch on syncing. You only do this once on this phone; pick anything you'll remember (6+ characters)."); render(); return; }
   setCloud("connecting");
   try {
-    const data = await rpc("me_app_load", { p: pass });
+    const data = await loadData();
     if (data && data.kv && data.kv.settings) {
       for (const t in TABLES) state[t] = (data[t] || []).map(TABLES[t].from);
       state.settings = {...state.settings, ...data.kv.settings};
@@ -1447,7 +1485,8 @@ async function cloudLoad(){
       await cloudPush();
     }
   } catch (err) {
-    if (/passphrase/.test(err.message)) { try { localStorage.removeItem(PASS_KEY); } catch(e){} setCloud("locked", "That passphrase didn't match. Try again."); render(); }
+    if (mcp) setCloud("error", explainMcp(err));
+    else if (/passphrase/.test(err.message)) { try { localStorage.removeItem(PASS_KEY); } catch(e){} setCloud("locked", "That passphrase didn't match. Try again."); render(); }
     else setCloud("error", explain(err));
   }
 }
@@ -1458,8 +1497,8 @@ async function cloudPush(){
   const cur = snapshot(), ch = diff(synced, cur);
   if (!ch) { setCloud("ok"); return; }
   pushing = true; setCloud("saving");
-  try { await rpc("me_app_save", { p: getPass(), changes: ch }); synced = cur; setCloud("ok"); }
-  catch (err) { setCloud("error", explain(err)); }
+  try { await saveData(ch); synced = cur; setCloud("ok"); }
+  catch (err) { setCloud("error", mcp ? explainMcp(err) : explain(err)); }
   pushing = false;
   if (pushAgain) { pushAgain = false; cloudPush(); }
 }
@@ -1493,7 +1532,10 @@ async function refreshNow(){
 
 window.__planner?.setRate(state.settings.rate);
 render();
-cloudLoad();
+(async () => {
+  if (window.claude?.use) { try { mcp = await window.claude.use("mcp"); } catch(e){ mcp = null; } }
+  cloudLoad();
+})();
 </script>
 
 </body>
