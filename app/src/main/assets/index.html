@@ -956,6 +956,9 @@ const sum = (arr, f) => arr.reduce((t,x)=>t+f(x),0);
 const FROM = {me:"My account", bro:"Brother's account", cash:"Cash"};
 const FOR = {me:"Me", bro:"Brother", home:"Home", mom:"Mom", work:"Work"};
 const NOTE_TAGS = {home:"Home", mom:"Mom", work:"Work", me:"Me"};
+const WATCH_TAGS = {movie:"Movie", series:"Series"};
+const isWatch = n => n.tag in WATCH_TAGS;
+let watchTag = "movie";
 
 /* Brother ledger: positive = you owe him. */
 function owedToBrother(){
@@ -1036,7 +1039,7 @@ function sampleBanner(){
 function viewHome(){
   const owe = owedToBrother(), inv = investThisMonth();
   const needs = state.shop.filter(x=>!x.done && x.tag==="need");
-  const notes = state.notes.filter(n=>!n.done).sort((a,b)=>(a.due||"9")>(b.due||"9")?1:-1).slice(0,3);
+  const notes = state.notes.filter(n=>!n.done && !isWatch(n)).sort((a,b)=>(a.due||"9")>(b.due||"9")?1:-1).slice(0,3);
   const d = new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
   const clear = Math.abs(owe) < 0.5;
   return header("Me", d) + `<div class="stack">${cloudBanner()}${sampleBanner()}
@@ -1099,9 +1102,9 @@ function shopRow(x){
 }
 function noteRow(n){
   const late = n.due && n.due<today() && !n.done;
-  return `<li class="${n.done?"done":""}"><button class="chk" aria-label="Done: ${esc(n.text)}" aria-pressed="${n.done}" data-toggle="notes:${n.id}"></button>
+  return `<li class="${n.done?"done":""}"><button class="chk" aria-label="${isWatch(n)?"Watched":"Done"}: ${esc(n.text)}" aria-pressed="${n.done}" data-toggle="notes:${n.id}"></button>
     <div class="grow">${esc(n.text)}${n.due?` <span class="pill ${late?"owe":""}">${late?"Late · ":""}${new Date(n.due+"T00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>`:""}</div>
-    <span class="pill">${NOTE_TAGS[n.tag]||"Me"}</span><button class="x" aria-label="Remove" data-del="notes:${n.id}">×</button></li>`;
+    <span class="pill">${NOTE_TAGS[n.tag]||WATCH_TAGS[n.tag]||"Me"}</span><button class="x" aria-label="Remove" data-del="notes:${n.id}">×</button></li>`;
 }
 function viewLists(){
   const shop = listMode==="shop";
@@ -1117,8 +1120,16 @@ function viewLists(){
       <section class="card"><div class="card-head"><h2>Wants</h2><span class="small muted">Wait 7 days, then decide</span></div>
         ${want.length?`<ul class="list">${want.map(shopRow).join("")}</ul>`:`<div class="empty">No TikTok finds saved.</div>`}</section>
       ${state.shop.some(x=>x.done)?`<button class="btn ghost small" data-act="clear-bought" style="align-self:flex-start">Clear bought items</button>`:""}`;
+  } else if (listMode==="watch"){
+    const w = state.notes.filter(isWatch), open = w.filter(n=>!n.done), done = w.filter(n=>n.done);
+    body = `<form class="card stack" data-form="watch">
+        <input type="text" id="watch-text" placeholder="Movie or series to watch" autocomplete="off" aria-label="Title">
+        <div class="inline" style="justify-content:space-between"><div class="chips">${Object.entries(WATCH_TAGS).map(([k,l])=>`<button type="button" class="chip" data-watchtag="${k}" aria-pressed="${watchTag===k}">${l}</button>`).join("")}</div><button class="btn small">Add</button></div>
+      </form>
+      <section class="card"><div class="card-head"><h2>To watch</h2><span class="small muted">${open.length}</span></div>${open.length?`<ul class="list">${open.map(noteRow).join("")}</ul>`:`<div class="empty">Nothing queued.</div>`}</section>
+      ${done.length?`<section class="card"><div class="card-head"><h2>Watched</h2><span class="small muted">${done.length}</span></div><ul class="list">${done.map(noteRow).join("")}</ul></section>`:""}`;
   } else {
-    const open = state.notes.filter(n=>!n.done), done = state.notes.filter(n=>n.done);
+    const open = state.notes.filter(n=>!n.done && !isWatch(n)), done = state.notes.filter(n=>n.done && !isWatch(n));
     body = `<form class="card stack" data-form="note">
         <input type="text" id="note-text" placeholder="e.g. Mom: fix the gate latch" autocomplete="off" aria-label="Thing to remember">
         <div class="inline" style="justify-content:space-between;flex-wrap:wrap"><div class="chips">${Object.entries(NOTE_TAGS).map(([k,l])=>`<button type="button" class="chip" data-notetag="${k}" aria-pressed="${noteTag===k}">${l}</button>`).join("")}</div>
@@ -1128,7 +1139,7 @@ function viewLists(){
       ${done.length?`<section class="card"><div class="card-head"><h2>Done</h2><button class="link" data-act="clear-done">Clear</button></div><ul class="list">${done.map(noteRow).join("")}</ul></section>`:""}`;
   }
   return header("Lists") + `<div class="stack"><div class="seg" role="group" aria-label="List" style="align-self:flex-start">
-    <button data-list="shop" aria-pressed="${shop}">Shopping</button><button data-list="notes" aria-pressed="${!shop}">Remember</button></div>${body}</div>`;
+    <button data-list="shop" aria-pressed="${shop}">Shopping</button><button data-list="notes" aria-pressed="${listMode==="notes"}">Remember</button><button data-list="watch" aria-pressed="${listMode==="watch"}">Watch</button></div>${body}</div>`;
 }
 
 function viewGoals(){
@@ -1280,6 +1291,7 @@ document.addEventListener("click", e => {
   if (d.filter){ spendFilter = d.filter; render(); return; }
   if (d.list && !d.goto){ listMode = d.list; render(); return; }
   if (d.newtag){ newTag = d.newtag; render(); document.getElementById("shop-name")?.focus(); return; }
+  if (d.watchtag){ watchTag = d.watchtag; render(); document.getElementById("watch-text")?.focus(); return; }
   if (d.notetag){ noteTag = d.notetag; render(); document.getElementById("note-text")?.focus(); return; }
   if (d.del){ const [k,id] = d.del.split(":"); state[k] = state[k].filter(x=>x.id!==id); save(); render(); return; }
   if (d.toggle){ const [k,id] = d.toggle.split(":"); const it = state[k].find(x=>x.id===id); it.done = !it.done; save(); render(); return; }
@@ -1291,7 +1303,7 @@ document.addEventListener("click", e => {
   if (act==="mark-invested"){ const inv = investThisMonth(); state.invested.push({id:uid(),date:today(),amt:+inv.left.toFixed(2),cur:"USD"}); save(); render(); toast(`${fmtUSD(inv.left)} marked as invested`); return; }
   if (act==="clear-samples"){ ["spends","income","invested","shop","notes"].forEach(k=>state[k]=state[k].filter(x=>!x.sample)); save(); render(); toast("Samples cleared"); return; }
   if (act==="clear-bought"){ state.shop = state.shop.filter(x=>!x.done); save(); render(); return; }
-  if (act==="clear-done"){ state.notes = state.notes.filter(x=>!x.done); save(); render(); return; }
+  if (act==="clear-done"){ state.notes = state.notes.filter(x=>!x.done || isWatch(x)); save(); render(); return; }
   if (act==="copy"){
     const txt = JSON.stringify(state);
     const done = () => toast("Copied. Paste it to Claude.");
@@ -1347,6 +1359,10 @@ document.addEventListener("submit", e => {
     const n = document.getElementById("shop-name").value.trim(); if (!n) return;
     const p = parseFloat(document.getElementById("shop-price").value)||0;
     state.shop.push({id:uid(),name:n,tag:newTag,price:p,added:today(),done:false}); save(); render(); document.getElementById("shop-name").focus();
+  }
+  if (f.dataset.form==="watch"){
+    const n = document.getElementById("watch-text").value.trim(); if (!n) return;
+    state.notes.push({id:uid(),text:n,tag:watchTag,due:"",done:false}); save(); render(); document.getElementById("watch-text").focus();
   }
   if (f.dataset.form==="note"){
     const n = document.getElementById("note-text").value.trim(); if (!n) return;
