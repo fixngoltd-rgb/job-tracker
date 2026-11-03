@@ -3791,11 +3791,8 @@ async function makeWorkReport(mode){
       if(upErr) throw new Error('Upload failed: ' + upErr.message);
       const { data: urlData } = supabaseClient.storage.from('job-files').getPublicUrl(filePath);
       await supabaseClient.from('job_files').insert([{ job_id: j.id, file_name: fname, file_url: urlData.publicUrl, mime_type: 'application/pdf' }]);
-      const { data: nc, error: cErr } = await supabaseClient.from('board_comments').insert([{
-        job_id: j.id, author: CURRENT_USER ? (CURRENT_USER.name || 'Ilyas').replace(/\s*\(Admin\)$/, '') : 'Ilyas',
-        message: 'work report [1 attachment: ' + fname + ']', author_user_id: CURRENT_USER ? CURRENT_USER.id : null }]).select().single();
-      if(!cErr && nc) await supabaseClient.from('comment_attachments').insert([{ comment_id: nc.id, file_url: urlData.publicUrl, file_name: fname, mime_type: 'application/pdf' }]);
-      loadJobFiles(j.id); loadComments(j.id);
+      /* no board comment any more: the PDF is saved to the job's files only */
+      loadJobFiles(j.id);
       st.style.color = 'var(--green)'; st.textContent = 'Attached to the job as "' + fname + '".';
     } else {
       const u = URL.createObjectURL(blob);
