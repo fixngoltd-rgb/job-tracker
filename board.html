@@ -3710,7 +3710,12 @@ function renderWrPhotos(){
   }).join('');
 }
 async function addWrPhotos(inp){
-  const files = Array.from(inp.files || []); if(!files.length || !currentDetailId) return;
+  const files = Array.from(inp.files || []); inp.value = '';
+  await addWrFiles(files);
+}
+async function addWrFiles(files){
+  files = Array.from(files || []).filter(f => /^(image|video)\//.test(f.type || '') || /\.(jpe?g|png|gif|webp|heic|mp4|mov|webm)$/i.test(f.name || ''));
+  if(!files.length || !currentDetailId) return;
   const st = document.getElementById('wr-status'); const btn = document.getElementById('wr-add-btn');
   btn.disabled = true; let ok = 0;
   for(let i = 0; i < files.length; i++){
@@ -3723,9 +3728,36 @@ async function addWrPhotos(inp){
     if(de){ st.style.color = '#dc2626'; st.textContent = 'Failed to save photo record: ' + de.message; continue; }
     WR_PHOTOS.push({ url, name: f.name, video: (f.type || '').startsWith('video/') || /\.(mp4|mov|webm)$/i.test(f.name), selected: true, _n: WR_PHOTOS.reduce((m, q) => Math.max(m, q._n || 0), 0) + 1, _t: wrPhotoTime({ file_name: f.name, uploaded_at: new Date().toISOString() }), _u: new Date().toISOString() }); ok++; renderWrPhotos();
   }
-  inp.value = ''; btn.disabled = false;
+  btn.disabled = false;
   if(ok){ st.style.color = 'var(--muted)'; st.textContent = ok + ' photo' + (ok > 1 ? 's' : '') + ' added to the job.'; loadJobFiles(currentDetailId); }
 }
+
+/* Add photos pop-up: drop, paste (Ctrl+V / Paste button) or browse */
+function openWrDrop(){ document.getElementById('wr-drop-overlay').style.display = 'flex'; document.getElementById('wr-drop-msg').textContent = ''; }
+function closeWrDrop(){ document.getElementById('wr-drop-overlay').style.display = 'none'; document.getElementById('wr-drop-zone').style.borderColor = ''; }
+function wrDropFiles(files){
+  files = Array.from(files || []);
+  const stamp = Date.now();
+  files = files.map((f, i) => (/^(image|video)\//.test(f.type || '') && (!f.name || /^(image|video|blob)\.?\w*$/i.test(f.name)))
+    ? new File([f], 'pasted_' + stamp + '_' + (i + 1) + '.' + ((f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/\+.*/, '')), { type: f.type }) : f);
+  const ok = files.filter(f => /^(image|video)\//.test(f.type || '') || /\.(jpe?g|png|gif|webp|heic|mp4|mov|webm)$/i.test(f.name || ''));
+  if(!ok.length){ document.getElementById('wr-drop-msg').textContent = 'Nothing usable found. Drop or paste a photo or video.'; return; }
+  closeWrDrop(); addWrFiles(ok);
+}
+async function wrPasteBtn(){
+  const msg = document.getElementById('wr-drop-msg');
+  try {
+    const items = await navigator.clipboard.read(); const files = [];
+    for(const it of items){ for(const t of it.types){ if(/^(image|video)\//.test(t)){ const b = await it.getType(t); files.push(new File([b], 'image', { type: t })); } } }
+    if(files.length) wrDropFiles(files); else msg.textContent = 'No photo on the clipboard.';
+  } catch(e){ msg.textContent = 'Could not read the clipboard here. Press Ctrl+V on the box, or use Choose files.'; }
+}
+document.addEventListener('paste', e => {
+  const ov = document.getElementById('wr-drop-overlay'); if(!ov || ov.style.display !== 'flex') return;
+  const files = Array.from((e.clipboardData && e.clipboardData.files) || []);
+  if(files.length){ e.preventDefault(); wrDropFiles(files); }
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape'){ const ov = document.getElementById('wr-drop-overlay'); if(ov && ov.style.display === 'flex') closeWrDrop(); } });
 function toggleAllWrPhotos(){
   const all = WR_PHOTOS.length && WR_PHOTOS.every(p => p.selected);
   if(all){ WR_PHOTOS.forEach(p => p.selected = false); }
@@ -3977,7 +4009,7 @@ init();
       <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Photos from this job <span id="wr-photo-count" style="font-weight:600;"></span></label>
       <span style="display:flex;gap:8px;">
         <button class="btn-secondary" id="wr-all-btn" onclick="toggleAllWrPhotos()" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Deselect all</button>
-        <button class="btn-secondary" id="wr-add-btn" onclick="document.getElementById('wr-add-input').click()" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">+ Add photos / videos</button>
+        <button class="btn-secondary" id="wr-add-btn" onclick="openWrDrop()" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">+ Add photos / videos</button>
       </span>
       <input type="file" id="wr-add-input" accept="image/*,video/*" multiple style="display:none" onchange="addWrPhotos(this)">
     </div>
@@ -3993,6 +4025,27 @@ init();
       <button class="btn-secondary" id="wr-btn-dl" onclick="makeWorkReport('download')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Download PDF</button>
       <button id="wr-btn-attach" onclick="makeWorkReport('attach')" style="background:#2563eb;color:#fff;border:none;padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Attach to job</button>
     </div>
+  </div>
+</div>
+
+<div id="wr-drop-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:210;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closeWrDrop()">
+  <div style="background:var(--card);color:var(--text);border-radius:12px;max-width:420px;width:100%;padding:16px 18px;box-shadow:0 10px 40px rgba(0,0,0,0.35);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h3 style="font-size:1rem;font-weight:800;">Add photos / videos</h3>
+      <button onclick="closeWrDrop()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--muted);">&times;</button>
+    </div>
+    <div id="wr-drop-zone" tabindex="0"
+      ondragover="event.preventDefault();this.style.borderColor='#2563eb'" ondragleave="this.style.borderColor=''"
+      ondrop="event.preventDefault();this.style.borderColor='';wrDropFiles(event.dataTransfer.files)"
+      style="border:2px dashed var(--border);border-radius:10px;padding:28px 12px;text-align:center;outline:none;">
+      <div style="font-weight:700;margin-bottom:4px;">Drop photos or videos here</div>
+      <div style="font-size:0.82rem;color:var(--muted);">or paste (Ctrl+V) a copied image</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <button class="btn-secondary" onclick="wrPasteBtn()" style="flex:1;padding:9px 12px;border-radius:7px;font-weight:700;cursor:pointer;">Paste from clipboard</button>
+      <button class="btn-secondary" onclick="document.getElementById('wr-add-input').click();closeWrDrop()" style="flex:1;padding:9px 12px;border-radius:7px;font-weight:700;cursor:pointer;">Choose files</button>
+    </div>
+    <div id="wr-drop-msg" style="font-size:0.8rem;color:#dc2626;min-height:1.1em;margin-top:8px;"></div>
   </div>
 </div>
 
