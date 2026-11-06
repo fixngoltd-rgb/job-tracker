@@ -3649,9 +3649,9 @@ async function openWorkReport(){
   const { data: files } = await supabaseClient.from('job_files').select('file_url,file_name,mime_type,uploaded_at')
     .eq('job_id', j.id).order('uploaded_at', { ascending: true });
   const seen = new Set(); WR_PHOTOS = [];
-  (files || []).filter(f => (f.mime_type || '').startsWith('image/') || (f.mime_type || '').startsWith('video/')).forEach(f => {
+  (files || []).filter(f => (f.mime_type || '').startsWith('image/') || (f.mime_type || '').startsWith('video/') || wrIsOutsidePdf(f.mime_type, f.file_name)).forEach(f => {
     if(seen.has(f.file_url)) return; seen.add(f.file_url);
-    WR_PHOTOS.push({ url: f.file_url, name: f.file_name, video: (f.mime_type || '').startsWith('video/'), selected: true, _t: wrPhotoTime(f), _u: f.uploaded_at || '' });
+    WR_PHOTOS.push({ url: f.file_url, name: f.file_name, video: (f.mime_type || '').startsWith('video/'), pdf: wrIsOutsidePdf(f.mime_type, f.file_name), selected: true, _t: wrPhotoTime(f), _u: f.uploaded_at || '' });
   });
   // oldest first, newest last. Bulk uploads share one upload time, so the capture time in the file name is used first.
   WR_PHOTOS.sort((a, b) => (a._t - b._t) || String(a._u).localeCompare(String(b._u)));
@@ -3662,6 +3662,35 @@ async function openWorkReport(){
     if(!le) (lb || []).forEach(r => { WR_LABELS[r.file_url] = r; });
   } catch(e){}
   renderWrPhotos();
+}
+/* An outside report PDF (for example the pest control company's own report). Our own generated "... Work Report.pdf" files are left out. */
+function wrIsOutsidePdf(mime, name){
+  return ((mime || '') === 'application/pdf' || /\.pdf$/i.test(name || '')) && !/work report/i.test(name || '');
+}
+/* A PDF in a work report PDF: shown as a "Full report attached" card; the card is a link that opens the original file. */
+async function wrPdfPoster(name){
+  const W = 840, H = 1188;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#f4effa'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#5b2779'; g.fillRect(0, 0, W, 26);
+  // document icon
+  const dx = W / 2 - 110, dy = 250, dw = 220, dh = 290;
+  g.fillStyle = '#ffffff'; g.strokeStyle = '#26324a'; g.lineWidth = 8;
+  g.beginPath(); g.moveTo(dx, dy); g.lineTo(dx + dw - 60, dy); g.lineTo(dx + dw, dy + 60); g.lineTo(dx + dw, dy + dh); g.lineTo(dx, dy + dh); g.closePath(); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(dx + dw - 60, dy); g.lineTo(dx + dw - 60, dy + 60); g.lineTo(dx + dw, dy + 60); g.stroke();
+  g.fillStyle = '#0a9fc6'; for(let i = 0; i < 4; i++){ g.fillRect(dx + 36, dy + 120 + i * 36, i === 3 ? 90 : 148, 12); }
+  g.textAlign = 'center'; g.fillStyle = '#26324a';
+  g.font = '800 64px Arial, Helvetica, sans-serif'; g.fillText('FULL REPORT', W / 2, 700);
+  g.fillText('ATTACHED', W / 2, 778);
+  g.fillStyle = '#5f6673'; g.font = '500 34px Arial, Helvetica, sans-serif';
+  g.fillText('Tap below to open the full report', W / 2, 850);
+  // button
+  const bw = 520, bh = 112, bx = W / 2 - bw / 2, by = 910;
+  g.fillStyle = '#5b2779'; g.beginPath(); g.roundRect(bx, by, bw, bh, 56); g.fill();
+  g.fillStyle = '#ffffff'; g.font = '800 40px Arial, Helvetica, sans-serif'; g.fillText('OPEN FULL REPORT', W / 2, by + 71);
+  const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.9));
+  return URL.createObjectURL(blob);
 }
 function wrPhotoTime(f){
   const n = f.file_name || '';
@@ -3703,7 +3732,7 @@ function renderWrPhotos(){
   g.innerHTML = WR_PHOTOS.map((p, i) => {
     const n = p.selected ? order.indexOf(p) + 1 : 0;
     return `<div onclick="toggleWrPhoto(${i})" style="position:relative;cursor:pointer;border-radius:8px;overflow:hidden;border:3px solid ${p.selected ? '#2563eb' : 'transparent'};opacity:${p.selected ? 1 : 0.45};aspect-ratio:1/1;">
-      ${p.video ? `<video src="${escHtml(p.url)}#t=0.5" preload="metadata" muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;background:#0f172a;pointer-events:none;"></video><span class="play-btn clickable" title="Play video" onclick="event.stopPropagation();openLightbox('${escHtml(p.url)}','${escHtml(p.name || '')}','video/mp4')"></span>` : `<img src="${escHtml(p.url)}" style="width:100%;height:100%;object-fit:cover;display:block;">`}
+      ${p.pdf ? `<div style="width:100%;height:100%;background:#f4effa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;padding:6px;"><span style="font-size:1.7rem;line-height:1;">&#128196;</span><span style="font-size:0.62rem;font-weight:800;color:#5b2779;">FULL REPORT</span></div>` : p.video ? `<video src="${escHtml(p.url)}#t=0.5" preload="metadata" muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;background:#0f172a;pointer-events:none;"></video><span class="play-btn clickable" title="Play video" onclick="event.stopPropagation();openLightbox('${escHtml(p.url)}','${escHtml(p.name || '')}','video/mp4')"></span>` : `<img src="${escHtml(p.url)}" style="width:100%;height:100%;object-fit:cover;display:block;">`}
       ${p.selected ? `<span style="position:absolute;top:4px;left:4px;background:#2563eb;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;">${n}</span>` : ''}
           <span style="position:absolute;left:0;right:0;bottom:0;background:rgba(15,23,42,0.62);color:#fff;font-size:0.62rem;line-height:1.25;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><b>#${p._n || ''}</b>${WR_LABELS[p.url] && WR_LABELS[p.url].caption ? ' ' + escHtml(WR_LABELS[p.url].caption) : ''}</span>
     </div>`;
@@ -3714,7 +3743,7 @@ async function addWrPhotos(inp){
   await addWrFiles(files);
 }
 async function addWrFiles(files){
-  files = Array.from(files || []).filter(f => /^(image|video)\//.test(f.type || '') || /\.(jpe?g|png|gif|webp|heic|mp4|mov|webm)$/i.test(f.name || ''));
+  files = Array.from(files || []).filter(f => /^(image|video)\//.test(f.type || '') || /\.(jpe?g|png|gif|webp|heic|mp4|mov|webm|pdf)$/i.test(f.name || '') || f.type === 'application/pdf');
   if(!files.length || !currentDetailId) return;
   const st = document.getElementById('wr-status'); const btn = document.getElementById('wr-add-btn');
   btn.disabled = true; let ok = 0;
@@ -3724,9 +3753,9 @@ async function addWrFiles(files){
     const { error: ue } = await supabaseClient.storage.from('job-files').upload(path, f);
     if(ue){ st.style.color = '#dc2626'; st.textContent = 'Upload failed: ' + ue.message; continue; }
     const url = supabaseClient.storage.from('job-files').getPublicUrl(path).data.publicUrl;
-    const { error: de } = await supabaseClient.from('job_files').insert([{ job_id: currentDetailId, file_name: f.name, file_url: url, mime_type: f.type || (/\.(mp4|mov|webm)$/i.test(f.name) ? 'video/mp4' : 'image/jpeg') }]);
+    const { error: de } = await supabaseClient.from('job_files').insert([{ job_id: currentDetailId, file_name: f.name, file_url: url, mime_type: f.type || (/\.pdf$/i.test(f.name) ? 'application/pdf' : /\.(mp4|mov|webm)$/i.test(f.name) ? 'video/mp4' : 'image/jpeg') }]);
     if(de){ st.style.color = '#dc2626'; st.textContent = 'Failed to save photo record: ' + de.message; continue; }
-    WR_PHOTOS.push({ url, name: f.name, video: (f.type || '').startsWith('video/') || /\.(mp4|mov|webm)$/i.test(f.name), selected: true, _n: WR_PHOTOS.reduce((m, q) => Math.max(m, q._n || 0), 0) + 1, _t: wrPhotoTime({ file_name: f.name, uploaded_at: new Date().toISOString() }), _u: new Date().toISOString() }); ok++; renderWrPhotos();
+    WR_PHOTOS.push({ url, name: f.name, video: (f.type || '').startsWith('video/') || /\.(mp4|mov|webm)$/i.test(f.name), pdf: f.type === 'application/pdf' || /\.pdf$/i.test(f.name), selected: true, _n: WR_PHOTOS.reduce((m, q) => Math.max(m, q._n || 0), 0) + 1, _t: wrPhotoTime({ file_name: f.name, uploaded_at: new Date().toISOString() }), _u: new Date().toISOString() }); ok++; renderWrPhotos();
   }
   btn.disabled = false;
   if(ok){ st.style.color = 'var(--muted)'; st.textContent = ok + ' photo' + (ok > 1 ? 's' : '') + ' added to the job.'; loadJobFiles(currentDetailId); }
@@ -3734,8 +3763,8 @@ async function addWrFiles(files){
 
 /* Add photos pop-up: drop / paste / choose files go into a preview list; Done uploads them to the job */
 let WR_STAGE = [];
-const WR_MEDIA_RE = /\.(jpe?g|png|gif|webp|heic|mp4|mov|webm)$/i;
-function wrIsMedia(f){ return /^(image|video)\//.test(f.type || '') || WR_MEDIA_RE.test(f.name || ''); }
+const WR_MEDIA_RE = /\.(jpe?g|png|gif|webp|heic|mp4|mov|webm|pdf)$/i;
+function wrIsMedia(f){ return /^(image|video)\//.test(f.type || '') || f.type === 'application/pdf' || WR_MEDIA_RE.test(f.name || ''); }
 function openWrDrop(){ WR_STAGE = []; wrStageRender(); document.getElementById('wr-drop-overlay').style.display = 'flex'; document.getElementById('wr-drop-msg').textContent = ''; }
 function closeWrDrop(){
   WR_STAGE.forEach(x => URL.revokeObjectURL(x.url)); WR_STAGE = [];
@@ -3750,7 +3779,7 @@ function wrStageAdd(files){
       const ext = ((f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/\+.*/, ''));
       f = new File([f], 'pasted_' + stamp + '_' + WR_STAGE.length + '_' + i + '.' + ext, { type: f.type });
     }
-    WR_STAGE.push({ file: f, url: URL.createObjectURL(f), video: /^video\//.test(f.type || '') || /\.(mp4|mov|webm)$/i.test(f.name) });
+    WR_STAGE.push({ file: f, url: URL.createObjectURL(f), video: /^video\//.test(f.type || '') || /\.(mp4|mov|webm)$/i.test(f.name), pdf: f.type === 'application/pdf' || /\.pdf$/i.test(f.name) });
   });
   wrStageRender();
 }
@@ -3760,7 +3789,7 @@ function wrStageRender(){
   const g = document.getElementById('wr-stage'); const btn = document.getElementById('wr-drop-done');
   g.style.display = WR_STAGE.length ? 'grid' : 'none';
   g.innerHTML = WR_STAGE.map((x, i) => `<div style="position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1/1;background:#0f172a;">
-    ${x.video ? `<video src="${x.url}#t=0.5" preload="metadata" muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video><span style="position:absolute;left:4px;bottom:4px;background:rgba(15,23,42,0.7);color:#fff;font-size:0.65rem;padding:1px 5px;border-radius:4px;">Video</span>` : `<img src="${x.url}" style="width:100%;height:100%;object-fit:cover;display:block;">`}
+    ${x.pdf ? `<div style="width:100%;height:100%;background:#f4effa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;padding:6px;"><span style="font-size:1.7rem;line-height:1;">&#128196;</span><span style="font-size:0.6rem;font-weight:800;color:#5b2779;word-break:break-all;">PDF</span></div>` : x.video ? `<video src="${x.url}#t=0.5" preload="metadata" muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video><span style="position:absolute;left:4px;bottom:4px;background:rgba(15,23,42,0.7);color:#fff;font-size:0.65rem;padding:1px 5px;border-radius:4px;">Video</span>` : `<img src="${x.url}" style="width:100%;height:100%;object-fit:cover;display:block;">`}
     <button onclick="wrStageRemove(${i})" title="Remove" style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(15,23,42,0.75);color:#fff;font-size:0.9rem;line-height:1;cursor:pointer;">&times;</button>
   </div>`).join('');
   btn.textContent = WR_STAGE.length ? 'Done (' + WR_STAGE.length + ')' : 'Done';
@@ -3815,7 +3844,7 @@ async function wrVideoPoster(url){
   const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.88));
   return URL.createObjectURL(blob);
 }
-async function wrPdfSrc(p){ return p.video ? await wrVideoPoster(p.url) : p.url; }
+async function wrPdfSrc(p){ return p.pdf ? await wrPdfPoster(p.name) : p.video ? await wrVideoPoster(p.url) : p.url; }
 async function makeWorkReport(mode){
   const j = JOBS.find(x => x.id === currentDetailId); if(!j) return;
   const st = document.getElementById('wr-status'); const btns = ['wr-btn-view','wr-btn-dl','wr-btn-attach'].map(id => document.getElementById(id));
@@ -3823,13 +3852,13 @@ async function makeWorkReport(mode){
   try {
     await saveWorkReportText();
     const sel = WR_PHOTOS.filter(p => p.selected); const srcs = []; for(const p of sel) srcs.push(await wrPdfSrc(p));
-    const photos = sel.map((p, ix) => p.video ? { url: srcs[ix], link: p.url } : srcs[ix]);
+    const photos = sel.map((p, ix) => (p.video || p.pdf) ? { url: srcs[ix], link: p.url } : srcs[ix]);
     const v2 = (document.getElementById('wr-version') || {}).value === 'v2';
     let blob;
     if(v2){
       const dv = (document.getElementById('wr-date') || {}).value;
       const dateStr = dv ? new Date(dv + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-      blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix], link: p.video ? p.url : undefined }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
+      blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix], link: (p.video || p.pdf) ? p.url : undefined }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
     } else blob = await window.WorkReport.makePdf({ address: j.address, text: document.getElementById('wr-text').value, photos });
     const fname = wrFileName(j);
     if(mode === 'attach'){
@@ -4026,7 +4055,7 @@ init();
         <button class="btn-secondary" id="wr-all-btn" onclick="toggleAllWrPhotos()" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Deselect all</button>
         <button class="btn-secondary" id="wr-add-btn" onclick="openWrDrop()" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">+ Add photos / videos</button>
       </span>
-      <input type="file" id="wr-add-input" accept="image/*,video/*" multiple style="display:none" onchange="wrStagePick(this)">
+      <input type="file" id="wr-add-input" accept="image/*,video/*,application/pdf" multiple style="display:none" onchange="wrStagePick(this)">
     </div>
     <div id="wr-photos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin:8px 0 14px;"></div>
     <div id="wr-status" style="font-size:0.82rem;min-height:1.2em;margin-bottom:10px;"></div>
