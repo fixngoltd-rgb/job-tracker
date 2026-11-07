@@ -82,6 +82,12 @@ ul.list .grow{flex:1;min-width:0;overflow-wrap:anywhere}
 .pill.bro{background:var(--bro-soft);color:var(--bro)}
 .pill.owe{background:var(--owe-soft);color:var(--owe)}
 .pill.need{background:var(--accent-soft);color:var(--accent)}
+.proj{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;padding:12px 0;border-top:1px solid var(--line);color:inherit;font:inherit;cursor:pointer}
+.proj:first-of-type{border-top:0}
+.proj .grow{min-width:0}.proj b{display:block;font-size:15px}.proj .small{margin-top:2px}
+.proj .chev{color:var(--muted);font-size:20px;line-height:1}
+.catrow{display:grid;grid-template-columns:84px 1fr auto;gap:10px;align-items:center;margin:8px 0}
+.catrow span:first-child{font-size:13px;font-weight:600}
 .amt{font-weight:700;white-space:nowrap}
 .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;border-radius:8px}
 .x:hover{color:var(--bad)}
@@ -957,6 +963,17 @@ const FROM = {me:"My account", bro:"Brother's account", cash:"Cash"};
 const FOR = {me:"Me", bro:"Brother", home:"Home", mom:"Mom", work:"Work"};
 const NOTE_TAGS = {home:"Home", mom:"Mom", work:"Work", me:"Me"};
 const WATCH_TAGS = {movie:"Movie", series:"Series"};
+const CATS = {item:"Item", material:"Material", labour:"Labour", travel:"Travel", other:"Other"};
+let openProject = null;
+const shortDate = d => new Date(d+"T00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+function projects(){
+  const m = {};
+  for (const s of state.spends) if (s.project) (m[s.project] ||= []).push(s);
+  return Object.entries(m).map(([name, items]) => {
+    const dates = items.map(s=>s.date).sort();
+    return {name, items, total: sum(items, s=>toUSD(s.amt,s.cur)), from: dates[0], to: dates[dates.length-1]};
+  }).sort((a,b)=>b.to.localeCompare(a.to));
+}
 const isWatch = n => n.tag in WATCH_TAGS;
 let watchTag = "movie";
 
@@ -1073,23 +1090,82 @@ function fundCard(){
     <ul class="list">${f.stops.map(s=>`<li><div class="grow"><div style="font-weight:600">${esc(s.name)}</div><div class="small muted">${esc(s.sub)}</div></div><span class="eta">${esc(s.when)}</span></li>`).join("")}</ul></section>`;
 }
 
-function spendRow(s){
+function spendRow(s, withDate){
   const tags = [];
   if (s.from==="bro") tags.push(`<span class="pill bro">Bro's money</span>`);
   if (s.for!=="me") tags.push(`<span class="pill ${s.for==="bro"?"bro":""}">For ${FOR[s.for]}</span>`);
   if (s.from==="cash") tags.push(`<span class="pill">Cash</span>`);
+  if (withDate) tags.unshift(`<span class="pill">${shortDate(s.date)}</span>`);
+  if (s.project && !(openProject && openProject[0]==="project")) tags.push(`<span class="pill need">${esc(s.project)}</span>`);
+  if (s.project && openProject && openProject[0]==="project") tags.push(`<span class="pill">${CATS[s.cat]||"Other"}</span>`);
   return `<li><div class="grow"><div style="font-weight:600">${esc(s.what||"Spend")}</div><div class="chips" style="margin-top:4px">${tags.join("")}</div></div>
     <span class="amt num">${fmt(toUSD(s.amt,s.cur))}</span><button class="x" aria-label="Delete ${esc(s.what)}" data-del="spends:${s.id}">×</button></li>`;
 }
+let spendView = "latest", groupBy = "month", rangeFrom = "", rangeTo = "";
+const GROUPS = {day:"Day", week:"Week", month:"Month", project:"Project", range:"Dates"};
+function mondayOf(d){ const x = new Date(d+"T00:00"); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x.toISOString().slice(0,10); }
+const GROUP_KEY = {
+  day: s => s.date, week: s => mondayOf(s.date), month: s => s.date.slice(0,7), project: s => s.project || null,
+};
+const groupLabel = (mode, k) => mode==="day" ? (k===today()?"Today":k===daysAgo(1)?"Yesterday":new Date(k+"T00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"}))
+  : mode==="week" ? "Week of " + shortDate(k)
+  : mode==="month" ? new Date(k+"-01T00:00").toLocaleDateString("en-GB",{month:"long",year:"numeric"})
+  : k;
+function spendFilterFn(){ return {all:()=>true, bro:s=>s.from==="bro", forbro:s=>s.for==="bro", home:s=>s.for==="home"}[spendFilter]; }
+function groupsOf(mode, list){
+  const m = {};
+  for (const s of list) { const k = GROUP_KEY[mode](s); if (k) (m[k] ||= []).push(s); }
+  return Object.entries(m).map(([key, items]) => {
+    const dates = items.map(s=>s.date).sort();
+    return {key, label: groupLabel(mode, key), items, total: sum(items, s=>toUSD(s.amt,s.cur)), from: dates[0], to: dates[dates.length-1]};
+  }).sort((x,y)=>y.to.localeCompare(x.to));
+}
+function breakdown(items, byProjectCat){
+  const total = sum(items, s=>toUSD(s.amt,s.cur)) || 1, m = {};
+  const key = byProjectCat ? (s => CATS[s.cat] || "Other") : (s => "For " + FOR[s.for]);
+  items.forEach(s => { const k = key(s); m[k] = (m[k]||0) + toUSD(s.amt,s.cur); });
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="catrow"><span>${esc(k)}</span><div class="bar"><i style="width:${Math.max(2,Math.round(v/total*100))}%"></i></div><span class="num small">${fmt(v)}</span></div>`).join("");
+}
+function itemsByDay(items){
+  const days = {}; [...items].sort((a,b)=>b.date.localeCompare(a.date)).forEach(s => (days[s.date] ||= []).push(s));
+  return Object.keys(days).map(d=>`<div class="day"><span>${shortDate(d)}</span><span class="num">${fmt(sum(days[d],s=>toUSD(s.amt,s.cur)))}</span></div><ul class="list">${days[d].map(spendRow).join("")}</ul>`).join("");
+}
+function totalCard(title, items, sub, byProjectCat){
+  return `<section class="card"><div class="card-head"><h2>${title}</h2><span class="small muted">${sub}</span></div>
+    <div class="num" style="font-size:30px;font-weight:800">${fmt(sum(items,s=>toUSD(s.amt,s.cur)))}</div>${items.length?breakdown(items, byProjectCat):""}</section>`;
+}
+function viewGroup(){
+  const [mode, key] = openProject;
+  const g = groupsOf(mode, state.spends.filter(spendFilterFn())).find(x=>x.key===key);
+  if (!g) { openProject = null; return viewSpends(); }
+  const isProj = mode==="project";
+  return header(esc(g.label), g.from===g.to ? shortDate(g.from) : `${shortDate(g.from)} – ${shortDate(g.to)}`) + `<div class="stack">
+    <div class="inline" style="justify-content:space-between"><button class="btn ghost small" data-act="proj-back">‹ Back</button>${isProj?`<button class="btn ghost small" data-act="proj-rename">Rename</button>`:""}</div>
+    ${totalCard("Total", g.items, g.items.length + " spends", isProj)}
+    ${isProj?`<button class="btn" data-act="proj-add">+ Add a spend to this project</button>`:""}
+    <section class="card">${itemsByDay(g.items)}</section></div>`;
+}
 function viewSpends(){
-  const f = {all:()=>true, bro:s=>s.from==="bro", forbro:s=>s.for==="bro", home:s=>s.for==="home"}[spendFilter];
-  const list = state.spends.filter(f).sort((a,b)=>b.date.localeCompare(a.date));
-  const days = {};
-  list.forEach(s => (days[s.date] ||= []).push(s));
-  const dayLabel = d => d===today()?"Today":d===daysAgo(1)?"Yesterday":new Date(d+"T00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
-  return header("Spends", "Tap + to add one in a few seconds") + `<div class="stack">
+  if (openProject) return viewGroup();
+  const list = state.spends.filter(spendFilterFn()).sort((a,b)=>b.date.localeCompare(a.date) || (b.id>a.id?1:-1));
+  let body;
+  if (spendView==="latest") {
+    body = `<section class="card">${list.length?`<ul class="list">${list.slice(0,100).map(s=>spendRow(s, true)).join("")}</ul>`:`<div class="empty">No spends here yet. Tap + to add your first.</div>`}</section>`;
+  } else if (groupBy==="range") {
+    const inR = list.filter(s => (!rangeFrom || s.date>=rangeFrom) && (!rangeTo || s.date<=rangeTo));
+    body = `<section class="card stack"><div class="inline"><label class="field" style="flex:1"><span>From</span><input type="date" id="range-from" value="${rangeFrom}"></label><label class="field" style="flex:1"><span>To</span><input type="date" id="range-to" value="${rangeTo}"></label></div></section>
+      ${totalCard("Spent", inR, inR.length + " spends", false)}
+      ${inR.length?`<section class="card">${itemsByDay(inR)}</section>`:""}`;
+  } else {
+    const gs = groupsOf(groupBy, list);
+    body = `<section class="card">${gs.length?gs.map(g=>`<button class="proj" data-grp="${groupBy}" data-key="${esc(g.key)}"><div class="grow"><b>${esc(g.label)}</b><div class="small muted">${groupBy==="project"||groupBy==="week"?(g.from===g.to?shortDate(g.from):shortDate(g.from)+" – "+shortDate(g.to))+" · ":""}${g.items.length} spends</div></div><span class="num" style="font-weight:700">${fmt(g.total)}</span><span class="chev">›</span></button>`).join("")
+      : groupBy==="project" ? `<div class="empty">No projects yet. When you add a spend, type a project name (like "New AC") to group it.</div>` : `<div class="empty">No spends yet.</div>`}</section>`;
+  }
+  return header("Spends", spendView==="latest" ? "Newest first" : "Totals by " + GROUPS[groupBy].toLowerCase()) + `<div class="stack">
+    <div class="seg" role="group" aria-label="View" style="align-self:flex-start"><button data-sview="latest" aria-pressed="${spendView==="latest"}">Latest</button><button data-sview="grouped" aria-pressed="${spendView==="grouped"}">Totals</button></div>
+    ${spendView==="grouped"?`<div class="chips" role="group" aria-label="Group by">${Object.entries(GROUPS).map(([k,l])=>`<button class="chip" data-groupby="${k}" aria-pressed="${groupBy===k}">${l}</button>`).join("")}</div>`:""}
     <div class="chips" role="group" aria-label="Filter">${[["all","All"],["bro","Brother's money"],["forbro","For brother"],["home","For home"]].map(([k,l])=>`<button class="chip" data-filter="${k}" aria-pressed="${spendFilter===k}">${l}</button>`).join("")}</div>
-    <section class="card">${list.length?Object.keys(days).map(d=>`<div class="day"><span>${dayLabel(d)}</span><span class="num">${fmt(sum(days[d],s=>toUSD(s.amt,s.cur)))}</span></div><ul class="list">${days[d].map(spendRow).join("")}</ul>`).join(""):`<div class="empty">No spends here yet. Tap + to add your first.</div>`}</section>
+    ${body}
   </div>`;
 }
 
@@ -1208,9 +1284,10 @@ function toast(t){ const el = document.createElement("div"); el.className="toast
 
 let draft;
 function lastSpend(){ return [...state.spends].sort((a,b)=>b.date.localeCompare(a.date))[0]; }
-function openAddSpend(){
+function openAddSpend(proj){
   const last = lastSpend();
-  draft = {amt:"", cur: last?.cur||"PKR", what:"", from: last?.from||"bro", for:"me", date: today()};
+  if (typeof proj !== "string") proj = "";
+  draft = {amt:"", cur: last?.cur||"PKR", what:"", from: last?.from||"bro", for: proj ? (state.spends.find(s=>s.project===proj)?.for || "me") : "me", date: today(), cat:"item"};
   const recent = [...new Set([...state.spends].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>s.what))].slice(0,6);
   const chipsFor = (key,map,cls="") => Object.entries(map).map(([k,l])=>`<button type="button" class="chip ${k==="bro"?"bro":cls}" data-d="${key}:${k}" aria-pressed="${draft[key]===k}">${l}</button>`).join("");
   openSheet(`<form class="stack" id="spend-form">
@@ -1223,9 +1300,12 @@ function openAddSpend(){
     <div class="field"><span>Paid from</span><div class="chips" data-group="from">${chipsFor("from",FROM)}</div></div>
     <div class="field"><span>For whom</span><div class="chips" data-group="for">${chipsFor("for",FOR)}</div></div>
     <label class="field"><span>When</span><input type="date" id="sdate" value="${draft.date}"></label>
+    <label class="field"><span>Project (optional)</span><input type="text" id="sproj" list="proj-list" value="${esc(proj)}" placeholder="e.g. New AC, House construction" autocomplete="off"><datalist id="proj-list">${projects().map(p=>`<option value="${esc(p.name)}">`).join("")}</datalist></label>
+    <div class="field" id="cat-field" ${proj?"":"hidden"}><span>What kind of cost</span><div class="chips">${chipsFor("cat",CATS)}</div></div>
     <div id="owe-hint" class="hint"></div>
     <button class="btn">Save spend</button>
-  </form>`, el => { el.querySelector("#amt").focus(); updateOweHint(); });
+  </form>`, el => { el.querySelector("#amt").focus(); updateOweHint();
+    el.querySelector("#sproj").addEventListener("input", e => { el.querySelector("#cat-field").hidden = !e.target.value.trim(); }); });
 }
 function syncDraftUI(){
   const f = document.getElementById("spend-form"); if (!f) return;
@@ -1238,6 +1318,16 @@ function updateOweHint(){
     : draft.from!=="bro" && draft.for==="bro" ? "You're covering him, so this takes it off what you owe." : "";
 }
 
+function openRenameProject(){
+  const old = openProject[1];
+  openSheet(`<form class="stack" id="rename-form"><div class="inline" style="justify-content:space-between"><h3>Rename project</h3><button type="button" class="x" data-close="1" aria-label="Close">×</button></div>
+    <input type="text" id="proj-name" value="${esc(old)}" autocomplete="off" aria-label="Project name"><button class="btn">Save</button></form>`, el => {
+    const i = el.querySelector("#proj-name"); i.focus(); i.select();
+    el.querySelector("form").addEventListener("submit", e => { e.preventDefault(); e.stopImmediatePropagation();
+      const n = i.value.trim(); if (!n) return;
+      state.spends.forEach(s => { if (s.project===old) s.project = n; }); openProject = ["project", n]; save(); closeSheet(); render(); toast("Renamed"); });
+  });
+}
 function openSettle(){
   const owe = owedToBrother();
   let dir = owe>=0 ? "toBro" : "fromBro";
@@ -1285,7 +1375,10 @@ document.addEventListener("click", e => {
   if (t.matches("[data-close]") && (t===e.target)) { if (t.classList.contains("sheet-bg") && t!==e.target) return; closeSheet(); return; }
   const b = t.closest("button"); if (!b) return;
   const d = b.dataset;
-  if (d.tab){ tab = d.tab; render(); window.scrollTo(0,0); return; }
+  if (d.grp){ openProject = [d.grp, d.key]; render(); window.scrollTo(0,0); return; }
+  if (d.sview){ spendView = d.sview; render(); return; }
+  if (d.groupby){ groupBy = d.groupby; render(); return; }
+  if (d.tab){ tab = d.tab; openProject = null; render(); window.scrollTo(0,0); return; }
   if (d.goto){ tab = d.goto; if (d.list) listMode = d.list; render(); window.scrollTo(0,0); return; }
   if (d.cur){ state.settings.display = d.cur; save(); render(); return; }
   if (d.filter){ spendFilter = d.filter; render(); return; }
@@ -1298,6 +1391,9 @@ document.addEventListener("click", e => {
   if (d.d){ const [k,v] = d.d.split(":"); draft[k] = v; syncDraftUI(); return; }
   if (d.recent!==undefined){ document.getElementById("what").value = d.recent; draft.what = d.recent; return; }
   const act = d.act;
+  if (act==="proj-back"){ openProject = null; render(); window.scrollTo(0,0); return; }
+  if (act==="proj-add") return openAddSpend(openProject[1]);
+  if (act==="proj-rename") return openRenameProject();
   if (act==="settle") return openSettle();
   if (act==="add-income") return openIncome();
   if (act==="mark-invested"){ const inv = investThisMonth(); state.invested.push({id:uid(),date:today(),amt:+inv.left.toFixed(2),cur:"USD"}); save(); render(); toast(`${fmtUSD(inv.left)} marked as invested`); return; }
@@ -1340,6 +1436,7 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("change", e => {
   if (e.target.closest("#planner")) return;
+  if (e.target.id==="range-from" || e.target.id==="range-to"){ rangeFrom = document.getElementById("range-from").value; rangeTo = document.getElementById("range-to").value; render(); return; }
   const id = e.target.id, v = parseFloat(e.target.value);
   const map = {"owed-start":()=>state.settings.owedStart=v||0, "rate":()=>{ if(v>0){ state.settings.rate=v; window.__planner?.setRate(v); } }, "invest-pct":()=>v>=0&&(state.settings.investPct=v)};
   if (map[id]){ map[id](); save(); render(); toast("Saved"); }
@@ -1352,7 +1449,8 @@ document.addEventListener("submit", e => {
     const amt = parseFloat(document.getElementById("amt").value);
     if (!(amt>0)) { document.getElementById("amt").focus(); return; }
     const what = document.getElementById("what").value.trim() || "Spend";
-    state.spends.push({id:uid(),date:document.getElementById("sdate").value||today(),amt,cur:draft.cur,what,from:draft.from,for:draft.for});
+    const project = document.getElementById("sproj").value.trim();
+    state.spends.push({id:uid(),date:document.getElementById("sdate").value||today(),amt,cur:draft.cur,what,from:draft.from,for:draft.for,project,cat:project?draft.cat:""});
     save(); closeSheet(); render(); toast("Spend saved");
   }
   if (f.dataset.form==="shop"){
@@ -1375,9 +1473,9 @@ document.addEventListener("keydown", e => { if (e.key==="Escape") closeSheet(); 
 const SB = { url: "https://akbsxkmrbxspzzcsgpps.supabase.co", key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrYnN4a21yYnhzcHp6Y3NncHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3MTc3MTcsImV4cCI6MjEwOTI5MzcxN30.4Mm0vDo47pTmvfrRJtRSBXpmia6p3P3TvmMPSkRaIQA" };
 const pick = (o, cols) => Object.fromEntries(cols.map(c => [c, o[c] ?? null]));
 const TABLES = {
-  spends:   { cols:["id","date","amt","cur","what","from_acct","for_whom","sample"],
-              to: s => ({id:s.id, date:s.date, amt:s.amt, cur:s.cur, what:s.what||"", from_acct:s.from, for_whom:s.for, sample:!!s.sample}),
-              from: r => ({id:r.id, date:r.date, amt:+r.amt, cur:r.cur, what:r.what||"", from:r.from_acct, for:r.for_whom, sample:!!r.sample}) },
+  spends:   { cols:["id","date","amt","cur","what","from_acct","for_whom","sample","project","cat"],
+              to: s => ({id:s.id, date:s.date, amt:s.amt, cur:s.cur, what:s.what||"", from_acct:s.from, for_whom:s.for, sample:!!s.sample, project:s.project||null, cat:s.project?(s.cat||"other"):null}),
+              from: r => ({id:r.id, date:r.date, amt:+r.amt, cur:r.cur, what:r.what||"", from:r.from_acct, for:r.for_whom, sample:!!r.sample, project:r.project||"", cat:r.cat||""}) },
   income:   { cols:["id","date","amt","cur","src","sample"] },
   invested: { cols:["id","date","amt","cur","sample"] },
   settles:  { cols:["id","date","amt","cur","dir"] },
