@@ -1365,10 +1365,10 @@ function applyRoleUI(){
     const teamFilter = document.getElementById('team-filter');
     if(teamFilter) teamFilter.style.display = 'none';
 
-    // Core job identity fields and cost-to-us stay visible but locked.
-    // Budget and category are the two things whoever's doing the job can
+    // Core job identity fields stay visible but locked.
+    // Budget, category and cost to us are what whoever's doing the job can
     // actually adjust, so those stay editable for them.
-    ['d-title-input','d-address-input','d-ticket-id-input','d-cost'].forEach(id => {
+    ['d-title-input','d-address-input','d-ticket-id-input'].forEach(id => {
       const el = document.getElementById(id);
       if(el){ el.readOnly = true; el.style.background = '#f1f5f9'; el.style.cursor = 'not-allowed'; }
     });
