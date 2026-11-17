@@ -709,7 +709,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
           </div>
           <div id="jf-pending-bar" class="jf-pending-bar" style="display:none;"><strong id="jf-pending-count"></strong><button class="btn" type="button" onclick="jfClearPending()" style="padding:2px 10px;font-size:0.78rem;">Clear all</button></div>
           <div id="jf-pending" class="jf-pending"></div>
-          <div id="jf-status" style="font-size:0.78rem;color:var(--muted);min-height:1.1em;margin-bottom:8px;">Drag and drop photos or PDFs here, or use Choose files.</div>
+          <div id="jf-status" style="font-size:0.78rem;color:var(--muted);min-height:1.1em;margin-bottom:8px;">Drag and drop, paste (Ctrl+V) photos or PDFs here, or use Choose files.</div>
           <div id="job-files-grid"></div>
         </div>
       </div>
@@ -815,6 +815,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
           <textarea class="field-input" id="c-message" placeholder="Write a message..." rows="3"></textarea>
           <div style="display:flex;align-items:center;gap:10px;">
             <input type="file" id="c-attachment" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" multiple onchange="onFilesSelected(event)" style="font-size:0.85rem;">
+            <span style="font-size:0.75rem;color:var(--muted);">or paste a screenshot (Ctrl+V)</span>
           </div>
           <div class="preview-strip" id="c-preview-strip"></div>
           <button class="btn btn-primary" id="c-post-btn" style="align-self:flex-start;" onclick="addComment()">Post Comment</button>
@@ -2222,7 +2223,7 @@ function openDetail(id){
   switchTab('details');
   loadComments(id);
   loadJobFiles(id);
-  if(typeof jfClearPending === 'function' && !JF_UPLOADING){ JF_PENDING = []; jfRenderPending(); const _st = document.getElementById('jf-status'); if(_st){ _st.style.color = 'var(--muted)'; _st.textContent = 'Drag and drop photos or PDFs here, or use Choose files.'; } }
+  if(typeof jfClearPending === 'function' && !JF_UPLOADING){ JF_PENDING = []; jfRenderPending(); const _st = document.getElementById('jf-status'); if(_st){ _st.style.color = 'var(--muted)'; _st.textContent = 'Drag and drop, paste (Ctrl+V) photos or PDFs here, or use Choose files.'; } }
   renderLinkedJobs(j);
   loadEmailLink(j);
   const wrBtn = document.getElementById('wr-open-btn'); if(wrBtn) wrBtn.style.display = CURRENT_USER ? '' : 'none';
@@ -3416,7 +3417,7 @@ function jfAddPending(fileList){
   const st = document.getElementById('jf-status');
   if(st){
     if(skipped){ st.style.color = 'var(--red)'; st.textContent = skipped + ' file' + (skipped > 1 ? 's' : '') + ' skipped (only JPEG, PNG, PDF, MP4/MOV/WEBM allowed).'; }
-    else { st.style.color = 'var(--muted)'; st.textContent = JF_PENDING.length ? 'Check the files below, remove any you do not want, then click Upload.' : 'Drag and drop photos or PDFs here, or use Choose files.'; }
+    else { st.style.color = 'var(--muted)'; st.textContent = JF_PENDING.length ? 'Check the files below, remove any you do not want, then click Upload.' : 'Drag and drop, paste (Ctrl+V) photos or PDFs here, or use Choose files.'; }
   }
   jfRenderPending();
 }
@@ -3796,6 +3797,27 @@ function wrStageRender(){
   btn.disabled = !WR_STAGE.length; btn.style.opacity = WR_STAGE.length ? 1 : 0.5;
 }
 function wrDropDone(){ const files = WR_STAGE.map(x => x.file); closeWrDrop(); addWrFiles(files); }
+/* Paste (Ctrl+V) a photo or screenshot straight into the open job: Files & Images on the Details tab, or the comment attachments on the Comments tab. */
+document.addEventListener('paste', e => {
+  const wr = document.getElementById('wr-drop-overlay'); if(wr && wr.style.display === 'flex') return;   // the work report pop-up has its own paste
+  if(!currentDetailId) return;
+  const cd = e.clipboardData; if(!cd) return;
+  let files = Array.from(cd.files || []);
+  if(!files.length) files = Array.from(cd.items || []).filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
+  if(!files.length) return;   // plain text paste: leave it alone
+  const stamp = Date.now();
+  files = files.map((f, i) => (!f.name || /^(image|video|blob)(\.\w+)?$/i.test(f.name))
+    ? new File([f], 'pasted_' + stamp + '_' + i + '.' + ((f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/\+.*/, '')), { type: f.type })
+    : f);
+  const cp = document.getElementById('panel-comments'), dp = document.getElementById('panel-details');
+  if(cp && cp.classList.contains('active')){
+    e.preventDefault();
+    onFilesSelected({ target: { files, value: '' } });
+  } else if(dp && dp.classList.contains('active')){
+    e.preventDefault();
+    jfAddPending(files);
+  }
+});
 document.addEventListener('paste', e => {
   const ov = document.getElementById('wr-drop-overlay'); if(!ov || ov.style.display !== 'flex') return;
   const files = Array.from((e.clipboardData && e.clipboardData.files) || []);
