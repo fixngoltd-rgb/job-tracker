@@ -3641,6 +3641,7 @@ async function openWorkReport(){
   const j = JOBS.find(x => x.id === currentDetailId); if(!j) return;
   document.getElementById('wr-addr').textContent = j.ref + ' - ' + (j.address || '');
   document.getElementById('wr-status').textContent = '';
+  const wrd = document.getElementById('wr-date'); if(wrd && !wrd.value){ wrd.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' }); }
   document.getElementById('wr-overlay').style.display = 'flex';
   const ta = document.getElementById('wr-text'); ta.value = '';
   // 1) saved report text for this job (this is where Claude files the formatted report); 2) fallback: newest formal WORK REPORT comment
@@ -3713,12 +3714,6 @@ function wrPhotoTime(f){
   m = n.match(/(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/);
   if(m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
   return f.uploaded_at ? Date.parse(f.uploaded_at) : 0;
-}
-function wrVersionChanged(){
-  const v2 = document.getElementById('wr-version').value === 'v2';
-  document.getElementById('wr-date-wrap').style.display = v2 ? 'inline-flex' : 'none';
-  const d = document.getElementById('wr-date');
-  if(v2 && d && !d.value){ d.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' }); }
 }
 async function saveWorkReportText(){
   if(!currentDetailId) return;
@@ -3880,14 +3875,12 @@ async function makeWorkReport(mode){
   try {
     await saveWorkReportText();
     const sel = WR_PHOTOS.filter(p => p.selected); const srcs = []; for(const p of sel) srcs.push(await wrPdfSrc(p));
-    const photos = sel.map((p, ix) => (p.video || p.pdf) ? { url: srcs[ix], link: p.url } : srcs[ix]);
-    const v2 = (document.getElementById('wr-version') || {}).value === 'v2';
     let blob;
-    if(v2){
+    {
       const dv = (document.getElementById('wr-date') || {}).value;
       const dateStr = dv ? new Date(dv + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
       blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix], link: (p.video || p.pdf) ? p.url : undefined }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
-    } else blob = await window.WorkReport.makePdf({ address: j.address, text: document.getElementById('wr-text').value, photos });
+    }
     const fname = wrFileName(j);
     if(mode === 'attach'){
       const filePath = `${j.id}/${Date.now()}_${fname}`;
@@ -3903,7 +3896,7 @@ async function makeWorkReport(mode){
       if(mode === 'view'){ window.open(u, '_blank'); }
       else { const a = document.createElement('a'); a.href = u; a.download = fname; document.body.appendChild(a); a.click(); a.remove(); }
       setTimeout(() => URL.revokeObjectURL(u), 60000);
-      st.style.color = 'var(--green)'; st.textContent = blob.layout === 'V2' ? 'Done (V2 layout).' : 'Done (' + (blob.layout === 'A' ? 'photos beside the text' : blob.layout === 'B' ? 'long text: photos underneath' : 'photos on a separate page') + ').';
+      st.style.color = 'var(--green)'; st.textContent = 'Done.';
     }
   } catch(e){ st.style.color = 'var(--red)'; st.textContent = e.message || String(e); }
   btns.forEach(b => b.disabled = false);
@@ -4089,9 +4082,7 @@ init();
     <div id="wr-status" style="font-size:0.82rem;min-height:1.2em;margin-bottom:10px;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;margin-bottom:8px;">
-        <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Layout</label>
-        <select id="wr-version" onchange="wrVersionChanged()" style="padding:6px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"><option value="v1">V1 (current)</option><option value="v2">V2 (new)</option></select>
-        <span id="wr-date-wrap" style="display:none;align-items:center;gap:6px;"><label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Date completed</label><input type="date" id="wr-date" style="padding:5px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"></span>
+        <span id="wr-date-wrap" style="display:inline-flex;align-items:center;gap:6px;"><label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Date completed</label><input type="date" id="wr-date" style="padding:5px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"></span>
       </div>
       <button class="btn-secondary" id="wr-btn-view" onclick="makeWorkReport('view')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Preview</button>
       <button class="btn-secondary" id="wr-btn-dl" onclick="makeWorkReport('download')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Download PDF</button>
