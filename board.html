@@ -1567,7 +1567,13 @@ function ukParts(iso){
 }
 function ukDate(iso){ const p = ukParts(iso); return p ? p.date : ''; }
 // time pickers: half-hour steps only (value stays HH:MM so the rest of the code is unchanged)
-function timeOptsHtml(){ let h = '<option value="">--:-- --</option>'; for(let i = 0; i < 48; i++){ const v = String(Math.floor(i / 2)).padStart(2, '0') + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + v + '">' + fmt12(v) + '</option>'; } return h; }
+function timeOptsHtml(){
+  const groups = [['Night (12 AM - 5:30 AM)', 0, 12], ['Morning (6 AM - 11:30 AM)', 12, 24], ['Afternoon (12 PM - 4:30 PM)', 24, 33], ['Evening (5 PM - 11:30 PM)', 33, 48]];
+  let h = '<option value="">--:-- --</option>';
+  groups.forEach(g => { h += '<optgroup label="' + g[0] + '">'; for(let i = g[1]; i < g[2]; i++){ const v = String(Math.floor(i / 2)).padStart(2, '0') + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + v + '">' + fmt12(v) + '</option>'; } h += '</optgroup>'; });
+  return h;
+}
+(function(){ const el = document.getElementById('d-scheduled-time'); if(el) el.innerHTML = timeOptsHtml(); })();
 function setTimeVal(el, v){ if(!el) return; v = v || ''; if(v && ![...el.options].some(o => o.value === v)){ const o = document.createElement('option'); o.value = v; o.textContent = fmt12(v); el.appendChild(o); } el.value = v; }
 function fmt12(t){ if(!t) return ''; const m = /^(\d{1,2}):(\d{2})/.exec(String(t)); if(!m) return t; const h = +m[1]; return ((h % 12) || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM'); }
 function ukTime(iso){ const p = ukParts(iso); return (p && p.hasTime) ? p.time : ''; }
