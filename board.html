@@ -2225,7 +2225,7 @@ function openDetail(id){
   if(typeof jfClearPending === 'function' && !JF_UPLOADING){ JF_PENDING = []; jfRenderPending(); const _st = document.getElementById('jf-status'); if(_st){ _st.style.color = 'var(--muted)'; _st.textContent = 'Drag and drop photos or PDFs here, or use Choose files.'; } }
   renderLinkedJobs(j);
   loadEmailLink(j);
-  const wrBtn = document.getElementById('wr-open-btn'); if(wrBtn) wrBtn.style.display = (CURRENT_USER && CURRENT_USER.role === 'admin') ? '' : 'none';
+  const wrBtn = document.getElementById('wr-open-btn'); if(wrBtn) wrBtn.style.display = CURRENT_USER ? '' : 'none';
 
   document.getElementById('board').style.display = 'none';
   document.getElementById('detail-view').style.display = 'block';
@@ -3625,12 +3625,12 @@ async function addComment(){
   resetButton();
 }
 
-/* ===== WORK REPORT PDF (admin) ===== */
+/* ===== WORK REPORT PDF (admin and employees on jobs they can access) ===== */
 let WR_LAST_SAVED = '';
 let WR_PHOTOS = [];   // [{url, name, selected}]
 let WR_LABELS = {};   // file_url -> {section, tag, caption}  (saved in job_photo_labels, set by telling Claude 'image 12 is ...')
 async function openWorkReport(){
-  if(!currentDetailId || !(CURRENT_USER && CURRENT_USER.role === 'admin')) return;
+  if(!currentDetailId || !CURRENT_USER) return;
   const j = JOBS.find(x => x.id === currentDetailId); if(!j) return;
   document.getElementById('wr-addr').textContent = j.ref + ' - ' + (j.address || '');
   document.getElementById('wr-status').textContent = '';
