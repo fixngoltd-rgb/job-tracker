@@ -4,6 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
+<meta name="app-build" content="20261118a">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<script>
+/* Self-update: phones keep an old copy of this page. On open, compare our build stamp with the live file and reload once if it is newer.
+   Bump the app-build number above whenever board.html changes. */
+(function(){ try{
+  var mine = document.querySelector('meta[name="app-build"]').content;
+  fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.text(); }).then(function(t){
+    var m = t.match(/name="app-build" content="([^"]+)"/);
+    if(m && m[1] !== mine && sessionStorage.getItem('fg-reloaded') !== m[1]){
+      sessionStorage.setItem('fg-reloaded', m[1]);
+      var q = new URLSearchParams(location.search); q.set('v', m[1]);
+      location.replace(location.pathname + '?' + q.toString() + location.hash);
+    }
+  }).catch(function(){});
+}catch(e){} })();
+</script>
 <title>Board - Fix & Go Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
