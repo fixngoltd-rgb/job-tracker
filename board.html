@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<meta name="app-build" content="20261118a">
+<meta name="app-build" content="20261119a">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <script>
 /* Self-update: phones keep an old copy of this page. On open, compare our build stamp with the live file and reload once if it is newer.
@@ -419,10 +419,10 @@ html[data-theme="dark"] .ad-age.bad { color:#f87171; }
 #today-badge { display:none; position:absolute; top:-7px; right:-7px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#dc2626; color:#fff; font-size:0.7rem; font-weight:800; line-height:19px; text-align:center; }
 #today-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:90; }
 #today-overlay.open { display:block; }
-#today-drawer, #myday-drawer, #notif-drawer { position:fixed; top:0; right:0; bottom:0; width:430px; max-width:100vw; background:var(--bg); border-left:1px solid var(--border); z-index:100;
+#today-drawer, #myday-drawer, #notif-drawer, #notes-drawer { position:fixed; top:0; right:0; bottom:0; width:430px; max-width:100vw; background:var(--bg); border-left:1px solid var(--border); z-index:100;
   transform:translateX(100%); transition:transform .2s ease; display:flex; flex-direction:column; }
-#today-drawer.open, #myday-drawer.open, #notif-drawer.open { transform:translateX(0); box-shadow:-4px 0 24px rgba(0,0,0,0.25); }
-#bell-btn, #myday-btn { position:relative; background:#374151; color:#fff; border:1px solid #4b5563; padding:9px 12px; border-radius:7px; font-weight:700; font-size:0.88rem; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
+#today-drawer.open, #myday-drawer.open, #notif-drawer.open, #notes-drawer.open { transform:translateX(0); box-shadow:-4px 0 24px rgba(0,0,0,0.25); }
+#bell-btn, #myday-btn, #notes-btn { position:relative; background:#374151; color:#fff; border:1px solid #4b5563; padding:9px 12px; border-radius:7px; font-weight:700; font-size:0.88rem; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
 #bell-badge, .nav-badge { display:none; position:absolute; top:-7px; right:-7px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#dc2626; color:#fff; font-size:0.7rem; font-weight:800; line-height:19px; text-align:center; }
 .nt-item { display:flex; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:6px; cursor:pointer; }
 .nt-item.unread { border-left:4px solid #2563eb; background:rgba(37,99,235,0.07); }
@@ -445,7 +445,7 @@ html[data-theme="dark"] .ad-age.bad { color:#f87171; }
   #topbar #board-search { flex:1 1 100% !important; order:1; }
   #topbar #team-filter { flex:1 1 auto; order:2; }
   #topbar #refresh-btn { order:3; padding:0 14px !important; }
-  #topbar #menu-btn, #topbar #today-btn, #topbar #bell-btn, #topbar #myday-btn, #topbar #uk-clock { display:none !important; }
+  #topbar #menu-btn, #topbar #today-btn, #topbar #bell-btn, #topbar #myday-btn, #topbar #notes-btn, #topbar #uk-clock { display:none !important; }
   #new-job-btn { position:fixed; right:16px; bottom:calc(80px + env(safe-area-inset-bottom)); z-index:60; border-radius:28px !important; padding:14px 20px !important; font-size:0.95rem !important; box-shadow:0 6px 18px rgba(37,99,235,0.45); }
   #board { padding:10px; gap:10px; }
   .column-wrap, .column { width:100% !important; min-width:0 !important; max-width:100% !important; flex:1 1 100% !important; }
@@ -454,7 +454,7 @@ html[data-theme="dark"] .ad-age.bad { color:#f87171; }
   .resize-handle, .resize-handle-h { display:none !important; }
   .row { padding:13px 14px; border-radius:12px; }
   .column-header { padding:14px 16px; font-size:1rem; }
-  #today-drawer, #myday-drawer, #notif-drawer { width:100vw; border-left:none; }
+  #today-drawer, #myday-drawer, #notif-drawer, #notes-drawer { width:100vw; border-left:none; }
   .td-body { padding-bottom:110px; }
   .td-item, .nt-item { padding:12px; border-radius:12px; }
   .td-chk { width:22px; height:22px; }
@@ -482,6 +482,13 @@ html[data-theme="dark"] .ad-age.bad { color:#f87171; }
 .td-add select { flex:1 1 40%; min-width:0; padding:8px 8px; border-radius:7px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; font-size:0.8rem; }
 .td-add button { padding:8px 14px; border-radius:7px; border:none; background:#2563eb; color:#fff; font-weight:700; font-size:0.82rem; cursor:pointer; font-family:'Inter',sans-serif; }
 .td-body { flex:1; overflow-y:auto; padding:14px 14px 30px; }
+.nt-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.nt-chip { background:var(--card,#fff); border:1px solid var(--border); border-radius:999px; padding:5px 11px; font-size:0.78rem; font-weight:700; color:var(--text); }
+.nt-chip b { color:#2563eb; margin-right:4px; }
+#notes-pad { width:100%; min-height:55vh; resize:vertical; box-sizing:border-box; padding:12px; border:1px solid var(--border); border-radius:9px; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; font-size:0.92rem; line-height:1.5; }
+#notes-pad[readonly] { opacity:.8; }
+#notes-status { font-size:0.74rem; color:var(--muted2); margin-top:6px; min-height:1em; }
+#notes-who { width:100%; padding:8px; margin-bottom:10px; border-radius:7px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; }
 .td-group { margin-bottom:18px; }
 .td-gh { display:flex; align-items:center; gap:8px; font-size:0.74rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:0 4px 7px; }
 .td-gh .n { background:var(--border); color:var(--text); border-radius:9px; padding:1px 8px; font-size:0.72rem; letter-spacing:0; }
@@ -599,6 +606,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
   </select>
   <button onclick="refreshData()" id="refresh-btn" title="Fetch the latest jobs and comments without reloading the page" style="background:#374151;color:white;border:1px solid #4b5563;padding:9px 12px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">&#x21bb;</button>
   <button onclick="toggleDrawer('notif-drawer')" id="bell-btn" title="Notifications"><span>&#128276;</span><span id="bell-badge"></span></button>
+  <button onclick="toggleDrawer('notes-drawer')" id="notes-btn" title="Your private notepad"><span>&#128221;</span> <span class="lbl">Notes</span></button>
   <button onclick="toggleDrawer('myday-drawer')" id="myday-btn" title="My day: your jobs"><span>&#128197;</span> <span class="lbl">My day</span></button>
   <button onclick="toggleToday()" id="today-btn" title="Today: your priority to-do list"><span>&#9989;</span> <span class="lbl">Today</span><span id="today-badge"></span></button>
   <button onclick="openNewJobModal()" id="new-job-btn"style="background:#2563eb;color:white;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">+ New Job</button>
@@ -610,6 +618,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
 <nav id="side-menu" aria-label="Menu">
   <div class="sm-head"><span class="sm-title">Menu</span><button class="sm-close" onclick="toggleSideMenu(false)" aria-label="Close menu">&times;</button></div>
   <div class="sm-user"><span id="current-user-chip"></span></div>
+  <button onclick="toggleSideMenu(false);toggleDrawer('notes-drawer',true)" id="notes-menu-btn" class="sm-item">&#128221; My notes</button>
   <button onclick="toggleSideMenu(false);openActionDesk()" id="desk-btn" class="sm-item">&#x1F4CB; Action Desk</button>
   <button onclick="toggleSideMenu(false);openTechPanel()" id="tech-btn" class="sm-item">&#x1F527; Technicians</button>
   <button onclick="toggleSideMenu(false);openTeamPanel()" id="team-btn" class="sm-item">&#x1F465; Team</button>
@@ -648,6 +657,22 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
     <div class="td-prog" id="nt-push-note"></div>
   </div>
   <div class="td-body" id="nt-body"></div>
+</aside>
+
+<aside id="notes-drawer" aria-label="My notes">
+  <div class="td-head">
+    <div class="td-top">
+      <div><div class="td-title">My notes</div><div class="td-date" id="nts-date"></div></div>
+      <button class="td-close" onclick="closeDrawers()" aria-label="Close">&times;</button>
+    </div>
+    <div class="td-prog" id="nts-prog"></div>
+  </div>
+  <div class="td-body" id="nts-body">
+    <div class="nt-chips" id="nts-chips"></div>
+    <select id="notes-who" style="display:none" onchange="notesPickUser(this.value)"></select>
+    <textarea id="notes-pad" placeholder="Write anything you want to remember. It saves by itself as you type, and only you (and the admin) can see it." oninput="notesTyped()" onblur="notesFlush()"></textarea>
+    <div id="notes-status"></div>
+  </div>
 </aside>
 
 <aside id="myday-drawer" aria-label="My day">
@@ -2362,8 +2387,9 @@ async function loadTodos(){
   if(!error) TODOS = data || [];
 }
 
-const DRAWERS = ['today-drawer', 'myday-drawer', 'notif-drawer'];
+const DRAWERS = ['today-drawer', 'myday-drawer', 'notif-drawer', 'notes-drawer'];
 function closeDrawers(){
+  try{ notesFlush(); }catch(e){}
   DRAWERS.forEach(id => { const el = document.getElementById(id); if(el) el.classList.remove('open'); });
   const ov = document.getElementById('today-overlay'); if(ov) ov.classList.remove('open');
   markNav('nav-board');
@@ -2377,10 +2403,11 @@ async function toggleDrawer(id, force){
   const open = (typeof force === 'boolean') ? force : !target.classList.contains('open');
   DRAWERS.forEach(d => { const el = document.getElementById(d); if(el) el.classList.toggle('open', d === id && open); });
   document.getElementById('today-overlay').classList.toggle('open', open);
-  markNav(open ? (id === 'notif-drawer' ? 'nav-bell' : 'nav-today') : 'nav-board');
+  markNav(open ? (id === 'notif-drawer' ? 'nav-bell' : id === 'notes-drawer' ? 'nav-menu' : 'nav-today') : 'nav-board');
   if(!open) return;
   if(id === 'today-drawer'){ await loadTodos(); renderToday(); }
   if(id === 'myday-drawer') renderMyDay();
+  if(id === 'notes-drawer') openNotes();
   if(id === 'notif-drawer'){ await loadNotifs(); renderNotifs(); }
 }
 async function toggleToday(force){
@@ -2743,6 +2770,70 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ===== MY DAY: a clean list of the jobs that are yours ===== */
+
+/* ===== PERSONAL NOTES (table board_notes: one private row per user, admin can read all) ===== */
+let NOTES_VIEW_ID = null, NOTES_TIMER = null, NOTES_DIRTY = false, NOTES_SAVING = false;
+function notesStatus(t){ const el = document.getElementById('notes-status'); if(el) el.textContent = t; }
+async function openNotes(){
+  if(!CURRENT_USER) return;
+  document.getElementById('nts-date').textContent = new Date().toLocaleDateString('en-GB', { timeZone: UK_TZ, weekday: 'long', day: 'numeric', month: 'long' });
+  const sel = document.getElementById('notes-who');
+  if(isAdminUser()){
+    const users = (USER_DIR || []).filter(u => u.id !== CURRENT_USER.id);
+    sel.innerHTML = '<option value="' + CURRENT_USER.id + '">My notes</option>' + users.map(u => '<option value="' + u.id + '">' + escHtml(u.name || 'User') + ' (' + escHtml(u.role || '') + ')</option>').join('');
+    sel.style.display = users.length ? '' : 'none';
+  } else { sel.style.display = 'none'; }
+  sel.value = CURRENT_USER.id;
+  await notesPickUser(CURRENT_USER.id);
+}
+function notesSummary(){
+  const jobs = JOBS.filter(j => canSeeJob(j) && j.status !== 'completed' && j.status !== 'cancelled');
+  const today = todayDateStr(), d = j => j.scheduled_at ? ukDate(j.scheduled_at) : null;
+  const n = [
+    ['Today', jobs.filter(j => !j.quote_needed && d(j) === today).length],
+    ['Coming up', jobs.filter(j => !j.quote_needed && d(j) && d(j) > today).length],
+    ['Missed', jobs.filter(j => !j.quote_needed && d(j) && d(j) < today).length],
+    ['Needs booking', jobs.filter(j => !j.quote_needed && !j.scheduled_at && ['active', 'contacted'].includes(j.status)).length],
+    ['Prices to give', jobs.filter(j => j.quote_needed && !j.quoted).length]
+  ];
+  document.getElementById('nts-chips').innerHTML = n.map(x => '<span class="nt-chip"><b>' + x[1] + '</b>' + x[0] + '</span>').join('');
+  const tot = jobs.length;
+  document.getElementById('nts-prog').textContent = tot ? tot + ' job' + (tot === 1 ? '' : 's') + ' on your plate' : 'Nothing assigned to you right now';
+}
+async function notesPickUser(id){
+  await notesFlush();
+  NOTES_VIEW_ID = id || CURRENT_USER.id;
+  const own = NOTES_VIEW_ID === CURRENT_USER.id;
+  const pad = document.getElementById('notes-pad');
+  notesSummary();
+  pad.value = ''; pad.readOnly = true; notesStatus('Loading...');
+  const { data, error } = await supabaseClient.from('board_notes').select('body,updated_at').eq('user_id', NOTES_VIEW_ID).maybeSingle();
+  if(NOTES_VIEW_ID !== (id || CURRENT_USER.id)) return;
+  if(error){ notesStatus('Could not load notes: ' + error.message); return; }
+  pad.value = (data && data.body) || '';
+  pad.readOnly = !own;
+  notesStatus(own ? (data ? 'Saved' : 'Nothing saved yet') : 'Read only (you are viewing someone else\'s notes)');
+  if(own) pad.focus();
+}
+function notesTyped(){
+  if(NOTES_VIEW_ID !== CURRENT_USER.id) return;
+  NOTES_DIRTY = true; notesStatus('Typing...');
+  clearTimeout(NOTES_TIMER); NOTES_TIMER = setTimeout(notesFlush, 800);
+}
+async function notesFlush(){
+  clearTimeout(NOTES_TIMER);
+  if(!NOTES_DIRTY || NOTES_SAVING || !CURRENT_USER) return;
+  const pad = document.getElementById('notes-pad'); if(!pad) return;
+  NOTES_DIRTY = false; NOTES_SAVING = true; notesStatus('Saving...');
+  const { error } = await supabaseClient.from('board_notes').upsert({ user_id: CURRENT_USER.id, body: pad.value, updated_at: new Date().toISOString() });
+  NOTES_SAVING = false;
+  if(error){ NOTES_DIRTY = true; notesStatus('Could not save: ' + error.message); return; }
+  notesStatus(NOTES_DIRTY ? 'Typing...' : 'Saved');
+  if(NOTES_DIRTY) NOTES_TIMER = setTimeout(notesFlush, 800);
+}
+document.addEventListener('visibilitychange', () => { if(document.hidden) notesFlush(); });
+window.addEventListener('pagehide', () => { notesFlush(); });
+
 function renderMyDay(){
   const body = document.getElementById('md-body');
   if(!body) return;
