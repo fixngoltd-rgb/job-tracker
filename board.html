@@ -4332,16 +4332,18 @@ function qlRender(){
         <span style="color:var(--muted);font-size:0.82rem;margin-left:8px;">from ${escHtml(r.responder_name || r.technician)}</span></div>
         ${r.note ? `<div style="margin-top:4px;font-size:0.86rem;">${escHtml(r.note)}</div>` : ''}
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;"><button onclick="qlView('${r.id}')" style="background:#2563eb;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">View full quote</button>
-        <button onclick="qlUsePrice('${r.id}')" style="background:#0f766e;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Use as our cost</button></div>`;
+        <button onclick="qlUsePrice('${r.id}')" style="background:#0f766e;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Use as our cost</button>
+        <button class="btn-secondary" onclick="qlReopen('${r.id}')" title="Let them add to or change their quote" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Reopen for more</button></div>`;
     } else if(r.status === 'open'){
-      inner = `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+      inner = `${r.price != null ? `<div style="margin-top:6px;font-size:0.84rem;">Reopened. Their last quote of <b>${qlMoney(r.price)}</b> is kept and filled in on their page, so they can change it and submit again.
+        <button class="btn-secondary" onclick="qlView('${r.id}')" style="padding:3px 9px;border-radius:7px;font-weight:700;font-size:0.76rem;cursor:pointer;margin-left:6px;">View last quote</button></div>` : ''}<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
         <button onclick="qlCopy('${r.token}')" style="background:#0f766e;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Copy link</button>
         <button class="btn-secondary" onclick="window.open(qlLinkFor('${r.token}'),'_blank')" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Open as technician sees it</button>
         <button class="btn-secondary" onclick="qlSetStatus('${r.id}','closed')" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Switch off</button></div>`;
     } else {
       inner = `<div style="margin-top:6px;"><button class="btn-secondary" onclick="qlSetStatus('${r.id}','open')" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Switch back on</button></div>`;
     }
-    const badge = r.status === 'submitted' ? ['Submitted', '#16a34a'] : r.status === 'open' ? ['Waiting', '#d97706'] : ['Switched off', '#6b7280'];
+    const badge = r.status === 'submitted' ? ['Submitted', '#16a34a'] : r.status === 'open' ? [r.price != null ? 'Reopened' : 'Waiting', '#d97706'] : ['Switched off', '#6b7280'];
     return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><b>${escHtml(r.technician)}</b>
       <span style="display:flex;gap:8px;align-items:center;"><span style="font-size:0.72rem;font-weight:700;color:#fff;background:${badge[1]};border-radius:6px;padding:2px 8px;">${badge[0]}</span><button onclick="qlDelete('${r.id}')" title="Delete this link" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.8rem;font-weight:700;padding:2px 4px;">Delete</button></span></div>
@@ -4440,6 +4442,13 @@ function qlView(id){
     </div>
     ${rows || '<div style="color:#6b7280;">No scope items.</div>'}`;
   document.getElementById('ql-view-overlay').style.display = 'flex';
+}
+async function qlReopen(id){
+  const r = QL.reqs.find(x => x.id === id); if(!r) return;
+  if(!confirm('Reopen the link for ' + r.technician + '? They will be able to open it again, see their last quote filled in, and submit a new one. Until they do, the quote you have now stays here.')) return;
+  const { error } = await supabaseClient.from('quote_requests').update({ status: 'open' }).eq('id', id);
+  if(error){ alert('Failed: ' + error.message); return; }
+  r.status = 'open'; qlRender(); qlCopy(r.token);
 }
 async function qlDelete(id){
   const r = QL.reqs.find(x => x.id === id); if(!r) return;

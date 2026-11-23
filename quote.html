@@ -91,6 +91,7 @@ function render(d){
     + (d.title?'<p class="hint" style="margin-top:6px">'+esc(d.title)+'</p>':'')
     + (d.technician?'<span class="for">Quote for '+esc(d.technician)+'</span>':'')
     + '</header>'
+    + (d.previous?'<p class="hint" style="margin:0 0 14px;background:#e8f0fe;color:#1a4fb3;border-radius:10px;padding:10px 14px">You sent a quote of &pound;'+money(d.previous.price)+' before. It is filled in below. Change or add anything, then submit again.</p>':'')
     + '<p class="hint" style="margin:0 0 14px">Look through the scope of works below. You can price each item, or just enter one total price at the bottom. If you price items, the total fills in by itself.</p>'
     + items
     + '<form class="card total" id="f" novalidate>'
@@ -106,6 +107,18 @@ function render(d){
   app.querySelectorAll('.photos button').forEach(b=>b.addEventListener('click',()=>openPhoto(b.dataset.src)));
   app.querySelectorAll('.ip').forEach(i=>i.addEventListener('input',recalc));
   document.getElementById('f').addEventListener('submit',submit);
+  if(d.previous){
+    const ip=Array.isArray(d.previous.items)?d.previous.items:[];
+    (d.scope||[]).forEach((it,i)=>{
+      let m=ip[i]&&ip[i].title===(it.title||'')?ip[i]:ip.find(x=>x&&x.title===(it.title||''));
+      if(!m)return;
+      if(m.price!=null)document.getElementById('ip'+i).value=money(m.price);
+      if(m.plan)document.getElementById('pl'+i).value=m.plan;
+    });
+    if(d.previous.note)document.getElementById('note').value=d.previous.note;
+    const any=ip.some(x=>x&&x.price!=null);
+    if(any)recalc();else document.getElementById('price').value=money(d.previous.price);
+  }
 }
 
 function itemPrices(){
