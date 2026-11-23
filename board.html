@@ -4322,7 +4322,7 @@ function qlRender(){
     let inner = '';
     if(r.status === 'submitted'){
       const ip = Array.isArray(r.item_prices) ? r.item_prices : null;
-      const sc = (r.scope || []).map((x, n) => '<li>' + escHtml(x.title || '') + (ip && ip[n] && ip[n].price != null ? ' <b>' + qlMoney(ip[n].price) + '</b>' : '') + (x.text ? ' - ' + escHtml(x.text) : '') + '</li>').join('');
+      const sc = (r.scope || []).map((x, n) => '<li>' + escHtml(x.title || '') + (ip && ip[n] && ip[n].price != null ? ' <b>' + qlMoney(ip[n].price) + '</b>' : '') + (x.text ? ' - ' + escHtml(x.text) : '') + (ip && ip[n] && ip[n].plan ? '<div style="margin:2px 0 4px;padding:4px 8px;background:var(--bg);border-left:3px solid #0f766e;border-radius:4px;"><i>Their plan:</i> ' + escHtml(ip[n].plan) + '</div>' : '') + '</li>').join('');
       inner = `<div style="margin-top:6px;"><span style="font-size:1.3rem;font-weight:800;">${qlMoney(r.price)}</span>
         ${lowest !== null && Number(r.price) === lowest ? '<span style="background:#16a34a;color:#fff;border-radius:6px;padding:1px 7px;font-size:0.72rem;font-weight:700;margin-left:6px;">Lowest</span>' : ''}
         <span style="color:var(--muted);font-size:0.82rem;margin-left:8px;">from ${escHtml(r.responder_name || r.technician)}</span></div>

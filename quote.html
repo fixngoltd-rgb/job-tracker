@@ -19,8 +19,9 @@ h1{margin:4px 0 0;font-size:30px;line-height:1.2}
 .card h2{margin:0 0 6px;font-size:18px}
 .card p{margin:0 0 10px}
 .num{display:inline-block;min-width:26px;height:26px;line-height:26px;text-align:center;border-radius:13px;background:var(--accent);color:var(--accent-text);font-size:13px;font-weight:700;margin-right:10px}
-.item{display:grid;grid-template-columns:1fr 190px;gap:18px;align-items:start}
+.item{display:grid;grid-template-columns:1fr 270px;gap:18px;align-items:start}
 .item .side{border-left:1px solid var(--line);padding-left:18px}
+.item .side textarea{min-height:84px;font-size:15px}
 .item .side label{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600}
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:8px}
 .photos button{padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#eef0f3;cursor:pointer;aspect-ratio:3/4}
@@ -81,7 +82,9 @@ function render(d){
       + (photos?'<div class="photos">'+photos+'</div><p class="caption">Tap a photo to enlarge.</p>':'')
       + (vids?'<div class="vids">'+vids+'</div>':'')
       + '</div><div class="side"><label for="ip'+i+'">Price for this item (optional)</label>'
-      + '<div class="price"><span>&pound;</span><input class="ip" id="ip'+i+'" data-i="'+i+'" inputmode="decimal" autocomplete="off" placeholder="0.00"></div></div></section>';
+      + '<div class="price"><span>&pound;</span><input class="ip" id="ip'+i+'" data-i="'+i+'" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>'
+      + '<label for="pl'+i+'" style="margin-top:12px">What will you do for this?</label>'
+      + '<textarea class="pl" id="pl'+i+'" placeholder="e.g. refix the radiator to the wall with new brackets"></textarea></div></section>';
   }).join('');
   app.innerHTML =
     '<header><div class="eyebrow">Quote request</div><h1>'+esc(d.location||d.postcode)+'</h1>'
@@ -110,6 +113,11 @@ function itemPrices(){
   for(let i=0;i<COUNT;i++){const el=document.getElementById('ip'+i);out.push(el?num(el.value):0);}
   return out;
 }
+function plans(){
+  const out=[];
+  for(let i=0;i<COUNT;i++){const el=document.getElementById('pl'+i);out.push(el?el.value.trim():'');}
+  return out;
+}
 function recalc(){
   const sum=itemPrices().reduce((a,b)=>a+b,0);
   const p=document.getElementById('price'), l=document.getElementById('plabel');
@@ -128,7 +136,7 @@ async function submit(e){
   if(!confirm('Submit £'+money(price)+'? You will not be able to change it.')) return;
   go.disabled=true; go.textContent='Sending...';
   try{
-    const r = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:token,price:price,items:items,note:document.getElementById('note').value})});
+    const r = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:token,price:price,items:items,plans:plans(),note:document.getElementById('note').value})});
     const j = await r.json().catch(()=>({}));
     if(r.ok && j.state==='submitted'){message('Thank you','Your price has been received. This link is now closed.',true);return;}
     if(r.status===410){message('This link is no longer active','A price has already been submitted for this request.');return;}
