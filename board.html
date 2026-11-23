@@ -4248,7 +4248,7 @@ init();
     </div>
   </div>
 </div>
-<input type="file" id="ql-upload-input" accept="image/*,.heic,.heif" multiple style="display:none" onchange="qlUploadPicked(this)">
+<input type="file" id="ql-upload-input" accept="image/*,video/*,.heic,.heif" multiple style="display:none" onchange="qlUploadPicked(this)">
 
 <script>
 // ===== Quote link: admin editor, technician links, received quotes =====
@@ -4284,7 +4284,7 @@ async function openQuoteLinks(){
   ]);
   const base = (sc.data) ? { location: sc.data.location, title: sc.data.title, scope: sc.data.scope || [] } : qlDefaults(j);
   QL = { job: j, loc: base.location, title: base.title, scope: JSON.parse(JSON.stringify(base.scope)), saved: !!sc.data, dirty: !sc.data, reqs: rq.data || [],
-         jobPhotos: (files.data || []).filter(f => (f.mime_type || '').startsWith('image/')).map(f => f.file_url), msg: '' };
+         jobMedia: (files.data || []).filter(f => /^(image|video)\//.test(f.mime_type || '') || /\.(jpe?g|png|webp|mp4|mov|webm)$/i.test(f.file_name || '')).map(f => ({ url: f.file_url, video: /^video\//.test(f.mime_type || '') || /\.(mp4|mov|webm)$/i.test(f.file_name || '') })), msg: '' };
   qlRender();
 }
 function closeQuoteLinks(){
@@ -4306,10 +4306,11 @@ function qlRender(){
       <textarea rows="3" oninput="qlSet(${i},'text',this.value)" placeholder="What needs doing" style="width:100%;padding:8px 9px;border:1px solid var(--border);border-radius:7px;font-family:'Inter',sans-serif;font-size:0.86rem;">${escHtml(it.text)}</textarea>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
         ${(it.photos || []).map((u, k) => `<span style="position:relative;display:inline-block;"><img src="${qlAttr(u)}" style="width:62px;height:82px;object-fit:cover;border-radius:7px;border:1px solid var(--border);display:block;"><button onclick="qlDelPhoto(${i},${k})" title="Remove photo" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:10px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:0.8rem;line-height:20px;padding:0;">&times;</button></span>`).join('')}
+        ${(it.videos || []).map((u, k) => `<span style="position:relative;display:inline-block;"><video src="${qlAttr(u)}#t=0.5" preload="metadata" muted playsinline style="width:82px;height:82px;object-fit:cover;border-radius:7px;border:1px solid var(--border);display:block;background:#000;"></video><span style="position:absolute;left:3px;bottom:3px;background:rgba(15,23,42,0.75);color:#fff;font-size:0.62rem;padding:0 5px;border-radius:4px;">Video</span><button onclick="qlDelVideo(${i},${k})" title="Remove video" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:10px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:0.8rem;line-height:20px;padding:0;">&times;</button></span>`).join('')}
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;">
-        <button class="btn-secondary" onclick="qlPickOpen(${i})" style="padding:5px 10px;border-radius:7px;font-weight:700;font-size:0.78rem;cursor:pointer;">+ From job photos</button>
-        <button class="btn-secondary" onclick="qlUploadOpen(${i})" style="padding:5px 10px;border-radius:7px;font-weight:700;font-size:0.78rem;cursor:pointer;">+ Upload photos</button>
+        <button class="btn-secondary" onclick="qlPickOpen(${i})" style="padding:5px 10px;border-radius:7px;font-weight:700;font-size:0.78rem;cursor:pointer;">+ From job photos/videos</button>
+        <button class="btn-secondary" onclick="qlUploadOpen(${i})" style="padding:5px 10px;border-radius:7px;font-weight:700;font-size:0.78rem;cursor:pointer;">+ Upload photos/videos</button>
       </div>
     </div>`).join('');
 
@@ -4320,12 +4321,13 @@ function qlRender(){
     const when = r.submitted_at || r.created_at;
     let inner = '';
     if(r.status === 'submitted'){
-      const sc = (r.scope || []).map(x => '<li>' + escHtml(x.title || '') + (x.text ? ' - ' + escHtml(x.text) : '') + '</li>').join('');
+      const ip = Array.isArray(r.item_prices) ? r.item_prices : null;
+      const sc = (r.scope || []).map((x, n) => '<li>' + escHtml(x.title || '') + (ip && ip[n] && ip[n].price != null ? ' <b>' + qlMoney(ip[n].price) + '</b>' : '') + (x.text ? ' - ' + escHtml(x.text) : '') + '</li>').join('');
       inner = `<div style="margin-top:6px;"><span style="font-size:1.3rem;font-weight:800;">${qlMoney(r.price)}</span>
         ${lowest !== null && Number(r.price) === lowest ? '<span style="background:#16a34a;color:#fff;border-radius:6px;padding:1px 7px;font-size:0.72rem;font-weight:700;margin-left:6px;">Lowest</span>' : ''}
         <span style="color:var(--muted);font-size:0.82rem;margin-left:8px;">from ${escHtml(r.responder_name || r.technician)}</span></div>
         ${r.note ? `<div style="margin-top:4px;font-size:0.86rem;">${escHtml(r.note)}</div>` : ''}
-        <details style="margin-top:6px;"><summary style="cursor:pointer;font-size:0.8rem;color:var(--muted);">What they quoted for (${escHtml(r.postcode || '')})</summary><ul style="margin:6px 0 0 18px;font-size:0.82rem;">${sc}</ul></details>
+        <details style="margin-top:6px;"><summary style="cursor:pointer;font-size:0.8rem;color:var(--muted);">Items and prices (${escHtml(r.postcode || '')})</summary><ul style="margin:6px 0 0 18px;font-size:0.82rem;">${sc}</ul></details>
         <div style="margin-top:8px;"><button onclick="qlUsePrice('${r.id}')" style="background:#0f766e;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Use as our cost</button></div>`;
     } else if(r.status === 'open'){
       inner = `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
@@ -4370,6 +4372,7 @@ function qlAddItem(){ QL.scope.push({ title: '', text: '', photos: [] }); QL.dir
 function qlDelItem(i){ if(!confirm('Delete this item and its photo links?')) return; QL.scope.splice(i, 1); QL.dirty = true; QL.msg = ''; qlRender(); }
 function qlMove(i, d){ const k = i + d; if(k < 0 || k >= QL.scope.length) return; const t = QL.scope[i]; QL.scope[i] = QL.scope[k]; QL.scope[k] = t; QL.dirty = true; QL.msg = ''; qlRender(); }
 function qlDelPhoto(i, k){ QL.scope[i].photos.splice(k, 1); QL.dirty = true; QL.msg = ''; qlRender(); }
+function qlDelVideo(i, k){ QL.scope[i].videos.splice(k, 1); QL.dirty = true; QL.msg = ''; qlRender(); }
 
 async function qlSave(){
   if(!QL) return true;
@@ -4414,30 +4417,31 @@ async function qlUsePrice(id){
 // photos: pick from the job, or upload new ones (kept out of the job's own photo list)
 let QL_PICK_ITEM = -1;
 function qlPickOpen(i){
-  if(!QL.jobPhotos.length){ alert('This job has no photos yet. Use Upload photos instead.'); return; }
+  if(!QL.jobMedia.length){ alert('This job has no photos or videos yet. Use Upload instead.'); return; }
   QL_PICK_ITEM = i; QL_PICK = new Set();
-  document.getElementById('ql-pick-grid').innerHTML = QL.jobPhotos.map((u, k) => `<button type="button" id="qlp${k}" onclick="qlPickToggle(${k})" style="padding:0;border:3px solid transparent;border-radius:9px;overflow:hidden;background:var(--bg);cursor:pointer;aspect-ratio:1;"><img src="${qlAttr(u)}" style="width:100%;height:100%;object-fit:cover;display:block;"></button>`).join('');
+  document.getElementById('ql-pick-grid').innerHTML = QL.jobMedia.map((m, k) => `<button type="button" id="qlp${k}" onclick="qlPickToggle(${k})" style="position:relative;padding:0;border:3px solid transparent;border-radius:9px;overflow:hidden;background:var(--bg);cursor:pointer;aspect-ratio:1;">${m.video ? `<video src="${qlAttr(m.url)}#t=0.5" preload="metadata" muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;background:#000;pointer-events:none;"></video><span style="position:absolute;left:3px;bottom:3px;background:rgba(15,23,42,0.75);color:#fff;font-size:0.62rem;padding:0 5px;border-radius:4px;">Video</span>` : `<img src="${qlAttr(m.url)}" style="width:100%;height:100%;object-fit:cover;display:block;">`}</button>`).join('');
   document.getElementById('ql-pick-overlay').style.display = 'flex';
 }
 function qlPickToggle(k){ const b = document.getElementById('qlp' + k); if(QL_PICK.has(k)){ QL_PICK.delete(k); b.style.borderColor = 'transparent'; } else { QL_PICK.add(k); b.style.borderColor = '#0f766e'; } }
 function qlClosePick(){ document.getElementById('ql-pick-overlay').style.display = 'none'; }
 function qlPickDone(){
-  const it = QL.scope[QL_PICK_ITEM];
-  Array.from(QL_PICK).sort((a, b) => a - b).forEach(k => { const u = QL.jobPhotos[k]; if(it.photos.indexOf(u) < 0) it.photos.push(u); });
+  const it = QL.scope[QL_PICK_ITEM]; it.photos = it.photos || []; it.videos = it.videos || [];
+  Array.from(QL_PICK).sort((a, b) => a - b).forEach(k => { const m = QL.jobMedia[k]; const arr = m.video ? it.videos : it.photos; if(arr.indexOf(m.url) < 0) arr.push(m.url); });
   QL.dirty = true; QL.msg = ''; qlClosePick(); qlRender();
 }
 function qlUploadOpen(i){ QL_UPLOAD_ITEM = i; document.getElementById('ql-upload-input').value = ''; document.getElementById('ql-upload-input').click(); }
 async function qlUploadPicked(inp){
-  const files = Array.from(inp.files || []).filter(f => /^image\//.test(f.type || ''));
+  const files = Array.from(inp.files || []).filter(f => /^(image|video)\//.test(f.type || '') || /\.(jpe?g|png|webp|mp4|mov|webm)$/i.test(f.name || ''));
   if(!files.length || QL_UPLOAD_ITEM < 0) return;
   const it = QL.scope[QL_UPLOAD_ITEM]; const m = document.getElementById('ql-msg');
   for(let n = 0; n < files.length; n++){
-    if(m){ m.style.color = 'var(--muted)'; m.textContent = 'Uploading photo ' + (n + 1) + ' of ' + files.length + '...'; }
+    if(m){ m.style.color = 'var(--muted)'; m.textContent = 'Uploading ' + (n + 1) + ' of ' + files.length + '...'; }
     const f = files[n];
     const path = `quote/${QL.job.id}/${Date.now()}_${n}_${f.name.replace(/[^\w.\-]+/g, '_')}`;
     const { error } = await supabaseClient.storage.from('job-files').upload(path, f);
     if(error){ if(m){ m.style.color = '#dc2626'; m.textContent = 'Upload failed: ' + error.message; } continue; }
-    it.photos.push(supabaseClient.storage.from('job-files').getPublicUrl(path).data.publicUrl);
+    const pub = supabaseClient.storage.from('job-files').getPublicUrl(path).data.publicUrl;
+    if(/^video\//.test(f.type || '') || /\.(mp4|mov|webm)$/i.test(f.name || '')){ it.videos = it.videos || []; it.videos.push(pub); } else { it.photos = it.photos || []; it.photos.push(pub); }
   }
   QL.dirty = true; QL.msg = ''; qlRender();
 }
