@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Quote request</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#14181f;--muted:#5b6472;--line:#dfe3e9;--accent:#1f6feb;--accent-text:#fff;--ok:#1a7f45;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1116;--card:#171b22;--text:#e8ebf0;--muted:#97a0ad;--line:#2a313c;--accent:#4c8dff;--accent-text:#0b0f15;--ok:#4cc38a;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:20px 16px 56px}
+header{margin:6px 0 18px}
+.eyebrow{color:var(--muted);font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+h1{margin:4px 0 0;font-size:26px;line-height:1.2}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px}
+.card h2{margin:0 0 6px;font-size:17px}
+.card p{margin:0 0 10px;color:var(--text)}
+.num{display:inline-block;min-width:24px;height:24px;line-height:24px;text-align:center;border-radius:12px;background:var(--accent);color:var(--accent-text);font-size:13px;font-weight:700;margin-right:8px}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:6px}
+.photos button{padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);cursor:pointer;aspect-ratio:3/4}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+.caption{font-size:13px;color:var(--muted);margin:2px 0 0}
+label{display:block;font-weight:600;margin:14px 0 6px}
+input,textarea{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px}
+input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.price{position:relative}
+.price span{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-weight:600}
+.price input{padding-left:30px;font-size:20px;font-weight:600}
+textarea{min-height:88px;resize:vertical}
+button.submit{width:100%;margin-top:18px;padding:14px;font:inherit;font-weight:700;font-size:17px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-text);cursor:pointer}
+button.submit:disabled{opacity:.55;cursor:default}
+.hint{color:var(--muted);font-size:14px;margin:8px 0 0}
+.err{color:var(--err);margin-top:10px;font-size:15px;min-height:1px}
+.center{text-align:center;padding:48px 12px}
+.center h1{font-size:24px}
+.tick{font-size:42px;color:var(--ok)}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:10;padding:12px}
+#lb.on{display:flex}
+#lb img{max-width:100%;max-height:100%;border-radius:8px}
+#lb button{position:absolute;top:12px;right:14px;background:#fff;color:#000;border:0;border-radius:20px;padding:8px 14px;font:inherit;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="center"><p class="hint">Loading...</p></div></div>
+<div id="lb"><button type="button" id="lbx">Close</button><img alt=""></div>
+
+<script>
+const API = 'https://ojxqplxgyfokhkoyacic.supabase.co/functions/v1/quote-link';
+const token = new URLSearchParams(location.search).get('t') || '';
+const app = document.getElementById('app');
+const lb = document.getElementById('lb');
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function message(title, text, tick){
+  app.innerHTML = '<div class="center">' + (tick?'<div class="tick">&#10003;</div>':'') + '<h1>'+esc(title)+'</h1><p class="hint">'+esc(text)+'</p></div>';
+}
+function openPhoto(src){lb.querySelector('img').src=src;lb.classList.add('on');}
+lb.addEventListener('click',()=>lb.classList.remove('on'));
+
+function render(d){
+  const items = (d.scope||[]).map((it,i)=>{
+    const photos = (it.photos||[]).map(p=>'<button type="button" data-src="'+esc(p)+'"><img loading="lazy" src="'+esc(p)+'" alt=""></button>').join('');
+    return '<section class="card"><h2><span class="num">'+(i+1)+'</span>'+esc(it.title||'')+'</h2>'
+      + (it.text?'<p>'+esc(it.text)+'</p>':'')
+      + (photos?'<div class="photos">'+photos+'</div><p class="caption">Tap a photo to enlarge.</p>':'')
+      + '</section>';
+  }).join('');
+  app.innerHTML =
+    '<header><div class="eyebrow">Quote request</div><h1>'+esc(d.postcode)+'</h1>'
+    + (d.title?'<p class="hint" style="margin-top:6px">'+esc(d.title)+'</p>':'')
+    + '</header>'
+    + '<p class="hint" style="margin:0 0 14px">Please look through the scope of works and photos below, then enter one total price for everything at the bottom.</p>'
+    + items
+    + '<form class="card" id="f" novalidate>'
+    +   '<h2>Your price</h2>'
+    +   '<label for="price">Total price for all the works</label>'
+    +   '<div class="price"><span>&pound;</span><input id="price" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>'
+    +   '<label for="name">Your name or company</label>'
+    +   '<input id="name" autocomplete="name" placeholder="Name">'
+    +   '<label for="note">Notes (optional)</label>'
+    +   '<textarea id="note" placeholder="Anything we should know, what is included or excluded, how soon you can start"></textarea>'
+    +   '<button class="submit" id="go" type="submit">Submit price</button>'
+    +   '<div class="err" id="err" role="alert"></div>'
+    +   '<p class="hint">You can only submit once. After you submit, this link stops working.</p>'
+    + '</form>';
+  app.querySelectorAll('.photos button').forEach(b=>b.addEventListener('click',()=>openPhoto(b.dataset.src)));
+  document.getElementById('f').addEventListener('submit',submit);
+}
+
+async function submit(e){
+  e.preventDefault();
+  const err = document.getElementById('err'), go = document.getElementById('go');
+  err.textContent='';
+  const price = parseFloat(String(document.getElementById('price').value).replace(/[^0-9.]/g,''));
+  const name = document.getElementById('name').value.trim();
+  if(!(price>0)){err.textContent='Please enter your price.';return;}
+  if(!name){err.textContent='Please enter your name or company.';return;}
+  if(!confirm('Submit £'+price.toFixed(2).replace(/\.00$/,'')+'? You will not be able to change it.')) return;
+  go.disabled=true; go.textContent='Sending...';
+  try{
+    const r = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:token,price:price,name:name,note:document.getElementById('note').value})});
+    const j = await r.json().catch(()=>({}));
+    if(r.ok && j.state==='submitted'){message('Thank you','Your price has been received. This link is now closed.',true);return;}
+    if(r.status===410){message('This link is no longer active','A price has already been submitted for this request.');return;}
+    err.textContent=j.error||'Something went wrong. Please try again.';
+  }catch(x){err.textContent='No connection. Please try again.';}
+  go.disabled=false; go.textContent='Submit price';
+}
+
+(async function(){
+  if(!/^[a-zA-Z0-9]{20,64}$/.test(token)){message('Link not valid','Please check the link you were sent.');return;}
+  try{
+    const r = await fetch(API+'?t='+encodeURIComponent(token));
+    const d = await r.json().catch(()=>({}));
+    if(r.status===410){message('This link is no longer active','A price has already been submitted for this request.');return;}
+    if(!r.ok||d.state!=='open'){message('Link not valid','Please check the link you were sent.');return;}
+    document.title='Quote request '+d.postcode;
+    render(d);
+  }catch(x){message('Could not load','Please check your connection and try again.');}
+})();
+</script>
+</body>
+</html>
