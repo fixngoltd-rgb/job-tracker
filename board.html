@@ -4340,7 +4340,7 @@ function qlRender(){
     const badge = r.status === 'submitted' ? ['Submitted', '#16a34a'] : r.status === 'open' ? ['Waiting', '#d97706'] : ['Switched off', '#6b7280'];
     return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><b>${escHtml(r.technician)}</b>
-      <span style="font-size:0.72rem;font-weight:700;color:#fff;background:${badge[1]};border-radius:6px;padding:2px 8px;">${badge[0]}</span></div>
+      <span style="display:flex;gap:8px;align-items:center;"><span style="font-size:0.72rem;font-weight:700;color:#fff;background:${badge[1]};border-radius:6px;padding:2px 8px;">${badge[0]}</span><button onclick="qlDelete('${r.id}')" title="Delete this link" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.8rem;font-weight:700;padding:2px 4px;">Delete</button></span></div>
       <div style="font-size:0.75rem;color:var(--muted);">${r.status === 'submitted' ? 'Submitted ' : 'Created '}${timeAgo(when)}</div>${inner}</div>`;
   }).join('') : '<div style="color:var(--muted);font-size:0.86rem;">No links yet. Save the quote above, then type a technician name and press Create link.</div>';
 
@@ -4399,6 +4399,16 @@ async function qlCopy(tok){
   const url = qlLinkFor(tok);
   try { await navigator.clipboard.writeText(url); alert('Link copied. Paste it to the technician:\n\n' + url); }
   catch(e){ prompt('Copy this link:', url); }
+}
+async function qlDelete(id){
+  const r = QL.reqs.find(x => x.id === id); if(!r) return;
+  const msg = r.status === 'submitted'
+    ? 'Delete the quote from ' + r.technician + ' (' + qlMoney(r.price) + ')? This removes it from the list for good. The comment already on the job stays.'
+    : 'Delete the link for ' + r.technician + '? Anyone opening it will see it is not valid.';
+  if(!confirm(msg)) return;
+  const { error } = await supabaseClient.from('quote_requests').delete().eq('id', id);
+  if(error){ alert('Failed: ' + error.message); return; }
+  QL.reqs = QL.reqs.filter(x => x.id !== id); qlRender();
 }
 async function qlSetStatus(id, status){
   const { error } = await supabaseClient.from('quote_requests').update({ status }).eq('id', id).neq('status', 'submitted');
