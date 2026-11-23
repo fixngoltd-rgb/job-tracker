@@ -4446,33 +4446,53 @@ async function qlUploadPicked(inp){
 
 <script>
 // ===== HEIC / HEIF photos (iPhone): converted to JPEG in the browser before anything is stored or shown =====
-let HEIC_LIB = null;
+const HEIC_LIBS = {};
+function heicScript(src, test){
+  if(test()) return Promise.resolve();
+  if(HEIC_LIBS[src]) return HEIC_LIBS[src];
+  HEIC_LIBS[src] = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => { delete HEIC_LIBS[src]; rej(new Error('Could not load ' + src)); }; document.head.appendChild(sc); });
+  return HEIC_LIBS[src];
+}
 function isHeic(f){ return /\.(heic|heif)$/i.test(f.name || '') || /^image\/hei[cf]/i.test(f.type || ''); }
 function heicToast(t){
   let el = document.getElementById('heic-toast');
   if(!el){ el = document.createElement('div'); el.id = 'heic-toast'; el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:9px;font:600 0.85rem Inter,sans-serif;z-index:400;box-shadow:0 6px 24px rgba(0,0,0,0.35);display:none;'; document.body.appendChild(el); }
   if(t){ el.textContent = t; el.style.display = 'block'; } else el.style.display = 'none';
 }
-function heicLoad(){
-  if(window.heic2any) return Promise.resolve();
-  if(HEIC_LIB) return HEIC_LIB;
-  HEIC_LIB = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'wr/heic2any.min.js'; sc.onload = res; sc.onerror = () => { HEIC_LIB = null; rej(new Error('load')); }; document.head.appendChild(sc); });
-  return HEIC_LIB;
+function heicErr(e){ return (e && (e.message || (typeof e === 'string' ? e : (e.code ? e.code + ' ' : '') + (e.message || '')))) || 'unknown error'; }
+// Tries, in order: the browser's own decoder, a newer HEIC decoder (heic-to), then the older one (heic2any)
+async function heicOne(f){
+  const errs = [];
+  try {
+    const bmp = await createImageBitmap(f);
+    const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height; cv.getContext('2d').drawImage(bmp, 0, 0);
+    const blob = await new Promise((r, j) => cv.toBlob(x => x ? r(x) : j(new Error('canvas')), 'image/jpeg', 0.9));
+    if(blob && blob.size) return blob;
+  } catch(e){ errs.push('native: ' + heicErr(e)); }
+  try {
+    await heicScript('wr/heic-to.js', () => typeof window.HeicTo === 'function');
+    const blob = await window.HeicTo({ blob: f, type: 'image/jpeg', quality: 0.9 });
+    if(blob && blob.size) return blob;
+  } catch(e){ errs.push('heic-to: ' + heicErr(e)); }
+  try {
+    await heicScript('wr/heic2any.min.js', () => typeof window.heic2any === 'function');
+    let blob = await window.heic2any({ blob: f, toType: 'image/jpeg', quality: 0.9 });
+    if(Array.isArray(blob)) blob = blob[0];
+    if(blob && blob.size) return blob;
+  } catch(e){ errs.push('heic2any: ' + heicErr(e)); }
+  throw new Error(errs.join(' | '));
 }
 async function heicConvert(files){
   files = Array.from(files || []);
   if(!files.some(isHeic)) return files;
-  const out = [];
-  try { await heicLoad(); } catch(e){ alert('Could not load the HEIC converter. Check your connection and try again.'); return files.filter(f => !isHeic(f)); }
-  let n = 0; const total = files.filter(isHeic).length;
+  const out = []; let n = 0; const total = files.filter(isHeic).length;
   for(const f of files){
     if(!isHeic(f)){ out.push(f); continue; }
     heicToast('Converting iPhone photo ' + (++n) + ' of ' + total + '...');
     try {
-      let b = await window.heic2any({ blob: f, toType: 'image/jpeg', quality: 0.9 });
-      if(Array.isArray(b)) b = b[0];
+      const b = await heicOne(f);
       out.push(new File([b], (f.name || 'photo').replace(/\.(heic|heif)$/i, '') + '.jpg', { type: 'image/jpeg' }));
-    } catch(e){ alert('Could not convert "' + f.name + '". Open it on the phone and share it as a JPEG, or try again.'); }
+    } catch(e){ heicToast(''); alert('Could not convert "' + f.name + '".\n\n' + heicErr(e)); }
   }
   heicToast('');
   return out;
