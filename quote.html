@@ -68,7 +68,7 @@ function render(d){
       + '</section>';
   }).join('');
   app.innerHTML =
-    '<header><div class="eyebrow">Quote request</div><h1>'+esc(d.postcode)+'</h1>'
+    '<header><div class="eyebrow">Quote request</div><h1>'+esc(d.location||d.postcode)+'</h1>'
     + (d.title?'<p class="hint" style="margin-top:6px">'+esc(d.title)+'</p>':'')
     + '</header>'
     + '<p class="hint" style="margin:0 0 14px">Please look through the scope of works and photos below, then enter one total price for everything at the bottom.</p>'
@@ -116,7 +116,7 @@ async function submit(e){
     const d = await r.json().catch(()=>({}));
     if(r.status===410){message('This link is no longer active','A price has already been submitted for this request.');return;}
     if(!r.ok||d.state!=='open'){message('Link not valid','Please check the link you were sent.');return;}
-    document.title='Quote request '+d.postcode;
+    document.title="Quote request";
     render(d);
   }catch(x){message('Could not load','Please check your connection and try again.');}
 })();

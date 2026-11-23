@@ -721,6 +721,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
         <div class="ref" id="d-ref"></div>
         <h2 id="d-title"></h2>
         <button id="wr-open-btn" onclick="openWorkReport()" style="display:none;margin-top:10px;background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;">&#128196; Work Report PDF</button>
+        <button id="ql-open-btn" onclick="openQuoteLinks()" style="display:none;margin-top:10px;margin-left:6px;background:#0f766e;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;">&#128279; Quote link</button>
       </div>
 
       <div class="detail-body-wrap">
@@ -2275,6 +2276,7 @@ function openDetail(id){
   renderLinkedJobs(j);
   loadEmailLink(j);
   const wrBtn = document.getElementById('wr-open-btn'); if(wrBtn) wrBtn.style.display = CURRENT_USER ? '' : 'none';
+  const qlBtn = document.getElementById('ql-open-btn'); if(qlBtn) qlBtn.style.display = isAdminUser() ? '' : 'none';
 
   document.getElementById('board').style.display = 'none';
   document.getElementById('detail-view').style.display = 'block';
@@ -2608,7 +2610,7 @@ function renderNotifs(){
   document.getElementById('nt-sub').textContent = unread ? unread + ' unread' : 'All caught up';
   body.innerHTML = NOTIFS.length ? NOTIFS.map(n => `
     <div class="nt-item ${n.read ? '' : 'unread'}" onclick="openNotif('${n.id}')">
-      <div class="td-ico">${n.kind === 'mention' ? '💬' : '📌'}</div>
+      <div class="td-ico">${n.kind === 'mention' ? '💬' : n.kind === 'quote' ? '💷' : '📌'}</div>
       <div class="td-main"><div class="nt-t">${escHtml(n.title)}</div>${n.body ? `<div class="nt-b">${escHtml(n.body)}</div>` : ''}<div class="nt-when">${timeAgo(n.created_at)}</div></div>
     </div>`).join('') : '<div class="td-empty">Nothing yet. You will see a message here when a job is assigned to you or someone mentions you.</div>';
   refreshPushUi();
@@ -2624,6 +2626,7 @@ async function openNotif(id){
   }
   closeDrawers();
   if(n.job_id) openDetail(n.job_id);
+  if(n.kind === 'quote' && n.job_id && typeof openQuoteLinks === 'function') setTimeout(openQuoteLinks, 50);
 }
 
 async function markAllNotifsRead(){
@@ -4220,6 +4223,225 @@ init();
     <div id="wr-drop-msg" style="font-size:0.8rem;color:#dc2626;min-height:1.1em;margin-top:8px;"></div>
   </div>
 </div>
+
+
+<div id="ql-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 12px;">
+  <div style="background:var(--card);color:var(--text);border-radius:12px;max-width:820px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,0.35);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <h2 style="font-size:1.1rem;font-weight:800;">Quote link</h2>
+      <button onclick="closeQuoteLinks()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--muted);">&times;</button>
+    </div>
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;" id="ql-sub"></div>
+    <div id="ql-body"></div>
+  </div>
+</div>
+<div id="ql-pick-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:220;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)qlClosePick()">
+  <div style="background:var(--card);color:var(--text);border-radius:12px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:16px 18px;box-shadow:0 10px 40px rgba(0,0,0,0.35);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h3 style="font-size:1rem;font-weight:800;">Pick photos from this job</h3>
+      <button onclick="qlClosePick()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--muted);">&times;</button>
+    </div>
+    <div id="ql-pick-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+      <button class="btn-secondary" onclick="qlClosePick()" style="padding:8px 14px;border-radius:7px;font-weight:700;cursor:pointer;">Cancel</button>
+      <button onclick="qlPickDone()" style="background:#0f766e;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;cursor:pointer;">Add selected</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="ql-upload-input" accept="image/*" multiple style="display:none" onchange="qlUploadPicked(this)">
+
+<script>
+// ===== Quote link: admin editor, technician links, received quotes =====
+let QL = null, QL_PICK = null, QL_UPLOAD_ITEM = -1;
+function qlAttr(s){ return escHtml(s).replace(/"/g, '&quot;'); }
+function qlToken(){ const a = new Uint8Array(16); crypto.getRandomValues(a); return Array.from(a).map(b => b.toString(16).padStart(2, '0')).join(''); }
+function qlLinkFor(tok){ return new URL('quote.html?t=' + tok, location.href).href; }
+function qlMoney(n){ return '£' + (Math.round(Number(n) * 100) / 100).toFixed(2).replace(/\.00$/, ''); }
+
+function qlDefaults(j){
+  const pc = (j.address || '').match(/[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}/i);
+  const desc = j.description || '';
+  const m = desc.match(/WORK REQUIRED:\s*([\s\S]*?)(?:\n\s*\n|\nNOTES:|$)/i);
+  const items = [];
+  if(m){
+    m[1].split('\n').map(x => x.replace(/^\s*-\s*/, '').replace(/^QUOTE:\s*/i, '').trim()).filter(Boolean).forEach(t => {
+      items.push({ title: t.split(/\s+/).slice(0, 5).join(' '), text: t, photos: [] });
+    });
+  }
+  return { location: pc ? pc[0].toUpperCase() : (j.address || ''), title: (j.title || '').replace(/^Quotation Needed\s*-\s*/i, ''), scope: items };
+}
+
+async function openQuoteLinks(){
+  if(!isAdminUser() || !currentDetailId) return;
+  const j = JOBS.find(x => x.id === currentDetailId); if(!j) return;
+  document.getElementById('ql-overlay').style.display = 'flex';
+  document.getElementById('ql-sub').textContent = j.ref + ' - ' + (j.address || '');
+  document.getElementById('ql-body').innerHTML = '<div style="color:var(--muted);padding:12px 0;">Loading...</div>';
+  const [sc, rq, files] = await Promise.all([
+    supabaseClient.from('quote_scopes').select('*').eq('job_id', j.id).maybeSingle(),
+    supabaseClient.from('quote_requests').select('*').eq('job_id', j.id).order('created_at', { ascending: false }),
+    supabaseClient.from('job_files').select('file_url,file_name,mime_type').eq('job_id', j.id).order('uploaded_at', { ascending: true })
+  ]);
+  const base = (sc.data) ? { location: sc.data.location, title: sc.data.title, scope: sc.data.scope || [] } : qlDefaults(j);
+  QL = { job: j, loc: base.location, title: base.title, scope: JSON.parse(JSON.stringify(base.scope)), saved: !!sc.data, dirty: !sc.data, reqs: rq.data || [],
+         jobPhotos: (files.data || []).filter(f => (f.mime_type || '').startsWith('image/')).map(f => f.file_url), msg: '' };
+  qlRender();
+}
+function closeQuoteLinks(){
+  if(QL && QL.dirty && !confirm('You have unsaved changes to this quote. Close without saving?')) return;
+  document.getElementById('ql-overlay').style.display = 'none'; QL = null;
+}
+
+function qlRender(){
+  if(!QL) return;
+  const itemsHtml = QL.scope.map((it, i) => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <span style="font-weight:800;color:var(--muted);">${i + 1}</span>
+        <input type="text" value="${qlAttr(it.title)}" placeholder="Item heading" oninput="qlSet(${i},'title',this.value)" style="flex:1;padding:7px 9px;border:1px solid var(--border);border-radius:7px;font-family:'Inter',sans-serif;font-weight:700;">
+        <button class="btn-secondary" title="Move up" onclick="qlMove(${i},-1)" style="padding:5px 9px;border-radius:7px;cursor:pointer;">&uarr;</button>
+        <button class="btn-secondary" title="Move down" onclick="qlMove(${i},1)" style="padding:5px 9px;border-radius:7px;cursor:pointer;">&darr;</button>
+        <button class="btn-secondary" title="Delete item" onclick="qlDelItem(${i})" style="padding:5px 9px;border-radius:7px;cursor:pointer;color:#dc2626;">&times;</button>
+      </div>
+      <textarea rows="3" oninput="qlSet(${i},'text',this.value)" placeholder="What needs doing" style="width:100%;padding:8px 9px;border:1px solid var(--border);border-radius:7px;font-family:'Inter',sans-serif;font-size:0.86rem;">${escHtml(it.text)}</textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+        ${(it.photos || []).map((u, k) => `<span style="position:relative;display:inline-block;"><img src="${qlAttr(u)}" style="width:62px;height:82px;object-fit:cover;border-radius:7px;border:1px solid var(--border);display:block;"><button onclick="qlDelPhoto(${i},${k})" title="Remove photo" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:10px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:0.8rem;line-height:20px;padding:0;">&times;</button></span>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn-secondary" onclick="qlPickOpen(${i})" style="padding:5px 10px;border-radius:7px;font-weight:700;font-size:0.78rem;cursor:pointer;">+ From job photos</button>
+        <button class="btn-secondary" onclick="qlUploadOpen(${i})" style="padding:5px 10px;border-radius:7px;font-weight:700;font-size:0.78rem;cursor:pointer;">+ Upload photos</button>
+      </div>
+    </div>`).join('');
+
+  const reqs = QL.reqs;
+  const submitted = reqs.filter(r => r.status === 'submitted' && r.price != null);
+  const lowest = submitted.length > 1 ? Math.min.apply(null, submitted.map(r => Number(r.price))) : null;
+  const reqHtml = reqs.length ? reqs.map(r => {
+    const when = r.submitted_at || r.created_at;
+    let inner = '';
+    if(r.status === 'submitted'){
+      const sc = (r.scope || []).map(x => '<li>' + escHtml(x.title || '') + (x.text ? ' - ' + escHtml(x.text) : '') + '</li>').join('');
+      inner = `<div style="margin-top:6px;"><span style="font-size:1.3rem;font-weight:800;">${qlMoney(r.price)}</span>
+        ${lowest !== null && Number(r.price) === lowest ? '<span style="background:#16a34a;color:#fff;border-radius:6px;padding:1px 7px;font-size:0.72rem;font-weight:700;margin-left:6px;">Lowest</span>' : ''}
+        <span style="color:var(--muted);font-size:0.82rem;margin-left:8px;">from ${escHtml(r.responder_name || r.technician)}</span></div>
+        ${r.note ? `<div style="margin-top:4px;font-size:0.86rem;">${escHtml(r.note)}</div>` : ''}
+        <details style="margin-top:6px;"><summary style="cursor:pointer;font-size:0.8rem;color:var(--muted);">What they quoted for (${escHtml(r.postcode || '')})</summary><ul style="margin:6px 0 0 18px;font-size:0.82rem;">${sc}</ul></details>
+        <div style="margin-top:8px;"><button onclick="qlUsePrice('${r.id}')" style="background:#0f766e;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Use as our cost</button></div>`;
+    } else if(r.status === 'open'){
+      inner = `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+        <button onclick="qlCopy('${r.token}')" style="background:#0f766e;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Copy link</button>
+        <button class="btn-secondary" onclick="window.open(qlLinkFor('${r.token}'),'_blank')" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Open as technician sees it</button>
+        <button class="btn-secondary" onclick="qlSetStatus('${r.id}','closed')" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Switch off</button></div>`;
+    } else {
+      inner = `<div style="margin-top:6px;"><button class="btn-secondary" onclick="qlSetStatus('${r.id}','open')" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Switch back on</button></div>`;
+    }
+    const badge = r.status === 'submitted' ? ['Submitted', '#16a34a'] : r.status === 'open' ? ['Waiting', '#d97706'] : ['Switched off', '#6b7280'];
+    return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><b>${escHtml(r.technician)}</b>
+      <span style="font-size:0.72rem;font-weight:700;color:#fff;background:${badge[1]};border-radius:6px;padding:2px 8px;">${badge[0]}</span></div>
+      <div style="font-size:0.75rem;color:var(--muted);">${r.status === 'submitted' ? 'Submitted ' : 'Created '}${timeAgo(when)}</div>${inner}</div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:0.86rem;">No links yet. Save the quote above, then type a technician name and press Create link.</div>';
+
+  document.getElementById('ql-body').innerHTML = `
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:10px;">Everything below is what the technician sees. They can only read it and enter a price. Changes you save show on open links straight away.</div>
+    <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Where (postcode or full address, shown exactly as typed)</label>
+    <input type="text" value="${qlAttr(QL.loc)}" oninput="QL.loc=this.value;QL.dirty=true" placeholder="e.g. BL3 5PH" style="width:100%;margin:4px 0 10px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;">
+    <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Short title (optional)</label>
+    <input type="text" value="${qlAttr(QL.title)}" oninput="QL.title=this.value;QL.dirty=true" placeholder="e.g. Empty mid terrace house, assessment and repairs" style="width:100%;margin:4px 0 12px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;">
+    <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Scope of works</label>
+    <div style="margin-top:6px;">${itemsHtml || '<div style="color:var(--muted);font-size:0.86rem;margin-bottom:8px;">No items yet.</div>'}</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+      <button class="btn-secondary" onclick="qlAddItem()" style="padding:7px 12px;border-radius:7px;font-weight:700;cursor:pointer;">+ Add item</button>
+      <button onclick="qlSave()" style="background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Save</button>
+      <span id="ql-msg" style="font-size:0.82rem;color:${QL.dirty ? '#d97706' : 'var(--muted)'};">${QL.msg || (QL.dirty ? 'Not saved yet' : 'Saved')}</span>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;">
+      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Links and quotes received</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="ql-tech" placeholder="Technician name, e.g. Catalin" onkeydown="if(event.key==='Enter')qlCreate()" style="flex:1;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;">
+        <button onclick="qlCreate()" style="background:#0f766e;color:#fff;border:none;padding:8px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Create link</button>
+      </div>
+      ${reqHtml}
+    </div>`;
+}
+
+function qlSet(i, k, v){ QL.scope[i][k] = v; QL.dirty = true; const m = document.getElementById('ql-msg'); if(m){ m.textContent = 'Not saved yet'; m.style.color = '#d97706'; } }
+function qlAddItem(){ QL.scope.push({ title: '', text: '', photos: [] }); QL.dirty = true; QL.msg = ''; qlRender(); }
+function qlDelItem(i){ if(!confirm('Delete this item and its photo links?')) return; QL.scope.splice(i, 1); QL.dirty = true; QL.msg = ''; qlRender(); }
+function qlMove(i, d){ const k = i + d; if(k < 0 || k >= QL.scope.length) return; const t = QL.scope[i]; QL.scope[i] = QL.scope[k]; QL.scope[k] = t; QL.dirty = true; QL.msg = ''; qlRender(); }
+function qlDelPhoto(i, k){ QL.scope[i].photos.splice(k, 1); QL.dirty = true; QL.msg = ''; qlRender(); }
+
+async function qlSave(){
+  if(!QL) return true;
+  QL.msg = 'Saving...'; const m = document.getElementById('ql-msg'); if(m) m.textContent = 'Saving...';
+  const row = { job_id: QL.job.id, location: (QL.loc || '').trim(), title: (QL.title || '').trim(),
+    scope: QL.scope.filter(x => (x.title || '').trim() || (x.text || '').trim()), updated_at: new Date().toISOString(), updated_by: CURRENT_USER ? CURRENT_USER.name : null };
+  const { error } = await supabaseClient.from('quote_scopes').upsert(row, { onConflict: 'job_id' });
+  if(error){ QL.msg = 'Save failed: ' + error.message; qlRender(); return false; }
+  QL.scope = JSON.parse(JSON.stringify(row.scope)); QL.dirty = false; QL.saved = true; QL.msg = 'Saved. Open links now show this.'; qlRender(); return true;
+}
+
+async function qlCreate(){
+  const inp = document.getElementById('ql-tech'); const name = (inp.value || '').trim();
+  if(!name){ inp.focus(); return; }
+  if(!(QL.loc || '').trim()){ alert('Type the postcode or address first.'); return; }
+  if(!QL.scope.length){ alert('Add at least one scope item first.'); return; }
+  if(QL.dirty || !QL.saved){ const ok = await qlSave(); if(!ok) return; }
+  const tok = qlToken();
+  const { data, error } = await supabaseClient.from('quote_requests').insert([{ job_id: QL.job.id, token: tok, technician: name, postcode: QL.loc.trim(), title: QL.title || null, scope: QL.scope }]).select().single();
+  if(error){ alert('Could not create the link: ' + error.message); return; }
+  QL.reqs.unshift(data); QL.msg = ''; qlRender(); qlCopy(tok);
+}
+async function qlCopy(tok){
+  const url = qlLinkFor(tok);
+  try { await navigator.clipboard.writeText(url); alert('Link copied. Paste it to the technician:\n\n' + url); }
+  catch(e){ prompt('Copy this link:', url); }
+}
+async function qlSetStatus(id, status){
+  const { error } = await supabaseClient.from('quote_requests').update({ status }).eq('id', id).neq('status', 'submitted');
+  if(error){ alert('Failed: ' + error.message); return; }
+  const r = QL.reqs.find(x => x.id === id); if(r) r.status = status; qlRender();
+}
+async function qlUsePrice(id){
+  const r = QL.reqs.find(x => x.id === id); if(!r) return;
+  if(!confirm('Set our cost on this job to ' + qlMoney(r.price) + '?')) return;
+  const { error } = await supabaseClient.from('jobs').update({ cost_to_us: Number(r.price) }).eq('id', QL.job.id);
+  if(error){ alert('Failed: ' + error.message); return; }
+  const j = JOBS.find(x => x.id === QL.job.id); if(j) j.cost_to_us = Number(r.price);
+  alert('Done. Our cost on ' + QL.job.ref + ' is now ' + qlMoney(r.price) + '.');
+}
+
+// photos: pick from the job, or upload new ones (kept out of the job's own photo list)
+let QL_PICK_ITEM = -1;
+function qlPickOpen(i){
+  if(!QL.jobPhotos.length){ alert('This job has no photos yet. Use Upload photos instead.'); return; }
+  QL_PICK_ITEM = i; QL_PICK = new Set();
+  document.getElementById('ql-pick-grid').innerHTML = QL.jobPhotos.map((u, k) => `<button type="button" id="qlp${k}" onclick="qlPickToggle(${k})" style="padding:0;border:3px solid transparent;border-radius:9px;overflow:hidden;background:var(--bg);cursor:pointer;aspect-ratio:1;"><img src="${qlAttr(u)}" style="width:100%;height:100%;object-fit:cover;display:block;"></button>`).join('');
+  document.getElementById('ql-pick-overlay').style.display = 'flex';
+}
+function qlPickToggle(k){ const b = document.getElementById('qlp' + k); if(QL_PICK.has(k)){ QL_PICK.delete(k); b.style.borderColor = 'transparent'; } else { QL_PICK.add(k); b.style.borderColor = '#0f766e'; } }
+function qlClosePick(){ document.getElementById('ql-pick-overlay').style.display = 'none'; }
+function qlPickDone(){
+  const it = QL.scope[QL_PICK_ITEM];
+  Array.from(QL_PICK).sort((a, b) => a - b).forEach(k => { const u = QL.jobPhotos[k]; if(it.photos.indexOf(u) < 0) it.photos.push(u); });
+  QL.dirty = true; QL.msg = ''; qlClosePick(); qlRender();
+}
+function qlUploadOpen(i){ QL_UPLOAD_ITEM = i; document.getElementById('ql-upload-input').value = ''; document.getElementById('ql-upload-input').click(); }
+async function qlUploadPicked(inp){
+  const files = Array.from(inp.files || []).filter(f => /^image\//.test(f.type || ''));
+  if(!files.length || QL_UPLOAD_ITEM < 0) return;
+  const it = QL.scope[QL_UPLOAD_ITEM]; const m = document.getElementById('ql-msg');
+  for(let n = 0; n < files.length; n++){
+    if(m){ m.style.color = 'var(--muted)'; m.textContent = 'Uploading photo ' + (n + 1) + ' of ' + files.length + '...'; }
+    const f = files[n];
+    const path = `quote/${QL.job.id}/${Date.now()}_${n}_${f.name.replace(/[^\w.\-]+/g, '_')}`;
+    const { error } = await supabaseClient.storage.from('job-files').upload(path, f);
+    if(error){ if(m){ m.style.color = '#dc2626'; m.textContent = 'Upload failed: ' + error.message; } continue; }
+    it.photos.push(supabaseClient.storage.from('job-files').getPublicUrl(path).data.publicUrl);
+  }
+  QL.dirty = true; QL.msg = ''; qlRender();
+}
+</script>
 
 <script src="wr/jspdf.umd.min.js"></script>
 <script src="wr/workreport.js?v=20261019v"></script>
