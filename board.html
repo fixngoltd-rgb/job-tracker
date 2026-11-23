@@ -745,7 +745,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
         <div class="detail-field" id="jf-dropzone" ondragover="jfDragOver(event)" ondragleave="jfDragLeave(event)" ondrop="jfDrop(event)" style="border:2px dashed transparent;border-radius:10px;padding:6px;transition:border-color .12s,background .12s;">
           <label>Files &amp; Images</label>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-            <input type="file" id="d-file-input" multiple accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm" onchange="jfOnPick(event)" style="display:none;">
+            <input type="file" id="d-file-input" multiple accept=".jpg,.jpeg,.png,.heic,.heif,.pdf,.mp4,.mov,.webm" onchange="jfOnPick(event)" style="display:none;">
             <button class="btn" type="button" onclick="document.getElementById('d-file-input').click()" style="white-space:nowrap;">Choose files</button>
             <span style="flex:1;"></span>
             <button class="btn btn-primary" id="d-file-upload-btn" onclick="uploadJobFile()" style="white-space:nowrap;" disabled>+ Upload</button>
@@ -857,7 +857,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
           </div>
           <textarea class="field-input" id="c-message" placeholder="Write a message..." rows="3"></textarea>
           <div style="display:flex;align-items:center;gap:10px;">
-            <input type="file" id="c-attachment" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" multiple onchange="onFilesSelected(event)" style="font-size:0.85rem;">
+            <input type="file" id="c-attachment" accept=".jpg,.jpeg,.png,.heic,.heif,.pdf,.doc,.docx" multiple onchange="onFilesSelected(event)" style="font-size:0.85rem;">
             <span style="font-size:0.75rem;color:var(--muted);">or paste a screenshot (Ctrl+V)</span>
           </div>
           <div class="preview-strip" id="c-preview-strip"></div>
@@ -4187,7 +4187,7 @@ init();
         <button class="btn-secondary" id="wr-all-btn" onclick="toggleAllWrPhotos()" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">Deselect all</button>
         <button class="btn-secondary" id="wr-add-btn" onclick="openWrDrop()" style="padding:6px 12px;border-radius:7px;font-weight:700;font-size:0.8rem;cursor:pointer;">+ Add photos / videos</button>
       </span>
-      <input type="file" id="wr-add-input" accept="image/*,video/*,application/pdf" multiple style="display:none" onchange="wrStagePick(this)">
+      <input type="file" id="wr-add-input" accept="image/*,.heic,.heif,video/*,application/pdf" multiple style="display:none" onchange="wrStagePick(this)">
     </div>
     <div id="wr-photos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin:8px 0 14px;"></div>
     <div id="wr-status" style="font-size:0.82rem;min-height:1.2em;margin-bottom:10px;"></div>
@@ -4248,7 +4248,7 @@ init();
     </div>
   </div>
 </div>
-<input type="file" id="ql-upload-input" accept="image/*" multiple style="display:none" onchange="qlUploadPicked(this)">
+<input type="file" id="ql-upload-input" accept="image/*,.heic,.heif" multiple style="display:none" onchange="qlUploadPicked(this)">
 
 <script>
 // ===== Quote link: admin editor, technician links, received quotes =====
@@ -4441,6 +4441,54 @@ async function qlUploadPicked(inp){
   }
   QL.dirty = true; QL.msg = ''; qlRender();
 }
+</script>
+
+
+<script>
+// ===== HEIC / HEIF photos (iPhone): converted to JPEG in the browser before anything is stored or shown =====
+let HEIC_LIB = null;
+function isHeic(f){ return /\.(heic|heif)$/i.test(f.name || '') || /^image\/hei[cf]/i.test(f.type || ''); }
+function heicToast(t){
+  let el = document.getElementById('heic-toast');
+  if(!el){ el = document.createElement('div'); el.id = 'heic-toast'; el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:9px;font:600 0.85rem Inter,sans-serif;z-index:400;box-shadow:0 6px 24px rgba(0,0,0,0.35);display:none;'; document.body.appendChild(el); }
+  if(t){ el.textContent = t; el.style.display = 'block'; } else el.style.display = 'none';
+}
+function heicLoad(){
+  if(window.heic2any) return Promise.resolve();
+  if(HEIC_LIB) return HEIC_LIB;
+  HEIC_LIB = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'wr/heic2any.min.js'; sc.onload = res; sc.onerror = () => { HEIC_LIB = null; rej(new Error('load')); }; document.head.appendChild(sc); });
+  return HEIC_LIB;
+}
+async function heicConvert(files){
+  files = Array.from(files || []);
+  if(!files.some(isHeic)) return files;
+  const out = [];
+  try { await heicLoad(); } catch(e){ alert('Could not load the HEIC converter. Check your connection and try again.'); return files.filter(f => !isHeic(f)); }
+  let n = 0; const total = files.filter(isHeic).length;
+  for(const f of files){
+    if(!isHeic(f)){ out.push(f); continue; }
+    heicToast('Converting iPhone photo ' + (++n) + ' of ' + total + '...');
+    try {
+      let b = await window.heic2any({ blob: f, toType: 'image/jpeg', quality: 0.9 });
+      if(Array.isArray(b)) b = b[0];
+      out.push(new File([b], (f.name || 'photo').replace(/\.(heic|heif)$/i, '') + '.jpg', { type: 'image/jpeg' }));
+    } catch(e){ alert('Could not convert "' + f.name + '". Open it on the phone and share it as a JPEG, or try again.'); }
+  }
+  heicToast('');
+  return out;
+}
+(function(){
+  const _ofs = onFilesSelected;
+  onFilesSelected = async function(ev){ const arr = Array.from(ev.target.files || []); try { ev.target.value = ''; } catch(e){} _ofs({ target: { files: await heicConvert(arr), value: '' } }); };
+  const _jfp = jfAddPending;
+  jfAddPending = async function(list){ const arr = Array.from(list || []); _jfp(await heicConvert(arr)); };
+  const _wsa = wrStageAdd;
+  wrStageAdd = async function(list){ const arr = Array.from(list || []); _wsa(await heicConvert(arr)); };
+  const _awf = addWrFiles;
+  addWrFiles = async function(list){ const arr = Array.from(list || []); return _awf(await heicConvert(arr)); };
+  const _qup = qlUploadPicked;
+  qlUploadPicked = async function(inp){ const arr = Array.from(inp.files || []); try { inp.value = ''; } catch(e){} return _qup({ files: await heicConvert(arr), value: '' }); };
+})();
 </script>
 
 <script src="wr/jspdf.umd.min.js"></script>
