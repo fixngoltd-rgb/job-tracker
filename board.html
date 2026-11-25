@@ -758,6 +758,19 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
       </div>
 
       <div class="tab-panel" id="panel-nextsteps">
+        <div id="ns-invoice-note-box" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-bottom:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div style="font-size:0.85rem;color:var(--muted);" id="ns-invoice-note-hint">Write what it cost us and what to invoice.</div>
+            <button class="btn" id="ns-invoice-note-btn" style="background:#d97706;color:white;border:none;white-space:nowrap;" onclick="toggleInvoiceNote()">&#128221; Invoicing note</button>
+          </div>
+          <div id="ns-invoice-note-body" style="display:none;margin-top:10px;">
+            <textarea id="ns-invoice-note-text" rows="9" oninput="invoiceNoteDirty()" placeholder="OUR TOTAL COST: &#163;&#10;TOTAL TO INVOICE: &#163;&#10;&#10;Breakdown, who did it, anything the invoice needs." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;line-height:1.5;resize:vertical;"></textarea>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+              <button class="btn btn-primary" onclick="saveInvoiceNote()">Save note</button>
+              <span id="ns-invoice-note-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
+          </div>
+        </div>
         <div id="ns-mark-completed-box" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:20px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
           <div style="font-size:0.85rem;color:var(--muted);">Job finished on site, but no invoice sent yet?</div>
           <button class="btn" style="background:var(--green);color:white;border:none;white-space:nowrap;" onclick="markCompletedAwaitingInvoice()">✓ Mark Completed - Awaiting Invoice</button>
@@ -1425,6 +1438,8 @@ function applyRoleUI(){
     if(invNumberRow) invNumberRow.remove();
     const invoicedBox = document.getElementById('ns-mark-invoiced-box');
     if(invoicedBox) invoicedBox.remove();
+    const invNoteBox = document.getElementById('ns-invoice-note-box');
+    if(invNoteBox) invNoteBox.remove();
     const sbInvoicedRow = document.getElementById('sb-invoiced-row');
     if(sbInvoicedRow) sbInvoicedRow.remove();
 
@@ -1554,6 +1569,7 @@ async function fetchAllJobs(){
     invoice_amount: j.invoice_amount,
     invoiced: !!j.invoiced,
     invoice_number: j.invoice_number,
+    invoicing_note: j.invoicing_note || '',
     quote_needed: !!j.quote_needed,
     external_job_id: j.external_job_id,
     parent_job_id: j.parent_job_id,
@@ -2213,6 +2229,16 @@ function openDetail(id){
   const inAwaitingInvoice = COLUMNS.find(c => c.key === 'awaiting_invoice').filter(j);
   const inQuoteNeeded = j.quote_needed && !j.quoted && j.status !== 'cancelled';
   const isQuotedAlready = j.quote_needed && j.quoted && j.status !== 'cancelled';
+  const invNoteEl = document.getElementById('ns-invoice-note-box');
+  if(invNoteEl){
+    const showNote = !!(isAdminUser() && (inAwaitingCompletion || inAwaitingInvoice));
+    invNoteEl.style.display = showNote ? 'block' : 'none';
+    const nb = document.getElementById('ns-invoice-note-body'); if(nb) nb.style.display = 'none';
+    const nt = document.getElementById('ns-invoice-note-text'); if(nt) nt.value = j.invoicing_note || '';
+    const ns = document.getElementById('ns-invoice-note-status'); if(ns) ns.textContent = '';
+    const nbtn = document.getElementById('ns-invoice-note-btn'); if(nbtn) nbtn.innerHTML = '&#128221; Invoicing note' + (j.invoicing_note ? ' (written)' : '');
+    const nh = document.getElementById('ns-invoice-note-hint'); if(nh) nh.textContent = j.invoicing_note ? 'There is an invoicing note on this job.' : 'Write what it cost us and what to invoice.';
+  }
   document.getElementById('ns-mark-completed-box').style.display = inAwaitingCompletion ? 'flex' : 'none';
   const invoicedBoxEl = document.getElementById('ns-mark-invoiced-box');
   if(invoicedBoxEl) invoicedBoxEl.style.display = inAwaitingInvoice ? 'flex' : 'none';
@@ -3091,6 +3117,25 @@ async function markCompletedAwaitingInvoice(){
   render();
 }
 
+function toggleInvoiceNote(){
+  const b = document.getElementById('ns-invoice-note-body'); if(!b) return;
+  const open = b.style.display === 'none';
+  b.style.display = open ? 'block' : 'none';
+  if(open){ const t = document.getElementById('ns-invoice-note-text'); if(t) t.focus(); }
+}
+function invoiceNoteDirty(){ const s = document.getElementById('ns-invoice-note-status'); if(s){ s.style.color = '#d97706'; s.textContent = 'Not saved yet'; } }
+async function saveInvoiceNote(){
+  if(!currentDetailId || !isAdminUser()) return;
+  const t = document.getElementById('ns-invoice-note-text'); const s = document.getElementById('ns-invoice-note-status');
+  const v = t ? t.value.trim() : '';
+  s.style.color = 'var(--muted)'; s.textContent = 'Saving...';
+  const { error } = await supabaseClient.from('jobs').update({ invoicing_note: v || null }).eq('id', currentDetailId);
+  if(error){ s.style.color = '#dc2626'; s.textContent = 'Failed: ' + error.message; return; }
+  const j = JOBS.find(x => x.id === currentDetailId); if(j) j.invoicing_note = v;
+  s.style.color = 'var(--green)'; s.textContent = 'Saved.';
+  const nbtn = document.getElementById('ns-invoice-note-btn'); if(nbtn) nbtn.innerHTML = '&#128221; Invoicing note' + (v ? ' (written)' : '');
+  const nh = document.getElementById('ns-invoice-note-hint'); if(nh) nh.textContent = v ? 'There is an invoicing note on this job.' : 'Write what it cost us and what to invoice.';
+}
 async function markInvoiced(){
   if(!currentDetailId) return;
 
