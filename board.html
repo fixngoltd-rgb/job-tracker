@@ -721,7 +721,6 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
         <div class="ref" id="d-ref"></div>
         <h2 id="d-title"></h2>
         <button id="wr-open-btn" onclick="openWorkReport()" style="display:none;margin-top:10px;background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;">&#128196; Work Report PDF</button>
-        <button id="qp-open-btn" onclick="openWorkReport('quote')" style="display:none;margin-top:10px;margin-left:6px;background:#0f766e;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;">&#128203; Quotation PDF</button>
         <button id="ql-open-btn" onclick="openQuoteLinks()" style="display:none;margin-top:10px;margin-left:6px;background:#0f766e;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;">&#128279; Quote link</button>
       </div>
 
@@ -2277,7 +2276,6 @@ function openDetail(id){
   renderLinkedJobs(j);
   loadEmailLink(j);
   const wrBtn = document.getElementById('wr-open-btn'); if(wrBtn) wrBtn.style.display = CURRENT_USER ? '' : 'none';
-  const qpBtn = document.getElementById('qp-open-btn'); if(qpBtn) qpBtn.style.display = isAdminUser() ? '' : 'none';
   const qlBtn = document.getElementById('ql-open-btn'); if(qlBtn) qlBtn.style.display = isAdminUser() ? '' : 'none';
 
   document.getElementById('board').style.display = 'none';
@@ -3749,29 +3747,18 @@ async function addComment(){
 let WR_LAST_SAVED = '';
 let WR_PHOTOS = [];   // [{url, name, selected}]
 let WR_LABELS = {};   // file_url -> {section, tag, caption}  (saved in job_photo_labels, set by telling Claude 'image 12 is ...')
-let WR_MODE = 'report';
-async function openWorkReport(mode){
+async function openWorkReport(){
   if(!currentDetailId || !CURRENT_USER) return;
   const j = JOBS.find(x => x.id === currentDetailId); if(!j) return;
-  WR_MODE = (mode === 'quote' && isAdminUser()) ? 'quote' : 'report';
-  const isQ = WR_MODE === 'quote';
-  document.getElementById('wr-title').textContent = isQ ? 'Quotation PDF' : 'Work Report PDF';
-  document.getElementById('wr-text-label').textContent = isQ ? 'Quotation text' : 'Report text';
-  document.getElementById('wr-date-label').textContent = isQ ? 'Date' : 'Date completed';
   document.getElementById('wr-addr').textContent = j.ref + ' - ' + (j.address || '');
   document.getElementById('wr-status').textContent = '';
   const wrd = document.getElementById('wr-date'); if(wrd && !wrd.value){ wrd.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' }); }
   document.getElementById('wr-overlay').style.display = 'flex';
   const ta = document.getElementById('wr-text'); ta.value = '';
   // 1) saved report text for this job (this is where Claude files the formatted report); 2) fallback: newest formal WORK REPORT comment
-  if(isQ){
-    WR_LAST_SAVED = '';
-    const q = await wrBuildQuoteText(j); ta.value = q.text;
-    document.getElementById('wr-status').style.color = q.warn ? '#d97706' : 'var(--muted)'; document.getElementById('wr-status').textContent = q.note;
-  }
-  const { data: saved } = isQ ? { data: null } : await supabaseClient.from('job_work_reports').select('body').eq('job_id', j.id).maybeSingle();
+  const { data: saved } = await supabaseClient.from('job_work_reports').select('body').eq('job_id', j.id).maybeSingle();
   if(saved && saved.body){ ta.value = saved.body; WR_LAST_SAVED = saved.body; }
-  else if(!isQ){
+  else {
     WR_LAST_SAVED = '';
     const { data: cm } = await supabaseClient.from('board_comments').select('message,created_at')
       .eq('job_id', j.id).ilike('message', 'WORK REPORT%').order('created_at', { ascending: false }).limit(10);
@@ -3783,7 +3770,7 @@ async function openWorkReport(mode){
   const seen = new Set(); WR_PHOTOS = [];
   (files || []).filter(f => (f.mime_type || '').startsWith('image/') || (f.mime_type || '').startsWith('video/') || wrIsOutsidePdf(f.mime_type, f.file_name)).forEach(f => {
     if(seen.has(f.file_url)) return; seen.add(f.file_url);
-    WR_PHOTOS.push({ url: f.file_url, name: f.file_name, video: (f.mime_type || '').startsWith('video/'), pdf: wrIsOutsidePdf(f.mime_type, f.file_name), selected: !isQ, _t: wrPhotoTime(f), _u: f.uploaded_at || '' });
+    WR_PHOTOS.push({ url: f.file_url, name: f.file_name, video: (f.mime_type || '').startsWith('video/'), pdf: wrIsOutsidePdf(f.mime_type, f.file_name), selected: true, _t: wrPhotoTime(f), _u: f.uploaded_at || '' });
   });
   // oldest first, newest last. Bulk uploads share one upload time, so the capture time in the file name is used first.
   WR_PHOTOS.sort((a, b) => (a._t - b._t) || String(a._u).localeCompare(String(b._u)));
@@ -3839,43 +3826,8 @@ function wrPhotoTime(f){
   if(m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
   return f.uploaded_at ? Date.parse(f.uploaded_at) : 0;
 }
-/* Quotation PDF: builds the quotation text from the trade's submitted quote (their scope, no trade prices) and OUR approved price. */
-async function wrBuildQuoteText(j){
-  const [rq, fresh] = await Promise.all([
-    supabaseClient.from('quote_requests').select('*').eq('job_id', j.id).eq('status', 'submitted').order('submitted_at', { ascending: false }),
-    supabaseClient.from('jobs').select('title,description,budget').eq('id', j.id).maybeSingle()
-  ]);
-  const jj = Object.assign({}, j, fresh.data || {});
-  const reqs = rq.data || [];
-  const r = reqs[0] || null;
-  let items = [], source = '';
-  if(r && Array.isArray(r.scope) && r.scope.length){
-    const ip = Array.isArray(r.item_prices) ? r.item_prices : [];
-    items = r.scope.map((x, n) => {
-      const bits = [];
-      const t = String(x.title || '').trim(), tx = String(x.text || '').trim();
-      bits.push(t && tx ? t + ' - ' + tx : (t || tx));
-      if(ip[n] && ip[n].plan) bits.push(String(ip[n].plan).trim());
-      return bits.filter(Boolean);
-    }).filter(a => a.length);
-    source = 'Built from ' + (r.responder_name || r.technician) + '\'s submitted quote' + (reqs.length > 1 ? ' (latest of ' + reqs.length + ')' : '') + '. Their prices are not shown.';
-  } else {
-    const sc = qlParseScope(jj.description || '');
-    items = sc.map(x => [String(x.title || '').trim() && String(x.text || '').trim() ? x.title + ' - ' + x.text : (x.title || x.text || '')].filter(Boolean)).filter(a => a.length);
-    source = 'No submitted trade quote on this job, so this is built from the job\'s work required lines.';
-  }
-  let price = null;
-  const m = String(jj.description || '').match(/APPROVED PRICE:\s*£\s*([\d,]+(?:\.\d{1,2})?)/i);
-  if(m) price = Number(m[1].replace(/,/g, ''));
-  else if(jj.budget != null && Number(jj.budget) > 0 && Number(jj.budget) !== 200) price = Number(jj.budget);
-  const title = String(jj.title || '').split(/\s+[-–—]\s+/)[0].replace(/^\s*(quotation|quote)( needed)?\s*/i, '').replace(/\b(approved|follow-?up)\b/ig, '').replace(/\s+/g, ' ').trim().toUpperCase() || 'QUOTATION';
-  let text = 'WORK REPORT - ' + title + '\n\nScope of Works\n' + items.map(a => a.join('\n')).join('\n');
-  if(price != null) text += '\n\nPrice\nThe total cost for the works above is ' + qlMoney(price) + '.';
-  const warn = (price == null);
-  return { text, warn, note: source + (price == null ? ' No approved price found on the job, so add a Price section yourself.' : ' Total is the approved price on the job (' + qlMoney(price) + ').') + ' Edit anything below, then Download or Attach.' };
-}
 async function saveWorkReportText(){
-  if(!currentDetailId || WR_MODE === 'quote') return;
+  if(!currentDetailId) return;
   const v = document.getElementById('wr-text').value;
   if(v === WR_LAST_SAVED || !v.trim()) return;
   const { error } = await supabaseClient.from('job_work_reports').upsert({ job_id: currentDetailId, body: v, updated_at: new Date().toISOString(), updated_by: CURRENT_USER ? CURRENT_USER.name : null });
@@ -3999,13 +3951,13 @@ function toggleWrPhoto(i){
   renderWrPhotos();
 }
 /* Work report file name: "<ticket ID, or first words of the address> <what the job was> Work Report.pdf" */
-function wrFileName(j, isQuote){
+function wrFileName(j){
   let what = String(j.title || '').split(/\s+[-–—]\s+|,|\(|:/)[0]
     .replace(/^\s*(quotation|quote)( needed)?\s*/i, '').replace(/\b(approved|follow-?up)\b/ig, '').replace(/&/g, ' ');
   what = what.split(/\s+/).filter(Boolean).slice(0, 3).join(' ');
   const t = String(j.external_job_id || '').trim();
   const lead = t || String(j.address || '').split(',')[0].trim() || j.ref;
-  return [lead, what, isQuote ? 'Quotation' : 'Work Report'].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim() + '.pdf';
+  return [lead, what, 'Work Report'].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim() + '.pdf';
 }
 /* Video in a work report PDF: a PDF cannot play video, so a video goes in as a still frame with a play button in the middle. */
 async function wrVideoPoster(url){
@@ -4038,9 +3990,9 @@ async function makeWorkReport(mode){
     {
       const dv = (document.getElementById('wr-date') || {}).value;
       const dateStr = dv ? new Date(dv + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-      blob = await window.WorkReport2.makePdf({ kind: WR_MODE === 'quote' ? 'quote' : undefined, address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix], link: (p.video || p.pdf) ? p.url : undefined }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
+      blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix], link: (p.video || p.pdf) ? p.url : undefined }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
     }
-    const fname = wrFileName(j, WR_MODE === 'quote');
+    const fname = wrFileName(j);
     if(mode === 'attach'){
       const filePath = `${j.id}/${Date.now()}_${fname}`;
       const { error: upErr } = await supabaseClient.storage.from('job-files').upload(filePath, blob, { contentType: 'application/pdf' });
@@ -4222,11 +4174,11 @@ init();
 <div id="wr-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 12px;">
   <div style="background:var(--card);color:var(--text);border-radius:12px;max-width:760px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,0.35);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <h2 id="wr-title" style="font-size:1.1rem;font-weight:800;">Work Report PDF</h2>
+      <h2 style="font-size:1.1rem;font-weight:800;">Work Report PDF</h2>
       <button onclick="closeWorkReport()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--muted);">&times;</button>
     </div>
     <div style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;" id="wr-addr"></div>
-    <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);" id="wr-text-label">Report text</label>
+    <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Report text</label>
     <textarea id="wr-text" onblur="saveWorkReportText()" rows="15" style="width:100%;margin:6px 0 4px;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;line-height:1.45;" placeholder="WORK REPORT - TITLE&#10;&#10;Issues Reported&#10;Problem one.&#10;&#10;Work Carried Out&#10;What was done.&#10;&#10;Outcome&#10;Result."></textarea>
     <div style="font-size:0.75rem;color:var(--muted2);margin-bottom:12px;">One line per bullet. The title line starts with WORK REPORT. Section lines: Issues Reported, Work Carried Out, Outcome. Nothing else is added to the report.</div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -4241,7 +4193,7 @@ init();
     <div id="wr-status" style="font-size:0.82rem;min-height:1.2em;margin-bottom:10px;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;margin-bottom:8px;">
-        <span id="wr-date-wrap" style="display:inline-flex;align-items:center;gap:6px;"><label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);" id="wr-date-label">Date completed</label><input type="date" id="wr-date" style="padding:5px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"></span>
+        <span id="wr-date-wrap" style="display:inline-flex;align-items:center;gap:6px;"><label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Date completed</label><input type="date" id="wr-date" style="padding:5px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"></span>
       </div>
       <button class="btn-secondary" id="wr-btn-view" onclick="makeWorkReport('view')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Preview</button>
       <button class="btn-secondary" id="wr-btn-dl" onclick="makeWorkReport('download')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Download PDF</button>
@@ -4504,7 +4456,8 @@ function qlView(id){
       <div><div style="font-size:0.78rem;letter-spacing:.04em;text-transform:uppercase;color:#6b7280;">Quote from</div>
         <div style="font-size:1.6rem;font-weight:800;line-height:1.2;">${escHtml(r.responder_name || r.technician)}</div>
         <div style="color:#6b7280;font-size:0.85rem;margin-top:2px;">${escHtml(r.postcode || '')}${r.title ? ' - ' + escHtml(r.title) : ''}${when ? ' - submitted ' + when : ''}</div></div>
-      <button onclick="qlViewClose()" style="background:#fff;border:1px solid #dfe3e9;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;">Close</button>
+      <span style="display:flex;gap:8px;"><button id="ql-pdf-btn" onclick="qlViewPdf('${r.id}')" style="background:#1f6feb;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;">Download PDF</button>
+      <button onclick="qlViewClose()" style="background:#fff;border:1px solid #dfe3e9;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;">Close</button></span>
     </div>
     <div style="margin:14px 0;background:#fff;border:1px solid #dfe3e9;border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
       <div><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#6b7280;">Total quoted</div><div style="font-size:2rem;font-weight:800;">${qlMoney(r.price)}</div></div>
@@ -4513,6 +4466,102 @@ function qlView(id){
     </div>
     ${rows || '<div style="color:#6b7280;">No scope items.</div>'}`;
   document.getElementById('ql-view-overlay').style.display = 'flex';
+}
+/* Download the submitted quote exactly as it reads in "View full quote": who, total, notes, then each item with photos, videos, their price and what they will do. */
+async function qlPdfImg(url){
+  try {
+    const r = await fetch(url); if(!r.ok) return null;
+    const bm = await createImageBitmap(await r.blob());
+    const k = Math.min(1, 700 / Math.max(bm.width, bm.height));
+    const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(bm.width * k)); cv.height = Math.max(1, Math.round(bm.height * k));
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bm, 0, 0, cv.width, cv.height);
+    return { data: cv.toDataURL('image/jpeg', 0.82), w: cv.width, h: cv.height };
+  } catch(e){ return null; }
+}
+async function qlViewPdf(id){
+  const r = QL && QL.reqs.find(x => x.id === id); if(!r) return;
+  const J = window.jspdf && window.jspdf.jsPDF; if(!J){ alert('PDF library not loaded'); return; }
+  const btn = document.getElementById('ql-pdf-btn'); if(btn){ btn.disabled = true; btn.textContent = 'Building...'; }
+  try {
+    const ip = Array.isArray(r.item_prices) ? r.item_prices : [];
+    const sc = Array.isArray(r.scope) ? r.scope : [];
+    const when = r.submitted_at ? new Date(r.submitted_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const doc = new J({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
+    const W = 595, H = 842, M = 36, CW = W - 2 * M, TXT = [20, 24, 31], GREY = [107, 114, 128], LINE = [223, 227, 233], BLUE = [31, 111, 235];
+    const font = (b, sz, c) => { doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(sz); const cc = c || TXT; doc.setTextColor(cc[0], cc[1], cc[2]); };
+    const wrap = (t, w) => doc.splitTextToSize(String(t || ''), w);
+    let y = M;
+    // header
+    font(true, 8, GREY); doc.text('QUOTE FROM', M, y + 7);
+    font(true, 22, TXT); doc.text(String(r.responder_name || r.technician || ''), M, y + 30);
+    const subTxt = (r.postcode || '') + (r.title ? ' - ' + r.title : '') + (when ? ' - submitted ' + when : '');
+    font(false, 9.5, GREY); wrap(subTxt, CW).forEach((l, i) => doc.text(l, M, y + 46 + i * 12));
+    y += 46 + wrap(subTxt, CW).length * 12 + 10;
+    // total card
+    const noteLines = r.note ? wrap(r.note, CW - 190) : [];
+    const totH = Math.max(52, 30 + noteLines.length * 12 + 14);
+    doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.setLineWidth(0.8); doc.roundedRect(M, y, CW, totH, 7, 7, 'S');
+    font(true, 7.5, GREY); doc.text('TOTAL QUOTED', M + 14, y + 17);
+    font(true, 24, TXT); doc.text(qlMoney(r.price), M + 14, y + 42);
+    if(noteLines.length){ font(true, 7.5, GREY); doc.text('THEIR NOTES', M + 180, y + 17); font(false, 10, TXT); noteLines.forEach((l, i) => doc.text(l, M + 180, y + 31 + i * 12)); }
+    y += totH + 14;
+    // items
+    const LW = 330, RX = M + LW + 24, RW = CW - LW - 24 - 14;
+    for(let n = 0; n < sc.length; n++){
+      const it = sc[n], p = ip[n] || {};
+      const titleL = wrap(it.title || '', LW - 44), textL = wrap(it.text || '', LW - 14);
+      const media = [];
+      for(const u of (it.photos || [])){ const im = await qlPdfImg(u); if(im) media.push({ im, w: 58, h: 76 }); }
+      for(const u of (it.videos || [])){ let im = null; try { im = await qlPdfImg(await wrVideoPoster(u)); } catch(e){} if(im) media.push({ im, w: 98, h: 74 }); }
+      // lay media out in rows inside the left column
+      const rows = []; let row = [], rw = 0;
+      media.forEach(m => { if(row.length && rw + m.w + 6 > LW - 14){ rows.push(row); row = []; rw = 0; } row.push(m); rw += m.w + 6; });
+      if(row.length) rows.push(row);
+      const mediaH = rows.reduce((a, rr) => a + Math.max.apply(null, rr.map(m => m.h)) + 6, 0);
+      const planL = wrap(p.plan || 'Nothing written', RW);
+      const leftH = 14 + titleL.length * 14 + (textL.length ? 6 + textL.length * 12.5 : 0) + (mediaH ? 8 + mediaH : 0) + 8;
+      const rightH = 14 + 10 + 22 + 10 + 12 + planL.length * 12.5 + 8;
+      const cardH = Math.max(leftH, rightH, 60);
+      if(y + cardH > H - M - 14){ doc.addPage(); y = M; }
+      doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.setLineWidth(0.8); doc.roundedRect(M, y, CW, cardH, 7, 7, 'S');
+      doc.line(M + LW + 12, y + 8, M + LW + 12, y + cardH - 8);
+      // left
+      let ly = y + 14;
+      doc.setFillColor(BLUE[0], BLUE[1], BLUE[2]); doc.circle(M + 21, ly + 4, 8.5, 'F');
+      font(true, 8.5, [255, 255, 255]); doc.text(String(n + 1), M + 21, ly + 7, { align: 'center' });
+      font(true, 11, TXT); titleL.forEach((l, i) => doc.text(l, M + 36, ly + 8 + i * 14));
+      ly += titleL.length * 14 + 6;
+      if(textL.length){ font(false, 9.5, [55, 65, 81]); textL.forEach((l, i) => doc.text(l, M + 14, ly + 8 + i * 12.5)); ly += textL.length * 12.5 + 8; }
+      rows.forEach(rr => {
+        let x = M + 14; const rh = Math.max.apply(null, rr.map(m => m.h));
+        rr.forEach(m => {
+          const sc2 = Math.max(m.w / m.im.w, m.h / m.im.h), iw = m.im.w * sc2, ih = m.im.h * sc2;
+          doc.saveGraphicsState(); doc.roundedRect(x, ly, m.w, m.h, 5, 5, null); doc.clip(); doc.discardPath();
+          doc.addImage(m.im.data, 'JPEG', x + (m.w - iw) / 2, ly + (m.h - ih) / 2, iw, ih, undefined, 'FAST'); doc.restoreGraphicsState();
+          x += m.w + 6;
+        });
+        ly += rh + 6;
+      });
+      // right
+      let ry = y + 14;
+      font(true, 7.5, GREY); doc.text('THEIR PRICE', RX, ry + 6);
+      font(true, 16, TXT); if(p.price != null) doc.text(qlMoney(p.price), RX, ry + 26); else { font(false, 10, [156, 163, 175]); doc.text('not priced', RX, ry + 24); }
+      ry += 42;
+      font(true, 7.5, GREY); doc.text('WHAT THEY WILL DO', RX, ry + 6);
+      font(false, 9.5, p.plan ? TXT : [156, 163, 175]); planL.forEach((l, i) => doc.text(l, RX, ry + 20 + i * 12.5));
+      y += cardH + 10;
+    }
+    if(!sc.length){ font(false, 10, GREY); doc.text('No scope items.', M, y + 10); }
+    const pages = doc.getNumberOfPages();
+    for(let i = 1; i <= pages; i++){ doc.setPage(i); font(false, 8, GREY); doc.text('Fix & Go Ltd  |  ' + i + ' / ' + pages, W / 2, H - 18, { align: 'center' }); }
+    const j = QL.job || {};
+    const lead = String(j.external_job_id || '').trim() || String(j.address || '').split(',')[0].trim() || j.ref || 'Job';
+    const fname = (lead + ' ' + (r.responder_name || r.technician || 'Technician') + ' Quote.pdf').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
+    const u = URL.createObjectURL(doc.output('blob'));
+    const a = document.createElement('a'); a.href = u; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 60000);
+  } catch(e){ alert('Could not build the PDF: ' + e.message); }
+  if(btn){ btn.disabled = false; btn.textContent = 'Download PDF'; }
 }
 async function qlReopen(id){
   const r = QL.reqs.find(x => x.id === id); if(!r) return;
