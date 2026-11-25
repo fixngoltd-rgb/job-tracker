@@ -721,6 +721,7 @@ html[data-theme="dark"] [style*="color:#1f2937"], html[data-theme="dark"] [style
         <div class="ref" id="d-ref"></div>
         <h2 id="d-title"></h2>
         <button id="wr-open-btn" onclick="openWorkReport()" style="display:none;margin-top:10px;background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;">&#128196; Work Report PDF</button>
+        <button id="qp-open-btn" onclick="openWorkReport('quote')" style="display:none;margin-top:10px;margin-left:6px;background:#0f766e;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;">&#128203; Quotation PDF</button>
         <button id="ql-open-btn" onclick="openQuoteLinks()" style="display:none;margin-top:10px;margin-left:6px;background:#0f766e;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;">&#128279; Quote link</button>
       </div>
 
@@ -2276,6 +2277,7 @@ function openDetail(id){
   renderLinkedJobs(j);
   loadEmailLink(j);
   const wrBtn = document.getElementById('wr-open-btn'); if(wrBtn) wrBtn.style.display = CURRENT_USER ? '' : 'none';
+  const qpBtn = document.getElementById('qp-open-btn'); if(qpBtn) qpBtn.style.display = isAdminUser() ? '' : 'none';
   const qlBtn = document.getElementById('ql-open-btn'); if(qlBtn) qlBtn.style.display = isAdminUser() ? '' : 'none';
 
   document.getElementById('board').style.display = 'none';
@@ -3747,18 +3749,29 @@ async function addComment(){
 let WR_LAST_SAVED = '';
 let WR_PHOTOS = [];   // [{url, name, selected}]
 let WR_LABELS = {};   // file_url -> {section, tag, caption}  (saved in job_photo_labels, set by telling Claude 'image 12 is ...')
-async function openWorkReport(){
+let WR_MODE = 'report';
+async function openWorkReport(mode){
   if(!currentDetailId || !CURRENT_USER) return;
   const j = JOBS.find(x => x.id === currentDetailId); if(!j) return;
+  WR_MODE = (mode === 'quote' && isAdminUser()) ? 'quote' : 'report';
+  const isQ = WR_MODE === 'quote';
+  document.getElementById('wr-title').textContent = isQ ? 'Quotation PDF' : 'Work Report PDF';
+  document.getElementById('wr-text-label').textContent = isQ ? 'Quotation text' : 'Report text';
+  document.getElementById('wr-date-label').textContent = isQ ? 'Date' : 'Date completed';
   document.getElementById('wr-addr').textContent = j.ref + ' - ' + (j.address || '');
   document.getElementById('wr-status').textContent = '';
   const wrd = document.getElementById('wr-date'); if(wrd && !wrd.value){ wrd.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' }); }
   document.getElementById('wr-overlay').style.display = 'flex';
   const ta = document.getElementById('wr-text'); ta.value = '';
   // 1) saved report text for this job (this is where Claude files the formatted report); 2) fallback: newest formal WORK REPORT comment
-  const { data: saved } = await supabaseClient.from('job_work_reports').select('body').eq('job_id', j.id).maybeSingle();
+  if(isQ){
+    WR_LAST_SAVED = '';
+    const q = await wrBuildQuoteText(j); ta.value = q.text;
+    document.getElementById('wr-status').style.color = q.warn ? '#d97706' : 'var(--muted)'; document.getElementById('wr-status').textContent = q.note;
+  }
+  const { data: saved } = isQ ? { data: null } : await supabaseClient.from('job_work_reports').select('body').eq('job_id', j.id).maybeSingle();
   if(saved && saved.body){ ta.value = saved.body; WR_LAST_SAVED = saved.body; }
-  else {
+  else if(!isQ){
     WR_LAST_SAVED = '';
     const { data: cm } = await supabaseClient.from('board_comments').select('message,created_at')
       .eq('job_id', j.id).ilike('message', 'WORK REPORT%').order('created_at', { ascending: false }).limit(10);
@@ -3770,7 +3783,7 @@ async function openWorkReport(){
   const seen = new Set(); WR_PHOTOS = [];
   (files || []).filter(f => (f.mime_type || '').startsWith('image/') || (f.mime_type || '').startsWith('video/') || wrIsOutsidePdf(f.mime_type, f.file_name)).forEach(f => {
     if(seen.has(f.file_url)) return; seen.add(f.file_url);
-    WR_PHOTOS.push({ url: f.file_url, name: f.file_name, video: (f.mime_type || '').startsWith('video/'), pdf: wrIsOutsidePdf(f.mime_type, f.file_name), selected: true, _t: wrPhotoTime(f), _u: f.uploaded_at || '' });
+    WR_PHOTOS.push({ url: f.file_url, name: f.file_name, video: (f.mime_type || '').startsWith('video/'), pdf: wrIsOutsidePdf(f.mime_type, f.file_name), selected: !isQ, _t: wrPhotoTime(f), _u: f.uploaded_at || '' });
   });
   // oldest first, newest last. Bulk uploads share one upload time, so the capture time in the file name is used first.
   WR_PHOTOS.sort((a, b) => (a._t - b._t) || String(a._u).localeCompare(String(b._u)));
@@ -3826,8 +3839,43 @@ function wrPhotoTime(f){
   if(m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
   return f.uploaded_at ? Date.parse(f.uploaded_at) : 0;
 }
+/* Quotation PDF: builds the quotation text from the trade's submitted quote (their scope, no trade prices) and OUR approved price. */
+async function wrBuildQuoteText(j){
+  const [rq, fresh] = await Promise.all([
+    supabaseClient.from('quote_requests').select('*').eq('job_id', j.id).eq('status', 'submitted').order('submitted_at', { ascending: false }),
+    supabaseClient.from('jobs').select('title,description,budget').eq('id', j.id).maybeSingle()
+  ]);
+  const jj = Object.assign({}, j, fresh.data || {});
+  const reqs = rq.data || [];
+  const r = reqs[0] || null;
+  let items = [], source = '';
+  if(r && Array.isArray(r.scope) && r.scope.length){
+    const ip = Array.isArray(r.item_prices) ? r.item_prices : [];
+    items = r.scope.map((x, n) => {
+      const bits = [];
+      const t = String(x.title || '').trim(), tx = String(x.text || '').trim();
+      bits.push(t && tx ? t + ' - ' + tx : (t || tx));
+      if(ip[n] && ip[n].plan) bits.push(String(ip[n].plan).trim());
+      return bits.filter(Boolean);
+    }).filter(a => a.length);
+    source = 'Built from ' + (r.responder_name || r.technician) + '\'s submitted quote' + (reqs.length > 1 ? ' (latest of ' + reqs.length + ')' : '') + '. Their prices are not shown.';
+  } else {
+    const sc = qlParseScope(jj.description || '');
+    items = sc.map(x => [String(x.title || '').trim() && String(x.text || '').trim() ? x.title + ' - ' + x.text : (x.title || x.text || '')].filter(Boolean)).filter(a => a.length);
+    source = 'No submitted trade quote on this job, so this is built from the job\'s work required lines.';
+  }
+  let price = null;
+  const m = String(jj.description || '').match(/APPROVED PRICE:\s*£\s*([\d,]+(?:\.\d{1,2})?)/i);
+  if(m) price = Number(m[1].replace(/,/g, ''));
+  else if(jj.budget != null && Number(jj.budget) > 0 && Number(jj.budget) !== 200) price = Number(jj.budget);
+  const title = String(jj.title || '').split(/\s+[-–—]\s+/)[0].replace(/^\s*(quotation|quote)( needed)?\s*/i, '').replace(/\b(approved|follow-?up)\b/ig, '').replace(/\s+/g, ' ').trim().toUpperCase() || 'QUOTATION';
+  let text = 'WORK REPORT - ' + title + '\n\nScope of Works\n' + items.map(a => a.join('\n')).join('\n');
+  if(price != null) text += '\n\nPrice\nThe total cost for the works above is ' + qlMoney(price) + '.';
+  const warn = (price == null);
+  return { text, warn, note: source + (price == null ? ' No approved price found on the job, so add a Price section yourself.' : ' Total is the approved price on the job (' + qlMoney(price) + ').') + ' Edit anything below, then Download or Attach.' };
+}
 async function saveWorkReportText(){
-  if(!currentDetailId) return;
+  if(!currentDetailId || WR_MODE === 'quote') return;
   const v = document.getElementById('wr-text').value;
   if(v === WR_LAST_SAVED || !v.trim()) return;
   const { error } = await supabaseClient.from('job_work_reports').upsert({ job_id: currentDetailId, body: v, updated_at: new Date().toISOString(), updated_by: CURRENT_USER ? CURRENT_USER.name : null });
@@ -3951,13 +3999,13 @@ function toggleWrPhoto(i){
   renderWrPhotos();
 }
 /* Work report file name: "<ticket ID, or first words of the address> <what the job was> Work Report.pdf" */
-function wrFileName(j){
+function wrFileName(j, isQuote){
   let what = String(j.title || '').split(/\s+[-–—]\s+|,|\(|:/)[0]
     .replace(/^\s*(quotation|quote)( needed)?\s*/i, '').replace(/\b(approved|follow-?up)\b/ig, '').replace(/&/g, ' ');
   what = what.split(/\s+/).filter(Boolean).slice(0, 3).join(' ');
   const t = String(j.external_job_id || '').trim();
   const lead = t || String(j.address || '').split(',')[0].trim() || j.ref;
-  return [lead, what, 'Work Report'].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim() + '.pdf';
+  return [lead, what, isQuote ? 'Quotation' : 'Work Report'].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim() + '.pdf';
 }
 /* Video in a work report PDF: a PDF cannot play video, so a video goes in as a still frame with a play button in the middle. */
 async function wrVideoPoster(url){
@@ -3990,9 +4038,9 @@ async function makeWorkReport(mode){
     {
       const dv = (document.getElementById('wr-date') || {}).value;
       const dateStr = dv ? new Date(dv + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-      blob = await window.WorkReport2.makePdf({ address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix], link: (p.video || p.pdf) ? p.url : undefined }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
+      blob = await window.WorkReport2.makePdf({ kind: WR_MODE === 'quote' ? 'quote' : undefined, address: j.address, text: document.getElementById('wr-text').value, date: dateStr, photos: sel.map((p, ix) => Object.assign({ url: srcs[ix], link: (p.video || p.pdf) ? p.url : undefined }, WR_LABELS[p.url] ? { section: WR_LABELS[p.url].section || undefined, tag: WR_LABELS[p.url].tag || undefined, caption: WR_LABELS[p.url].caption || undefined } : {})) });
     }
-    const fname = wrFileName(j);
+    const fname = wrFileName(j, WR_MODE === 'quote');
     if(mode === 'attach'){
       const filePath = `${j.id}/${Date.now()}_${fname}`;
       const { error: upErr } = await supabaseClient.storage.from('job-files').upload(filePath, blob, { contentType: 'application/pdf' });
@@ -4174,11 +4222,11 @@ init();
 <div id="wr-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 12px;">
   <div style="background:var(--card);color:var(--text);border-radius:12px;max-width:760px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,0.35);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <h2 style="font-size:1.1rem;font-weight:800;">Work Report PDF</h2>
+      <h2 id="wr-title" style="font-size:1.1rem;font-weight:800;">Work Report PDF</h2>
       <button onclick="closeWorkReport()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--muted);">&times;</button>
     </div>
     <div style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;" id="wr-addr"></div>
-    <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Report text</label>
+    <label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);" id="wr-text-label">Report text</label>
     <textarea id="wr-text" onblur="saveWorkReportText()" rows="15" style="width:100%;margin:6px 0 4px;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;line-height:1.45;" placeholder="WORK REPORT - TITLE&#10;&#10;Issues Reported&#10;Problem one.&#10;&#10;Work Carried Out&#10;What was done.&#10;&#10;Outcome&#10;Result."></textarea>
     <div style="font-size:0.75rem;color:var(--muted2);margin-bottom:12px;">One line per bullet. The title line starts with WORK REPORT. Section lines: Issues Reported, Work Carried Out, Outcome. Nothing else is added to the report.</div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -4193,7 +4241,7 @@ init();
     <div id="wr-status" style="font-size:0.82rem;min-height:1.2em;margin-bottom:10px;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;margin-bottom:8px;">
-        <span id="wr-date-wrap" style="display:inline-flex;align-items:center;gap:6px;"><label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);">Date completed</label><input type="date" id="wr-date" style="padding:5px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"></span>
+        <span id="wr-date-wrap" style="display:inline-flex;align-items:center;gap:6px;"><label style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);" id="wr-date-label">Date completed</label><input type="date" id="wr-date" style="padding:5px 8px;border-radius:7px;border:1px solid var(--border);font-family:'Inter',sans-serif;font-size:0.82rem;"></span>
       </div>
       <button class="btn-secondary" id="wr-btn-view" onclick="makeWorkReport('view')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Preview</button>
       <button class="btn-secondary" id="wr-btn-dl" onclick="makeWorkReport('download')" style="padding:9px 16px;border-radius:7px;font-weight:700;cursor:pointer;">Download PDF</button>
