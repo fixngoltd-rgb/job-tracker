@@ -1611,7 +1611,7 @@ function ukParts(iso){
 function ukDate(iso){ const p = ukParts(iso); return p ? p.date : ''; }
 // time pickers: half-hour steps only (value stays HH:MM so the rest of the code is unchanged)
 function timeOptsHtml(){
-  const groups = [['Night (12 AM - 5:30 AM)', 0, 12], ['Morning (6 AM - 11:30 AM)', 12, 24], ['Afternoon (12 PM - 4:30 PM)', 24, 33], ['Evening (5 PM - 11:30 PM)', 33, 48]];
+  const groups = [['Morning (6 AM - 11:30 AM)', 12, 24], ['Afternoon (12 PM - 4:30 PM)', 24, 34], ['Evening (5 PM - 9:30 PM)', 34, 44]];
   let h = '<option value="">--:-- --</option>';
   groups.forEach(g => { h += '<optgroup label="' + g[0] + '">'; for(let i = g[1]; i < g[2]; i++){ const v = String(Math.floor(i / 2)).padStart(2, '0') + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + v + '">' + fmt12(v) + '</option>'; } h += '</optgroup>'; });
   return h;
